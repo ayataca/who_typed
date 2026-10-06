@@ -7,17 +7,6 @@ node server.mjs
 Chrome で http://localhost:8787 を開く（全画面表示を推奨）。
 ホスト用パネルの「X投稿:」に、現在の投稿モード（模擬／本番）が表示されます。
 
-## Xへ実際に投稿するための準備
-1. https://developer.x.com で開発者アカウントを作り、アプリ（Project / App）を作成する
-2. アプリの「User authentication settings」で、権限（App permissions）を **Read and write** にする
-3. 「Keys and tokens」で次の4つを取得する
-   - API Key / API Key Secret（Consumer Keys）
-   - Access Token / Access Token Secret（**権限を Read and write にした後で**発行すること。先に発行したものは読み取り専用のまま）
-4. 従量課金のクレジットを購入しておく（2026年時点で無料枠はなく、投稿1件あたり約 $0.015。リンクを含む投稿は高額になるため、本文にURLは入れていません）
-5. `.env.example` を `.env` という名前でコピーし、4つの値と `X_HANDLE`（展示用アカウント名）を入れる
-6. まず `DRY_RUN=1` のまま通しで動かし、ホスト用パネルに「模擬投稿」と出ることを確認する
-7. 本番では `DRY_RUN=0` にしてサーバーを起動し直す
-
 ## 投稿の内容
 - 本文：`【来場者の声】★☆☆☆☆` と、展示アンケート2の率直な感想
 - 画像：感想入力の直後に、Webカメラで撮影した手元写真1枚
