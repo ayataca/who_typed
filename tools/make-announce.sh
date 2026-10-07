@@ -8,8 +8,8 @@
 set -e
 cd "${0:A:h}/.."
 RATE=${RATE:-190}   # 1分あたりの語数。小さいほどゆっくり
-PLACE='それでは、はじめます。[[slnc 450]] キーボードの上に、[[slnc 150]] 両手の指を、置いてください。'
-WAIT='指を、離さずに、[[slnc 200]] キーボードではなく、[[slnc 120]] 画面を、ご覧ください。'
+PLACE='それでは、はじめます。[[slnc 300]] キーボードの上に両手の指を置いてください。'
+WAIT='指を離さずに、キーボードではなく、画面を ご覧ください。'
 render(){ # voice name outfile text
   local tmp=$(mktemp -t announce).aiff
   if [[ $1 == system ]]; then say -r $RATE -o $tmp "$3"; else say -v "$1" -r $RATE -o $tmp "$3"; fi

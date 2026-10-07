@@ -52,6 +52,7 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
     <section class="stage" id="stage"></section>
   </main>
   <div class="row" style="margin-top:12px"><button class="op" id="pauseBtn" disabled>一時停止</button><span class="status" id="playStatus">開始待ち</span></div>
+  <div class="row" style="margin-top:10px"><span class="status">シーン</span><input type="range" id="seek" min="0" max="13" step="1" value="0" style="flex:1" aria-label="シーン移動"><span class="status" id="seekLabel" style="min-width:12em">0 / 13 準備</span></div>
   <details class="operator" open>
     <summary>host / hardware</summary>
     <div class="ops">
@@ -117,8 +118,8 @@ const CONFIG={
   voice:{rate:1.0,pitch:1.0,preferred:['Kyoko','O-ren','Otoya','Google 日本語','Nanami','Haruka']},
   // audio の音声ファイル（macOSの音声で書き出し済み）を再生する。読み込めない場合だけブラウザの読み上げを使う
   announce:{
-    place:{text:'それでは、はじめます。キーボードの上に、両手の指を置いてください。',audio:'audio/announce-place.wav'},
-    wait:{text:'指を離さずに、キーボードではなく、画面をご覧ください。',audio:'audio/announce-wait.wav'}
+    place:{text:'それでは、はじめます。キーボードの上に両手の指を置いてください。',audio:'audio/announce-place.wav'},
+    wait:{text:'指を離さずに、キーボードではなく画面をご覧ください。',audio:'audio/announce-wait.wav'}
   }
 };
 // 文章は「/」で文節に区切り、漢字は [表記|よみ] で書く。文節の入力が終わった打鍵で自動変換される
@@ -144,9 +145,10 @@ const TEXT={
 };
 const TOTAL=13;
 const $=id=>document.getElementById(id),stage=$('stage'),sceneLabel=$('sceneLabel'),progress=$('progress'),vol=$('vol');
+const CANCEL=Symbol('cancel'),cancelers=new Set();
 let sessionId='',postAbort=null,lastPostId=null,paused=false,running=false,publishAllowed=true,stream=null,capturedImage='',rating=1,review='',impression='',audioCtx,noise;
-const waits=new Set(),pauseBtn=$('pauseBtn'),playStatus=$('playStatus');
-function sleep(ms){return new Promise(resolve=>{const x={left:ms,start:0,timer:null,resolve};waits.add(x);if(!paused)arm(x)})}
+const seekEl=$('seek'),seekLabel=$('seekLabel'),waits=new Set(),pauseBtn=$('pauseBtn'),playStatus=$('playStatus');
+function sleep(ms){return new Promise((resolve,reject)=>{const x={left:ms,start:0,timer:null,resolve,reject};waits.add(x);if(!paused)arm(x)})}
 function arm(x){x.start=performance.now();x.timer=setTimeout(()=>{waits.delete(x);x.resolve()},x.left)}
 function setPaused(v){if(!running||paused===v)return;paused=v;if(v){for(const x of waits){clearTimeout(x.timer);x.left=Math.max(0,x.left-(performance.now()-x.start))}releaseAll()}else for(const x of waits)arm(x);pauseVoice(v);pauseBtn.textContent=v?'再開':'一時停止';playStatus.textContent=v?'一時停止中':'再生中'}
 pauseBtn.onclick=()=>setPaused(!paused);
@@ -161,7 +163,7 @@ function phraseBreak(text){if(!SEG||!text)return text;const parts=[...SEG.segmen
   out+=w}
  return out}
 function breakStage(root){const tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement.closest('.field,.post-text,svg,script')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});const ns=[];while(tw.nextNode())ns.push(tw.currentNode);for(const n of ns)n.data=phraseBreak(n.data)}
-function show(n,title,html,cls=''){sceneLabel.textContent=title;progress.textContent=n+' / '+TOTAL;stage.innerHTML='<div class="card '+cls+'">'+html+'</div>';stage.querySelectorAll('.primary').forEach(b=>b.insertAdjacentHTML('beforeend',fingerMini('Enter')));breakStage(stage)}
+function show(n,title,html,cls=''){sceneLabel.textContent=title;progress.textContent=n+' / '+TOTAL;seekEl.value=n;seekLabel.textContent=n+' / '+TOTAL+' '+title;stage.innerHTML='<div class="card '+cls+'">'+html+'</div>';stage.querySelectorAll('.primary').forEach(b=>b.insertAdjacentHTML('beforeend',fingerMini('Enter')));breakStage(stage)}
 function audio(){if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();const n=Math.floor(audioCtx.sampleRate*.05);noise=audioCtx.createBuffer(1,n,audioCtx.sampleRate);const d=noise.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2)}if(audioCtx.state==='suspended')audioCtx.resume()}
 function sound(kind='key'){audio();const v=+vol.value/100;if(!v)return;const t=audioCtx.currentTime,s=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();s.buffer=noise;f.type='bandpass';f.frequency.value=kind==='back'?900:kind==='enter'?1450:kind==='space'?1050:1100+Math.random()*190;f.Q.value=.8;s.connect(f);f.connect(g);g.connect(audioCtx.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v*.16,t+.003);g.gain.exponentialRampToValueAtTime(.0001,t+.043);s.start();s.stop(t+.06)}
 
@@ -170,9 +172,10 @@ const voiceSel=$('voiceSel'),voiceVol=$('voiceVol');let voices=[],speaking=null;
 function loadVoices(){if(!('speechSynthesis'in window)){voiceSel.innerHTML='<option>読み上げ非対応</option>';return}const prev=voiceSel.value;voices=speechSynthesis.getVoices().filter(v=>/^ja/i.test(v.lang));if(!voices.length){voiceSel.innerHTML='<option value="">日本語音声なし</option>';return}voiceSel.innerHTML=voices.map((v,i)=>`<option value="${i}">${v.name}</option>`).join('');if(prev&&voices[+prev])voiceSel.value=prev;else{const i=voices.findIndex(v=>CONFIG.voice.preferred.some(p=>v.name.includes(p)));voiceSel.value=String(Math.max(0,i))}}
 if('speechSynthesis'in window){speechSynthesis.onvoiceschanged=loadVoices}loadVoices();
 function speakTTS(text,done){if(!('speechSynthesis'in window)){done();return}speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ja-JP';const v=voices[+voiceSel.value];if(v)u.voice=v;u.rate=CONFIG.voice.rate;u.pitch=CONFIG.voice.pitch;u.volume=+voiceVol.value/100;let finished=false;const guard=setTimeout(()=>fin(),5000+text.length*350);function fin(){if(finished)return;finished=true;clearTimeout(guard);done()}u.onend=fin;u.onerror=fin;speaking={utter:u};speechSynthesis.speak(u)}
-function announce(item){return new Promise(resolve=>{const done=()=>{speaking=null;resolve()};if(item.audio){const a=new Audio(item.audio);a.volume=+voiceVol.value/100;speaking={audio:a};a.onended=done;a.onerror=()=>speakTTS(item.text,done);a.play().catch(()=>speakTTS(item.text,done));return}speakTTS(item.text,done)})}
+function stopVoice(){if(speaking?.audio){speaking.audio.onended=speaking.audio.onerror=null;speaking.audio.pause()}if('speechSynthesis'in window)speechSynthesis.cancel();speaking=null}
+function announce(item){return new Promise((resolve,reject)=>{let dead=false;const x={reject:()=>{dead=true;stopVoice();reject(CANCEL)}};cancelers.add(x);const done=()=>{if(dead)return;cancelers.delete(x);speaking=null;resolve()};if(item.audio){const a=new Audio(item.audio);a.volume=+voiceVol.value/100;speaking={audio:a};a.onended=done;a.onerror=()=>speakTTS(item.text,done);a.play().catch(()=>{if(!dead)speakTTS(item.text,done)});return}speakTTS(item.text,done)})}
 function pauseVoice(v){if(!speaking)return;if(speaking.audio){v?speaking.audio.pause():speaking.audio.play().catch(()=>{})}else if('speechSynthesis'in window){v?speechSynthesis.pause():speechSynthesis.resume()}}
-$('voiceTest').onclick=()=>{if(!running)announce(CONFIG.announce.place)};
+$('voiceTest').onclick=()=>{if(!running)announce(CONFIG.announce.place).catch(()=>{})};
 
 // ---- キー配置 ----
 const keyMap={},L={pinky:'qaz',ring:'wsx',middle:'edc',index:'rtfgvb'},R={index:'yuhjnm',middle:'ik,',ring:'ol.',pinky:'p;/'};
@@ -311,30 +314,56 @@ async function submitPost(text){
  finally{clearTimeout(timer);postAbort=null}}
 $('deletePost').onclick=async()=>{if(!lastPostId||!confirm('直前の投稿をXから削除しますか？'))return;const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:lastPostId})}).then(r=>r.json()).catch(e=>({ok:false,error:e.message}));$('postResult').textContent=r.ok?'投稿を削除しました。':'削除失敗：'+r.error;if(r.ok){lastPostId=null;$('deletePost').disabled=true}};
 if(CONFIG.postEndpoint)fetch('/api/status').then(r=>r.json()).then(st=>{if(st.handle&&st.handle!=='@'){CONFIG.xHandle=st.handle;CONFIG.xAccountUrl='https://x.com/'+st.handle.slice(1)}$('xStatus').textContent='X投稿: '+(st.dryRun?(st.configured?'模擬（DRY_RUN=1）':'模擬（.env に鍵が未設定）'):'本番 '+st.handle)}).catch(()=>{$('xStatus').textContent='X投稿: サーバーに接続できません'});else $('xStatus').textContent='X投稿: 模擬（file:// で開いています。node server.mjs で起動してください）';
-async function run(){
+async function run(from=0){
+ let posts;
+ if(!impression)impression=plain(pick(TEXT.usability));if(!review)review=plain(pick(TEXT.review1));
+ const S=[async()=>{
  show(0,'準備',`<div class="eyebrow">体験を開始します</div><h1>キーボードの上に、<br>両手の指を置いてください。</h1>`);await sleep(400);await announce(CONFIG.announce.place);await sleep(3500);
  show(0,'準備',`<div class="eyebrow">体験を開始します</div><h1>指を離さずに、<br>画面をご覧ください。</h1><p class="lead">キーボードではなく、画面を見ながらお待ちください。</p>`);await announce(CONFIG.announce.wait);await sleep(1500);
+},async()=>{
  await deviceCheck(1);
+},async()=>{
  await textQuestion(2,'ご協力のお願い','アンケートについて','アンケートへのご協力のお願い',TEXT.consent,{lead:'<div class="terms">本アンケートは、展示の運営改善および広報のために実施します。<br><b>体験中に撮影したあなたの写真を、回答内容とともに公開します。</b></div><p class="lead">上記に同意いただける場合は、「同意します」とご入力ください。</p>',readMs:5500,typos:false});
+},async()=>{
  await textQuestion(3,'ご来場について','来場者アンケート 1','本日の展示で、楽しみにしていることがあればお書きください。',TEXT.expect,{size:'mid'});
+},async()=>{
  const usabilitySrc=pick(TEXT.usability);impression=plain(usabilitySrc);
  await textQuestion(4,'使い心地','来場者アンケート 2','ここまで、キーボードを使ってみた感想をお聞かせください。',usabilitySrc,{size:'mid'});
+},async()=>{
  await choiceQuestion(5,'スタッフの対応','来場者アンケート 3','本日のスタッフの対応はいかがでしたか？',[['満足','A'],['やや満足','S'],['普通','D'],['やや不満','F'],['不満','J']],'不満');
+},async()=>{
  await textQuestion(6,'スタッフの対応','来場者アンケート 4','そのように感じた理由をお聞かせください。',TEXT.complaint,{size:'',button:'回答を送信'});
+},async()=>{
  show(7,'送信中',`<div class="center"><div class="spinner"></div><h1 id="loadingText">回答を送信しています…</h1><p class="lead">そのままお待ちください。</p></div>`);await sleep(CONFIG.venueReplyDelayMs*.45);$('loadingText').textContent='担当者が内容を確認しています…';await sleep(CONFIG.venueReplyDelayMs*.55);
  show(7,'主催者からの返信',`<div class="reply"><div class="bow">${BOW_SVG}</div><div><div class="eyebrow">主催者からの返信</div><div class="response">スタッフの対応でご不便をおかけし、申し訳ございません。いただいたご意見はスタッフ間で共有し、改善いたします。</div></div></div>`);await sleep(CONFIG.readMs+1500);
+},async()=>{
  show(8,'展示アンケート',`<div class="center"><div class="xmark">${XSVG}</div><div class="eyebrow">展示アンケート</div><h1>ここからは、本展についてのアンケートです。</h1><p class="lead">いただいたご感想は、展示用Xアカウント <b>${CONFIG.xHandle}</b> で<br><b>実際に投稿されます</b>。</p></div><div class="action"><button class="primary" id="send">次へ</button></div>`);await sleep(CONFIG.noticeMs);await pressEnter($('send'));
+},async()=>{
  show(9,'展示の評価',`<div class="eyebrow">展示アンケート 1</div><h1>本展の満足度をお選びください。</h1>${keyRow([1,2,3,4,5].map(n=>({key:['a','s','d','f','j'][n-1],html:`<button class="star" data-star="${n}">★<small>${n}</small></button>`})))}<div class="action"><button class="primary" id="send">次へ</button></div>`);await sleep(3000);await stroke('j');stage.querySelector('[data-star="5"]').classList.add('selected');await sleep(rand(...CONFIG.starChangeMs));rating=1;await stroke('a',()=>{stage.querySelector('[data-star="5"]').classList.remove('selected');stage.querySelector('[data-star="1"]').classList.add('selected')});await sleep(rand(900,1300));await pressEnter($('send'));
+},async()=>{
  const reviewSrc=pick(TEXT.review1);review=plain(reviewSrc);
- await textQuestion(10,'展示の感想','展示アンケート 2','本展について、率直なご感想をお聞かせください。',reviewSrc,{size:'mid',button:'送信',beforeSend:async()=>{capturedImage=await capture()}});
- const posts=buildPosts();show(11,'掲載内容の確認',`<div class="eyebrow">投稿プレビュー</div><h1>以下の内容を掲載させていただきます。</h1><div class="thread">${tweetHTML(posts[0],capturedImage)}</div><div class="action center"><button class="primary" id="permit">掲載を許可する</button></div>`,'compact');stage.querySelectorAll('.post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));await sleep(CONFIG.previewMs);await pressEnter($('permit'));
- show(12,'公開中',`<div class="posting"><div><div class="spinner" id="postSpin" style="margin:0 0 30px"></div><div class="eyebrow">投稿を処理しています</div><h1 id="postingText">展示用アカウントへ投稿しています…</h1><p class="lead">そのままお待ちください。</p></div><figure class="face" id="face" style="margin:0"><img src="${CONFIG.facePhotoUrl||DUMMY_FACE}" alt=""><small>${new Date().toLocaleString('ja-JP',{dateStyle:'short',timeStyle:'short'})} 撮影</small></figure></div>`);setTimeout(()=>$('face')?.classList.add('show'),CONFIG.faceShowMs);const wantPost=publishAllowed&&$('publicSession').checked;
+ await textQuestion(10,'展示の感想','展示アンケート 2','本展について、率直なご感想をお聞かせください。',reviewSrc,{size:'mid',button:'送信',beforeSend:async()=>{const g=gen,img=await capture();if(g!==gen)throw CANCEL;capturedImage=img}});
+},async()=>{
+ posts=buildPosts();show(11,'掲載内容の確認',`<div class="eyebrow">投稿プレビュー</div><h1>以下の内容を掲載させていただきます。</h1><div class="thread">${tweetHTML(posts[0],capturedImage)}</div><div class="action center"><button class="primary" id="permit">掲載を許可する</button></div>`,'compact');stage.querySelectorAll('.post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));await sleep(CONFIG.previewMs);await pressEnter($('permit'));
+},async()=>{
+ posts=posts||buildPosts();
+ show(12,'公開中',`<div class="posting"><div><div class="spinner" id="postSpin" style="margin:0 0 30px"></div><div class="eyebrow">投稿を処理しています</div><h1 id="postingText">展示用アカウントへ投稿しています…</h1><p class="lead">そのままお待ちください。</p></div><figure class="face" id="face" style="margin:0"><img src="${CONFIG.facePhotoUrl||DUMMY_FACE}" alt=""><small>${new Date().toLocaleString('ja-JP',{dateStyle:'short',timeStyle:'short'})} 撮影</small></figure></div>`);setTimeout(()=>$('face')?.classList.add('show'),CONFIG.faceShowMs);seekEl.disabled=true;const wantPost=publishAllowed&&$('publicSession').checked;
  const postJob=wantPost?submitPost(posts[0]):Promise.resolve(false);if(!wantPost)showPostResult({ok:false,error:'公開しないセッション'});
- await sleep(CONFIG.postingMs);const posted=await postJob;$('postSpin')?.remove();
+ await sleep(CONFIG.postingMs);const posted=await postJob;seekEl.disabled=false;$('postSpin')?.remove();
  $('postingText').textContent=wantPost&&publishAllowed?(posted?'投稿が完了しました。':'投稿を完了できませんでした。スタッフにお声がけください。'):'このセッションは公開されません。';await sleep(2400);
+},async()=>{
  const url=CONFIG.xAccountUrl;show(13,'終了',`<div class="center"><div class="eyebrow">ご協力ありがとうございました</div><h1>来場者の声はこちらからご覧いただけます。</h1><img class="qr" alt="展示用XアカウントのQRコード" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}"><a class="final-link" href="${url}" target="_blank" rel="noopener">${url}</a></div>`);playStatus.textContent='終了';
+}];
+ for(let i=from;i<S.length;i++)await S[i]();
 }
-async function start(){if(running)return;if(!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';return}running=true;paused=false;publishAllowed=true;sessionId=(crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2));pauseBtn.disabled=false;$('startBtn').disabled=true;hardwareUI();playStatus.textContent='再生中';audio();try{await run()}catch(e){console.error(e);playStatus.textContent='エラー: '+e.message}finally{running=false;pauseBtn.disabled=true;releaseAll();hardwareUI()}}
+let gen=0;
+function cancelAll(){for(const x of waits){clearTimeout(x.timer);x.reject(CANCEL)}waits.clear();for(const x of [...cancelers])x.reject();cancelers.clear();fingerReady.clear();releaseAll()}
+async function play(from){const g=++gen;cancelAll();if(!sessionId)sessionId=(crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2));running=true;paused=false;pauseBtn.textContent='一時停止';pauseBtn.disabled=false;seekEl.disabled=false;$('startBtn').disabled=true;hardwareUI();playStatus.textContent='再生中';audio();try{await run(from)}catch(e){if(e!==CANCEL){console.error(e);playStatus.textContent='エラー: '+e.message}}finally{if(g===gen){running=false;pauseBtn.disabled=true;seekEl.disabled=false;releaseAll();hardwareUI()}}}
+function start(){if(running)return;if(!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';return}publishAllowed=true;sessionId='';return play(0)}
+// シークバー：指定のシーンの頭から再生し直す（同じセッションのまま。投稿は同じセッションIDで重複送信されない）
+seekEl.oninput=()=>{const n=+seekEl.value;seekLabel.textContent=n+' / '+TOTAL+' '+(SCENE_NAMES[n]||'')};
+seekEl.onchange=()=>{const n=+seekEl.value;if(!running&&!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';seekEl.value=0;return}if(!running&&!sessionId)publishAllowed=true;play(n)};
+const SCENE_NAMES=['準備','動作確認','ご協力のお願い','ご来場について','使い心地','スタッフの対応','スタッフの対応','主催者からの返信','展示アンケート','展示の評価','展示の感想','掲載内容の確認','公開中','終了'];
 $('startBtn').onclick=start;$('stopPublish').onclick=()=>{publishAllowed=false;postAbort?.abort('stop');$('publicSession').checked=false;$('stopPublish').textContent='公開中止済み';$('stopPublish').disabled=true};
 
 // CFI-8MOTOR-DC-v3 — reference-compatible Web Serial interface.
