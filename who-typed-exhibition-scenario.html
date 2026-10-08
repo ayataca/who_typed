@@ -112,6 +112,33 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
 /* 案内役の吹き出しは控えめに（解答欄の言葉より目立たせない） */
 .duo-ask{align-items:center;gap:10px;margin-bottom:6px}.duo-ask .mascot{width:44px;height:44px}
 .bubble{font-size:16px;font-weight:700;color:#8a8f94;padding:7px 14px;border-width:1.5px;border-radius:12px}.bubble::before{width:10px;height:10px;left:-6px;bottom:auto;top:calc(50% - 5px);border-width:1.5px}
+/* 3択はキーボードと同じ4＋4の並び。S・D・F の3つだけ大きく、ほかの指は小さな空き枠 */
+.duo-bank{grid-template-columns:.55fr 1.15fr 1.15fr 1.15fr 26px 1fr 1fr 1fr 1fr;gap:10px} /* 左右の手を同じ幅にして、4＋4の間を画面の真ん中に */
+.duo-bank .tile.opt{font-size:20px;padding:8px 10px}
+.slot8{border:2px dashed #e5e5e5;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:100px;opacity:.55}
+.slot8 .kc{color:#afafaf;border-color:#e5e5e5;white-space:nowrap;font-size:14px;padding:4px 7px 3px;min-width:0}.slot8 small{font-size:12px;font-weight:800;color:#afafaf;text-align:center;line-height:1.3}
+.slot8.act{border-style:solid;opacity:1}.slot8.act .kc{color:#4b4b4b}.slot8.act small{color:#777}
+.hands8{display:grid;grid-template-columns:1fr 26px 1fr;gap:10px;margin-top:6px;font-size:16px;font-weight:800;color:#afafaf;text-align:center}
+.icon.wrong{border:3px solid #ff4b4b;background:#ffdfe0;animation:shake .4s}.great .ng{color:#ea2b2b;font-size:40px}
+/* 文の枠：最後の言葉まで枠を出し、今えらんでいる枠を強調する */
+.tile.cur{border-color:#1cb0f6;box-shadow:0 0 0 4px #1cb0f633}.tile.blank.cur{background:#f1fbff;border-color:#1cb0f6;animation:curBlink 1.2s ease-in-out infinite}
+.tile.blank.later{width:110px;opacity:.6}
+@keyframes curBlink{50%{box-shadow:0 0 0 8px #1cb0f622}}
+.duo-top .count{font:900 22px/1 "Nunito",sans-serif;color:#afafaf;min-width:64px;text-align:right}
+.rules li{font-size:26px}
+.duo-bank.long .tile.opt{font-size:17px;line-height:1.4;padding:8px 6px;gap:8px}.duo-bank.long .tile.opt span{word-break:normal;overflow-wrap:normal;line-break:strict}
+/* 制限時間：右上の円。指示文は出さないので、下の欄はフィードバックだけ */
+.ring{width:46px;height:46px;flex:none;transform:rotate(-90deg)}.ring circle{fill:none;stroke-width:6}.ring circle:first-child{stroke:#e5e5e5}
+.ring #bar{stroke:#1cb0f6;stroke-linecap:round;stroke-dasharray:113.1;stroke-dashoffset:113.1}
+.duo-foot{grid-template-columns:1fr;min-height:84px}
+/* 制限時間の円は、解答欄の右端（3択のすぐ上）に大きく置き、選択肢を見ていても視界に入るようにする */
+.answer-row{display:flex;align-items:center;gap:20px}.answer-row .duo-answer{flex:1}
+.answer-row .ring{width:96px;height:96px}.ring circle{stroke-width:5}
+.duo-top{justify-content:flex-end;margin-bottom:0}
+/* 8つのキーの外枠は黒の線（①の箱と、レッスンの4＋4） */
+.duo-bank .tile.opt,.duo-bank .slot8,.keyrow .icon{border:2px solid #222;border-bottom-width:4px}
+.duo-bank .slot8{opacity:1}.duo-bank .slot8:not(.act) .kc{opacity:.45}
+.duo-bank .tile.opt.selected,.keyrow .icon.selected{border:3px solid #1cb0f6}.duo-bank .tile.opt.wrong,.keyrow .icon.wrong{border:3px solid #ff4b4b}
 </style>
 </head>
 <body>
@@ -129,7 +156,6 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
       <div class="row"><button class="op" id="cameraBtn">カメラを開始</button><button class="op" id="startBtn">体験を開始</button><button class="op" id="stopPublish">このセッションの公開を中止</button></div>
       <div class="row"><button class="op" id="hwConnectBtn">ソレノイド基板に接続</button><span class="status" id="hwStatus">未接続（Motor 5〜12）</span></div>
       <div class="tests" id="hwTestGrid"></div>
-      <div class="row"><span class="status">アナウンス音声</span><select id="voiceSel"></select><label class="status">音量 <input id="voiceVol" type="range" min="0" max="100" value="90"></label><button class="op" id="voiceTest">アナウンス試聴</button></div>
       <div class="row"><button class="op" onclick="location.reload()">最初から</button><label class="status"><input type="checkbox" id="autoDemo"> 自動操作（リハーサル）</label><label class="status">打鍵音 <input id="vol" type="range" min="0" max="100" value="45"></label></div>
       <div class="row"><span class="status" id="xStatus">X投稿: 確認中…</span><button class="op" id="deletePost" disabled>直前の投稿をXから削除</button></div><div class="status" id="postResult"></div>
     </div>
@@ -147,8 +173,8 @@ const CONFIG={
   // 打鍵の基準間隔。ここに下のリズム係数を掛ける
   // ⑥の暴走：画面の文字は1文字ごとに startMs から minMs まで加速。ソレノイドは文字と無関係に、motorMs ごとに空いている指をランダムに打つ
   rampage:{startMs:50,minMs:9,accelChars:70,motorMs:20,chars:1000}, // chars: 暴走で打つ量の上限（1000字でXのスレッド9件ほど。サーバーは10件まで）
-  choiceMs:5000,         // 文節を選ぶ制限時間（ゲージ）
-  fixMs:4000,            // 食い違った文を Delete で消せる時間
+  choiceMs:5000,         // 言葉を選ぶ制限時間（ゲージ）
+  sentenceMs:10000,      // ④⑤で文ごとに選ぶ制限時間
   typingMinMs:65,
   typingMaxMs:82,
   previewMs:8000,
@@ -180,19 +206,14 @@ const CONFIG={
     noticeMs:[220,420],    // 間違いに気づくまで
     backspaceMs:[60,110],
     resumeMs:[120,260]     // 消した後、打ち直すまで
-  },
-  voice:{rate:1.0,pitch:1.0,preferred:['Kyoko','O-ren','Otoya','Google 日本語','Nanami','Haruka']},
-  // audio の音声ファイル（macOSの音声で書き出し済み）を再生する。読み込めない場合だけブラウザの読み上げを使う
-  announce:{
-    place:{text:'それでは、はじめます。キーボードの上に両手の指を置いてください。',audio:'audio/announce-place.wav'}
   }
 };
 // 文章は「/」で文節に区切り、漢字は [表記|よみ] で書く。文節の入力が終わった打鍵で自動変換される
 const TEXT={
-  // ① 絵を選ぶ（どれを選んでも「Great！」）。8個の箱は8本の指に1つずつ
+  // ① 絵を選ぶ。items の先頭が正解（表示はシャッフル）。まちがえるとやり直し。8個の箱は8本の指に1つずつ
   icons:[
     {q:'「いぬ」は、どれですか？',items:['🐶','🍎','🚗','🌸','🐟','🏠','⭐','🎈']},
-    {q:'「たいよう」は、どれですか？',items:['🌙','☀️','🍙','🚲','🎵','🌳','📚','☂️']}
+    {q:'「たいよう」は、どれですか？',items:['☀️','🌙','🍙','🚲','🎵','🌳','📚','☂️']}
   ],
   // ②〜⑤ 言葉ごとの3択（S・D・F）。first は最初から入力済みの言葉。p の各3択は【先頭が正解】で、残り2つは意味が通らない不正解
   //   （表示の並びは毎回シャッフル）。選んだ言葉を「/」でつないで打鍵する
@@ -206,16 +227,17 @@ const TEXT={
     {first:'[自分|じぶん]で/[打|う]つより',p:[['ずっと/[楽|らく]で','とても/[塩辛|しおから]くて','[三角形|さんかくけい]で'],['[便利|べんり]だと/[思|おも]いました/。','[歯|は]を/[磨|みが]きました/。','[空|そら]に/[埋|う]めました/。']]}
   ],
   // ④ 小さく食い違う（3文）。first の続きに、普通の文（faithful）がうすい字の候補で出るが、Tab で決めると語尾と強さが少し変わった文（drift）が入力される。
-  //    Delete で消すと、p の3択（先頭が正解）で自分でえらび直せる。Tab を使わず最初から自分でえらぶこともできる
+  //    3択は文ごと：正解は faithful、wrong は意味が通らない2つ。Tab を使わず自分でえらぶと faithful が入る。
+  //    Tab を押すとその場で drift が解答欄に入り、制限時間内なら Delete で消して自分でえらび直せる
   s4:[
-    {first:'[説明|せつめい]は',drift:'まあ/[分|わ]かりやすかった[方|ほう]だな/。',faithful:'[分|わ]かりやすくて/[助|たす]かりました/。',p:[['[分|わ]かりやすくて','[甘|あま]じょっぱくて','[北向|きたむ]きで'],['[助|たす]かりました/。','[泳|およ]ぎました/。','[割|わ]れました/。']]},
-    {first:'[仕組|しく]みが',drift:'まあ/[悪|わる]くは/ないんだろうな/。',faithful:'おもしろいと/[感|かん]じました/。',p:[['おもしろいと','しょっぱいと','[丸焼|まるや]けと'],['[感|かん]じました/。','[煮|に]えました/。','[鳴|な]きました/。']]},
-    {first:'[全体|ぜんたい]としては',drift:'[悪|わる]くない/[体験|たいけん]である/。',faithful:'とても/[満足|まんぞく]しています/。',p:[['とても','[四角|しかく]く','[酸|す]っぱく'],['[満足|まんぞく]しています/。','[溶|と]けています/。','[孵化|ふか]しています/。']]}
+    {first:'[説明|せつめい]は',drift:'まあ/[分|わ]かりやすかった[方|ほう]だな/。',faithful:'[分|わ]かりやすくて/[助|たす]かりました/。',wrong:['[甘|あま]じょっぱくて/[泳|およ]ぎました/。','[北向|きたむ]きで/[割|わ]れました/。']},
+    {first:'[仕組|しく]みが',drift:'まあ/[悪|わる]くは/ないんだろうな/。',faithful:'おもしろいと/[感|かん]じました/。',wrong:['しょっぱいと/[煮|に]えました/。','[丸焼|まるや]けと/[鳴|な]きました/。']},
+    {first:'[全体|ぜんたい]としては',drift:'[悪|わる]くない/[体験|たいけん]である/。',faithful:'とても/[満足|まんぞく]しています/。',wrong:['[四角|しかく]く/[溶|と]けています/。','[酸|す]っぱく/[孵化|ふか]しています/。']}
   ],
   // ⑤ 内容が大きく食い違う（2文）。1文目は候補（faithful）を Tab で決めると、まったく違う文（rest）が入力される（自分でえらんでも書き換わる）。
   //    消そうとすると、先に2文目が入力される
   s5:[
-    {first:'[正直|しょうじき]',faithful:'[楽|たの]しくて/また/[来|き]たいです/。',rest:'[待|ま]たされただけで/、/[何|なに]も/[面白|おもしろ]くなかった/。',p:[['[楽|たの]しくて','[錆|さ]びていて','[逆立|さかだ]ちして'],['また/[来|き]たいです/。','[蒸発|じょうはつ]しました/。','[冬|ふゆ]に/[刺|さ]さりました/。']]},
+    {first:'[正直|しょうじき]',faithful:'[楽|たの]しくて/また/[来|き]たいです/。',rest:'[待|ま]たされただけで/、/[何|なに]も/[面白|おもしろ]くなかった/。',wrong:['[錆|さ]びていて/[蒸発|じょうはつ]しました/。','[逆立|さかだ]ちして/[冬|ふゆ]に/[刺|さ]さりました/。']},
     {text:'[率直|そっちょく]に/[言|い]えば/、/もう/[二度|にど]と/[来|こ]ない/。'}
   ],
   // ⑥ 暴走して打たれる文（先頭の { } は書きかけて消される）。続けて review1 から2つ付く。Xでは140字ごとのスレッドになる
@@ -261,7 +283,7 @@ let sessionId='',postAbort=null,lastPostIds=null,paused=false,running=false,publ
 const seekEl=$('seek'),seekLabel=$('seekLabel'),waits=new Set(),pauseBtn=$('pauseBtn'),playStatus=$('playStatus');
 function sleep(ms){return new Promise((resolve,reject)=>{const x={left:ms,start:0,timer:null,resolve,reject};waits.add(x);if(!paused)arm(x)})}
 function arm(x){x.start=performance.now();x.timer=setTimeout(()=>{waits.delete(x);x.resolve()},x.left)}
-function setPaused(v){if(!running||paused===v)return;paused=v;if(v){for(const x of waits){clearTimeout(x.timer);x.left=Math.max(0,x.left-(performance.now()-x.start))}releaseAll()}else for(const x of waits)arm(x);pauseVoice(v);pauseBtn.textContent=v?'再開':'一時停止';playStatus.textContent=v?'一時停止中':'再生中'}
+function setPaused(v){if(!running||paused===v)return;paused=v;if(v){for(const x of waits){clearTimeout(x.timer);x.left=Math.max(0,x.left-(performance.now()-x.start))}releaseAll()}else for(const x of waits)arm(x);pauseBtn.textContent=v?'再開':'一時停止';playStatus.textContent=v?'一時停止中':'再生中'}
 pauseBtn.onclick=()=>setPaused(!paused);
 // 日本語を文節ほどの塊に分け、塊の間にだけ改行できる位置（ゼロ幅スペース）を入れる。
 // 漢字・カタカナ・英数字で始まる語（と、その直前の「お」「ご」）の前と、句読点の後だけで区切る
@@ -278,15 +300,6 @@ function show(n,title,html,cls=''){sceneLabel.textContent=title;document.querySe
 function audio(){if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();const n=Math.floor(audioCtx.sampleRate*.05);noise=audioCtx.createBuffer(1,n,audioCtx.sampleRate);const d=noise.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2)}if(audioCtx.state==='suspended')audioCtx.resume()}
 function sound(kind='key'){audio();const v=+vol.value/100;if(!v)return;const t=audioCtx.currentTime,s=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();s.buffer=noise;f.type='bandpass';f.frequency.value=kind==='back'?900:kind==='enter'?1450:kind==='space'?1050:1100+Math.random()*190;f.Q.value=.8;s.connect(f);f.connect(g);g.connect(audioCtx.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v*.16,t+.003);g.gain.exponentialRampToValueAtTime(.0001,t+.043);s.start();s.stop(t+.06)}
 
-// ---- アナウンス音声 ----
-const voiceSel=$('voiceSel'),voiceVol=$('voiceVol');let voices=[],speaking=null;
-function loadVoices(){if(!('speechSynthesis'in window)){voiceSel.innerHTML='<option>読み上げ非対応</option>';return}const prev=voiceSel.value;voices=speechSynthesis.getVoices().filter(v=>/^ja/i.test(v.lang));if(!voices.length){voiceSel.innerHTML='<option value="">日本語音声なし</option>';return}voiceSel.innerHTML=voices.map((v,i)=>`<option value="${i}">${v.name}</option>`).join('');if(prev&&voices[+prev])voiceSel.value=prev;else{const i=voices.findIndex(v=>CONFIG.voice.preferred.some(p=>v.name.includes(p)));voiceSel.value=String(Math.max(0,i))}}
-if('speechSynthesis'in window){speechSynthesis.onvoiceschanged=loadVoices}loadVoices();
-function speakTTS(text,done){if(!('speechSynthesis'in window)){done();return}speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ja-JP';const v=voices[+voiceSel.value];if(v)u.voice=v;u.rate=CONFIG.voice.rate;u.pitch=CONFIG.voice.pitch;u.volume=+voiceVol.value/100;let finished=false;const guard=setTimeout(()=>fin(),5000+text.length*350);function fin(){if(finished)return;finished=true;clearTimeout(guard);done()}u.onend=fin;u.onerror=fin;speaking={utter:u};speechSynthesis.speak(u)}
-function stopVoice(){if(speaking?.audio){speaking.audio.onended=speaking.audio.onerror=null;speaking.audio.pause()}if('speechSynthesis'in window)speechSynthesis.cancel();speaking=null}
-function announce(item){return new Promise((resolve,reject)=>{let dead=false;const x={reject:()=>{dead=true;stopVoice();reject(CANCEL)}};cancelers.add(x);const done=()=>{if(dead)return;cancelers.delete(x);speaking=null;resolve()};if(item.audio){const a=new Audio(item.audio);a.volume=+voiceVol.value/100;speaking={audio:a};a.onended=done;a.onerror=()=>speakTTS(item.text,done);a.play().catch(()=>{if(!dead)speakTTS(item.text,done)});return}speakTTS(item.text,done)})}
-function pauseVoice(v){if(!speaking)return;if(speaking.audio){v?speaking.audio.pause():speaking.audio.play().catch(()=>{})}else if('speechSynthesis'in window){v?speechSynthesis.pause():speechSynthesis.resume()}}
-$('voiceTest').onclick=()=>{if(!running)announce(CONFIG.announce.place).catch(()=>{})};
 
 // ---- キー配置 ----
 const keyMap={},L={pinky:'qaz',ring:'wsx',middle:'edc',index:'rtfgvb'},R={index:'yuhjnm',middle:'ik,',ring:'ol.',pinky:'p;/'};
@@ -377,11 +390,13 @@ document.addEventListener('keydown',e=>{
  e.preventDefault();w.resolve(k)});
 // keys のどれかが押されるまで待つ。ms を渡すと制限時間（bar のゲージが伸びる）で null を返す。auto は自動操作時に押すキー {delay,key}
 // 待った時間は pressed.elapsed に入る。barFrom/barTotal でゲージを途中から伸ばせる
+// 制限時間のゲージ（円）。pct は経過の割合（%）
+function setBar(el,pct){el.style.strokeDashoffset=113.1*(1-pct/100)}
 async function pressed(keys,{ms=0,bar=null,barFrom=0,barTotal=ms,auto=null}={}){
- let w,done=false;const st={t:0};if(bar)bar.style.width=(barTotal?barFrom/barTotal*100:0)+'%';
+ let w,done=false;const st={t:0};if(bar)setBar(bar,barTotal?barFrom/barTotal*100:0);
  const p=new Promise((resolve,reject)=>{w={keys,resolve:k=>{if(done)return;done=true;resolve(k)},reject:()=>{done=true;reject(CANCEL)}};keyWaiter=w;cancelers.add(w)});
  const a=autoplay()&&auto?auto():null;
- if(ms||a)(async()=>{for(;!done&&(!ms||st.t<ms);st.t+=50){if(a&&st.t>=a.delay){await stroke(a.key);w.resolve(a.key);return}await sleep(50);if(bar&&ms)bar.style.width=Math.min(100,(barFrom+st.t+50)/barTotal*100)+'%'}if(!done)w.resolve(null)})().catch(()=>{});
+ if(ms||a)(async()=>{for(;!done&&(!ms||st.t<ms);st.t+=50){if(a&&st.t>=a.delay){await stroke(a.key);w.resolve(a.key);return}await sleep(50);if(bar&&ms)setBar(bar,Math.min(100,(barFrom+st.t+50)/barTotal*100))}if(!done)w.resolve(null)})().catch(()=>{});
  try{return await p}finally{done=true;pressed.elapsed=st.t;cancelers.delete(w);if(keyWaiter===w)keyWaiter=null}}
 
 // ---- レッスン（②〜⑤）：語学アプリ風のゲーム。作った文章は DOC に積み上がり、最後のツイートにつながる ----
@@ -399,19 +414,27 @@ const chime=()=>tone([784,1175]),fanfare=()=>tone([523,659,784,1047],{gap:.11,le
 async function lessonIntro(n,label,{no,title,rules}){
  show(n,label,`<div class="duo intro"><div class="intro-head">${MASCOT}<div><div class="lesson-no">レッスン ${no}</div><h1>${title}</h1></div></div><ul class="rules">${rules.map(([k,t,isNew])=>`<li class="${isNew?'new':''}"><span class="rk">${k}</span><span>${t}</span></li>`).join('')}</ul><div class="duo-foot"><div class="foot-msg"><b>ルールを確認したら</b><span>どれかのキーを押してスタート</span></div><span class="duo-btn">スタート</span></div></div>`);
  await sleep(1500);await pressed('*',{auto:()=>({delay:5000,key:'f'})});chime()}
-function lessonHTML(prompt){return `<div class="duo"><div class="duo-top"><div class="duo-prog"><i id="prog"></i></div></div>
-<div class="duo-main"><div><div class="duo-ask">${MASCOT}<div class="bubble" id="bubble">${prompt}</div></div><div class="duo-answer" id="sent"></div><div class="duo-bank" id="opts"></div></div>
+function lessonHTML(prompt){return `<div class="duo"><div class="duo-top"><span class="count" id="count"></span></div>
+<div class="duo-main"><div><div class="duo-ask">${MASCOT}<div class="bubble" id="bubble">${prompt}</div></div><div class="answer-row"><svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="18"/><circle id="bar" cx="22" cy="22" r="18"/></svg><div class="duo-answer" id="sent"></div></div><div class="duo-bank" id="opts"></div><div class="hands8"><span>左手</span><span></span><span>右手</span></div></div>
 <div><div class="doc-label">あなたの文章</div><div class="field doc" id="doc"></div></div></div>
-<div class="duo-foot" id="foot"><div class="foot-msg"><b id="footTitle"></b><span id="hint"></span></div><div class="duo-timer"><i id="bar"></i></div></div></div>`}
+<div class="duo-foot" id="foot"><div class="foot-msg"><b id="footTitle"></b><span id="hint"></span></div></div></div>`}
 function lessonStart(n,label,prompt,total){show(n,label,lessonHTML(prompt));setProg(0,total);return docField()}
 
-const setProg=(done,total)=>{$('prog').style.width=(done/total*100)+'%'};
-function foot(type='',title='',sub=''){$('foot').className='duo-foot'+(type?' '+type:'');$('footTitle').textContent=title;$('hint').textContent=sub;$('bar').style.width='0%'}
+const setProg=(done,total)=>{$('count').textContent=`${Math.min(done+1,total)} / ${total}`};
+function foot(type='',title='',sub=''){$('foot').className='duo-foot'+(type?' '+type:'');$('footTitle').textContent=title;$('hint').textContent=sub;setBar($('bar'),0)}
 async function reward(title){foot('ok',title,'');chime();await sleep(1100)}
 async function timeUp(msg){foot('bad','時間切れ！',msg);buzz();await sleep(1000)}
 async function lessonClear(no){foot('ok',`レッスン${no} クリア！`,'');fanfare();await sleep(2000)}
 function renderSent(parts,{blank=false,ghost=''}={}){$('sent').innerHTML=parts.map((x,i)=>`<span class="tile${i===parts.length-1?' in':''}">${phraseBreak(plain(x))}</span>`).join('')+(ghost?`<span class="tile ghost">${phraseBreak(ghost)}<em>Tab</em></span>`:blank?'<span class="tile blank"></span>':'')}
-function setOpts(arr,rec=-1){const o=$('opts');o.classList.remove('off');o.innerHTML=arr.map((x,i)=>`<button class="tile opt${i===rec?' rec':''}" data-i="${i}"><span>${phraseBreak(plain(x))}</span>${kc(OPT_KEYS[i])}</button>`).join('')}
+// 文の枠を最後の言葉まで並べる。fixed: 決まった言葉、cur: 今えらんでいる枠 {word（えらび中の言葉）, ghost（うすい字の候補）}、future: その後に残る枠の数
+function renderSlots(fixed,cur,future){$('sent').innerHTML=fixed.map(x=>`<span class="tile">${phraseBreak(plain(x))}</span>`).join('')
+ +(cur.word?`<span class="tile cur in">${phraseBreak(plain(cur.word))}</span>`:cur.ghost?`<span class="tile ghost cur">${phraseBreak(cur.ghost)}<em>Tab</em></span>`:'<span class="tile blank cur"></span>')
+ +'<span class="tile blank later"></span>'.repeat(future)}
+// 3択を、キーボードと同じ4＋4の並びに置く。S・D・F（左の薬指・中指・人差指）に3択を大きく、左小指に Tab、右小指に Delete、残りは空き
+function setOpts(arr,rec=-1,tab=false){const o=$('opts');o.classList.remove('off');o.classList.toggle('long',arr.some(x=>plain(x).length>8)); // 文ごとの3択は文字を小さく
+ 
+ const slot=(k,label='',on=false)=>`<div class="slot8${on?' act':''}"><span class="kc">${k}</span>${label?`<small>${label}</small>`:''}</div>`;
+ o.innerHTML=slot('Tab',tab?'候補':'',tab)+arr.map((x,i)=>`<button class="tile opt${i===rec?' rec':''}" data-i="${i}"><span>${phraseBreak(plain(x))}</span>${kc(OPT_KEYS[i])}</button>`).join('')+'<div></div>'+slot('J')+slot('K')+slot('L')+slot('Delete','取消',true)}
 async function selectCard(i){$('opts').querySelector(`[data-i="${i}"]`)?.classList.add('selected');tone([660],{len:.08,gain:.12});await sleep(300)}
 async function typeSentence(f,src){foot('','キーボードが入力しています…','指をのせたまま、感触を確かめてください');await typeInto(f,src,{typos:false});DOC.text=f.committed}
 // ⑥の暴走。画面には読み→変換→確定を超高速で流し（書きかけの { } は消して書き直す）、
@@ -433,9 +456,9 @@ async function eraseTail(f,n){for(let i=0;i<n;i++){await stroke('Backspace',()=>
 // opts は先頭が正解（表示はシャッフル）。不正解はその場で×になる。tab: Tab で候補（正解）をえらべる（mark なら正解のタイルを点線で示す）。
 // back: 何もえらんでいないときの Delete で1つ前に戻る。show(sel): えらんだ状態に合わせて解答欄を描く
 // 戻り値 'tab' | 'pick'（自分で正解をえらんだ）| 'back' | null（時間切れ）
-async function chooseWindow(opts,{tab=false,mark=false,back=false,say=['',''],show=()=>{}}={}){
- const order=[0,1,2].sort(()=>Math.random()-.5),ans=order.indexOf(0),T=CONFIG.choiceMs;
- setOpts(order.map(i=>opts[i]),tab&&mark?ans:-1);
+async function chooseWindow(opts,{tab=false,mark=false,back=false,ms=CONFIG.choiceMs,say=['',''],show=()=>{}}={}){
+ const order=[0,1,2].sort(()=>Math.random()-.5),ans=order.indexOf(0),T=ms;
+ setOpts(order.map(i=>opts[i]),tab&&mark?ans:-1,tab);
  let sel=null,used=0,autoDone=false;
  const paint=()=>{$('opts').querySelectorAll('.tile.opt').forEach((el,i)=>el.classList.toggle('selected',i===ans&&(sel==='pick'||(sel==='tab'&&mark))));show(sel)};
  paint();foot('',...say);
@@ -446,7 +469,7 @@ async function chooseWindow(opts,{tab=false,mark=false,back=false,say=['',''],sh
   if(k==='Backspace'){if(sel!==null){sel=null;paint();foot('',...say);tone([440],{len:.08,gain:.1})}else if(back)return 'back';continue}
   const i=k==='Tab'?ans:OPT_KEYS.indexOf(k);
   if(i!==ans){sel=null;paint();await wrongCard(i);used+=600;foot('',...say);continue}
-  sel=k==='Tab'?'tab':'pick';paint();tone([660],{len:.08,gain:.12});foot('','えらびました','時間が来ると決定　／　Delete で取り消し')}
+  sel=k==='Tab'?'tab':'pick';paint();tone([660],{len:.08,gain:.12});foot()}
  return sel}
 async function wrongCard(i){const el=$('opts').querySelector(`[data-i="${i}"]`);el?.classList.remove('wrong');void el?.offsetWidth;el?.classList.add('wrong');foot('bad','ちがいます','意味が通る言葉をえらびましょう');buzz();await sleep(600)}
 // 1文を組み立てる。prefix（入力済みの言葉）の続きを、言葉ごとの3択の窓でえらぶ。rec なら正解がうすい字の候補になり Tab でも入る。
@@ -454,25 +477,22 @@ async function wrongCard(i){const el=$('opts').querySelector(`[data-i="${i}"]`);
 async function pickPhrases(phrases,{rec=false,prefix=[]}={}){
  const chosen=[];
  for(let i=0;i<phrases.length;i++){const o=phrases[i];
-  const r=await chooseWindow(o,{tab:rec,mark:rec,back:i>0,
-   say:rec?['Tab で、うすく出ている言葉を入れる','S・D・F で自分でえらんでもOK　／　Delete で取り消し・1つ戻る']:['意味が通る言葉は、どれ？','S・D・F でえらぶ　／　Delete で取り消し・1つ戻る'],
-   show:sel=>renderSent([...prefix,...chosen,...(sel?[o[0]]:[])],{blank:!rec&&!sel,ghost:rec&&!sel?plain(o[0]):''})});
+  const r=await chooseWindow(o,{tab:rec,back:i>0,
+   show:sel=>renderSlots([...prefix,...chosen],{word:sel?o[0]:null,ghost:rec?plain(o[0]):''},phrases.length-i-1)});
   if(r==='back'){chosen.pop();i-=2;continue}
   if(r===null)await timeUp('正解が入りました');
   chosen.push(o[0])}
  renderSent([...prefix,...chosen]);return chosen}
 async function sentenceReward(){await reward(pick(['すばらしい！','いいね！','完璧！']))}
-// ④⑤ 続きの補完。うすい字の候補は普通の文（faithful）なのに、Tab で決めると実際には typed が入力される。
-// S・D・F で自分でえらぶと、そのまま1つずつ書ける。戻り値 {src, manual}
-async function completeRest(start,{faithful,typed,p}){const o=p[0];
- const r=await chooseWindow(o,{tab:true,say:['Tab で、続きをまとめて入れる','S・D・F で、自分でえらんでもOK　／　Delete で取り消し'],
-  show:sel=>renderSent(sel==='pick'?[start,o[0]]:sel==='tab'?[start,faithful]:[start],{ghost:sel?'':plain(faithful)})});
- if(r===null){foot('warn','時間切れ','自動で補完します');await stroke('Tab');await sleep(600)} // 時間切れは、キーボードが勝手に決める
- if(r!=='pick'){renderSent([]);$('opts').classList.add('off');return {src:start+'/'+typed,manual:false}}
- const more=await pickPhrases(p.slice(1),{rec:true,prefix:[start,o[0]]});
- renderSent([]);$('opts').classList.add('off');return {src:[start,o[0],...more].join('/'),manual:true}}
-// 打った文を Delete で消せる時間。押されたら true
-async function fixWindow(){foot('warn','思っていた文と、ちがう？','ちがっていたら Delete で消して、えらび直せます');const k=await pressed(['Backspace'],{ms:CONFIG.fixMs,bar:$('bar'),auto:()=>Math.random()<.7?{delay:rand(500,1500),key:'Backspace'}:null});return k==='Backspace'}
+// ④⑤ 続きの補完。うすい字の候補は普通の文（faithful）なのに、Tab を押すと解答欄には違う文（typed）が入る。
+// 制限時間（sentenceMs）が来るまでは Delete で消して、3択（文ごと：正解 faithful と、意味が通らない wrong 2つ）から自分でえらべる。
+// 時間が来た時点の選択で決まる：Tab なら typed、自分でえらべば faithful。何もえらばなければ、キーボードが勝手に Tab を押す。戻り値 {src, manual}
+async function completeRest(start,{faithful,typed,wrong}){
+ const r=await chooseWindow([faithful,...wrong],{tab:true,ms:CONFIG.sentenceMs,
+  show:sel=>renderSlots([start],{word:sel==='tab'?typed:sel==='pick'?faithful:null,ghost:plain(faithful)},0)});
+ if(r===null){foot('warn','時間切れ','自動で補完します');await stroke('Tab');renderSlots([start],{word:typed},0);await sleep(800)} // 時間切れは、キーボードが勝手に決める
+ renderSent([]);$('opts').classList.add('off');
+ return r==='pick'?{src:start+'/'+faithful,manual:true}:{src:start+'/'+typed,manual:false}}
 
 // ---- カメラ ----
 async function startCamera(){try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720}},audio:false});$('cameraBtn').textContent='カメラ接続済み';return true}catch(e){$('cameraBtn').textContent='カメラを再試行';playStatus.textContent='カメラ: '+e.message;return false}}
@@ -510,25 +530,27 @@ async function run(from=0){
  if(from===0){DOC.text='';review='';for(const k in snap)delete snap[k]}
  if(from>=7&&!review)review=plain(pick(TEXT.rant)); // 途中のシーンから始めたときの代わりの文
  const S=[async()=>{
- show(0,'スタート',`<div class="eyebrow">体験をはじめます</div><h1>キーボードの上に、<br>両手の指を置いてください。</h1><p class="lead" id="startLead">準備ができたら、どれかのキーを押してください。</p>`);await sleep(400);await announce(CONFIG.announce.place);
- if(startedByKey){startedByKey=false;await sleep(1200)}else await pressed('*',{auto:()=>({delay:1500,key:'f'})});
+ show(0,'スタート',`<div class="eyebrow">体験をはじめます</div><h1>キーボードの上に、<br>両手の指を置いてください。</h1><p class="lead" id="startLead">準備ができたら、どれかのキーを押してください。</p>`);
+ if(startedByKey){startedByKey=false;await sleep(300)}else await pressed('*',{auto:()=>({delay:1500,key:'f'})});
 },async()=>{
  // ① 自分で簡単な選択：押したキーの絵が選ばれる
  const keys=['a','s','d','f','j','k','l',';'];
  show(1,'えらぶ',`<div class="eyebrow">キーを押して、えらんでみましょう</div><h1 id="q"></h1>${keyRow(keys.map(k=>({key:k,html:`<button class="choice icon" data-k="${k}"></button>`})))}<div class="center great" id="great"></div>`);
  for(const Q of TEXT.icons){
-  $('q').textContent=Q.q;$('great').textContent='';stage.querySelectorAll('.icon').forEach((b,i)=>{b.classList.remove('selected');b.innerHTML=Q.items[i]+`<kbd>${keys[i].toUpperCase()}</kbd>`});
-  const k=await pressed(keys,{auto:()=>({delay:rand(1200,2400),key:pick(keys)})});
+  const items=[...Q.items].sort(()=>Math.random()-.5),ans=keys[items.indexOf(Q.items[0])];
+  $('q').textContent=Q.q;$('great').textContent='';stage.querySelectorAll('.icon').forEach((b,i)=>{b.classList.remove('selected','wrong');b.innerHTML=items[i]+`<kbd>${keys[i].toUpperCase()}</kbd>`});
+  let k;
+  for(;;){k=await pressed(keys,{auto:()=>({delay:rand(1200,2400),key:Math.random()<.3?pick(keys):ans})});if(k===ans)break;
+   const el=stage.querySelector(`.icon[data-k="${k}"]`);el.classList.remove('wrong');void el.offsetWidth;el.classList.add('wrong');$('great').innerHTML='<span class="ng">ちがいます。もう一度！</span>';buzz()}
+  stage.querySelectorAll('.icon.wrong').forEach(b=>b.classList.remove('wrong'));
   stage.querySelector(`.icon[data-k="${k}"]`).classList.add('selected');tone([660],{len:.08,gain:.12});await sleep(450);$('great').textContent='Great！';chime();await sleep(1500)}
  show(1,'えらぶ',`<div class="center"><h1>ここからは文章を<br>作成していきましょう！</h1></div>`);await sleep(2600);
 },async()=>{
  // ② 自分で認知負荷の高いタスク：言葉ごとに3択で1文を作る
  phaseStart(2);
  await lessonIntro(2,'レッスン1',{no:1,title:'言葉をえらんで、文をつくろう',rules:[
-  [kc('s')+kc('d')+kc('f'),'3つの候補から、<b>次に入る言葉</b>をえらびます。<b>意味が通るのは1つだけ</b>。まちがえると、やり直しです'],
-  ['<span class="ri">⏱</span>','1つの言葉につき<b>5秒</b>。時間切れになると、正解が入ります'],
-  [kc('Backspace'),'えらんだ言葉は<b>5秒たつと決定</b>。それまでは、えらび直しや Delete での取り消しができます'],
-  ['<span class="ri">⌨</span>','文が完成すると、キーボードが<b>自動で入力</b>します']]});
+  [kc('s')+kc('d')+kc('f'),'<b>意味が通る言葉</b>をえらぶ'],
+  [kc('Backspace'),'<b>5秒</b>で決定。それまでは取り消せる']]});
  {const f=lessonStart(2,'レッスン1','言葉をえらんで、文を完成させよう！',TEXT.s2.length);
   for(const [i,x] of TEXT.s2.entries()){const parts=await pickPhrases(x.p,{prefix:[x.first]});await sentenceReward();await typeSentence(f,[x.first,...parts].join('/'));setProg(i+1,TEXT.s2.length);await sleep(500)}
   await lessonClear(1)}
@@ -536,43 +558,33 @@ async function run(from=0){
  // ③ タスクを技術に任せる：薄字の候補を Tab で決める（候補は選ぶ内容に忠実）
  phaseStart(3);
  await lessonIntro(3,'レッスン2',{no:2,title:'候補を使って、らくに書こう',rules:[
-  [kc('Tab'),'<b>うすい文字で候補</b>が出たら、Tab を押すだけで入ります',true],
-  [kc('s')+kc('d')+kc('f'),'もちろん、自分でえらんでもOK（意味が通るのは1つだけ）'],
-  [kc('Backspace'),'<b>5秒たつと決定</b>。それまでは Tab でえらんだものも、Delete で取り消せます'],
-  ['<span class="ri">📝</span>','今度は<b>2つの文</b>を書きます']]});
+  [kc('Tab'),'<b>うすい字の候補</b>は Tab で入る',true]]});
  {const f=lessonStart(3,'レッスン2','うすく出ている言葉は、Tab を押すだけで入るよ！',TEXT.s3.length);
   for(const [i,x] of TEXT.s3.entries()){const parts=await pickPhrases(x.p,{rec:true,prefix:[x.first]});await sentenceReward();await typeSentence(f,[x.first,...parts].join('/'));setProg(i+1,TEXT.s3.length);await sleep(500)}
   await lessonClear(2)}
 },async()=>{
- // ④ 小さく食い違う：候補は普通の文なのに、Tab で決めると語尾と強さが少し変わった文が入る。Delete で消して、自分でえらび直せる
+ // ④ 小さく食い違う：候補は普通の文なのに、Tab を押すと語尾と強さが少し変わった文が入る。時間内なら Delete で消して、自分でえらび直せる
  phaseStart(4);
  await lessonIntro(4,'レッスン3',{no:3,title:'まとめて補完で、たくさん書こう',rules:[
-  [kc('Tab'),'Tab で、<b>文の最後まで</b>まとめて補完されます',true],
-  [kc('s')+kc('d')+kc('f'),'Tab を使わず、続きを<b>自分でえらんでもOK</b>'],
-  [kc('Backspace'),'入力された文が思っていたのとちがったら、<b>Delete で消して、自分でえらび直せます</b>',true],
-  ['<span class="ri">📝</span>','今度は<b>3つの文</b>を書きます']]});
+  [kc('Tab'),'<b>文の最後まで</b>まとめて入る',true],
+  [kc('Backspace'),'ちがったら、時間内なら Delete で消せる',true]]});
  {const f=lessonStart(4,'レッスン3','Tab で、文の最後まで一気に書こう！',TEXT.s4.length);
-  for(const [i,x] of TEXT.s4.entries()){const start=x.first;const r=await completeRest(start,{faithful:x.faithful,typed:x.drift,p:x.p});await typeSentence(f,r.src);
-   if(r.manual)await reward('自分で書けた！');
-   else if(await fixWindow()){foot('','消しています…','');await eraseTail(f,plain(r.src).length);await sleep(300);
-    const parts=await pickPhrases(x.p,{prefix:[start]});await typeSentence(f,[start,...parts].join('/'));await reward('直せました！')} // Delete のあとは、自分でえらび直す
-   else await reward('完成！');
-   setProg(i+1,TEXT.s4.length);await sleep(400)}
+  for(const [i,x] of TEXT.s4.entries()){const r=await completeRest(x.first,{faithful:x.faithful,typed:x.drift,wrong:x.wrong});await typeSentence(f,r.src);await reward(r.manual?'自分で書けた！':'完成！');setProg(i+1,TEXT.s4.length);await sleep(400)}
   await lessonClear(3)}
 },async()=>{
  // ⑤ 内容が大きく食い違う：消そうとすると、先に次の文章が入力される（ルールはレッスン3と同じ、と見せる）
  phaseStart(5);
  await lessonIntro(5,'レッスン4',{no:4,title:'仕上げ：最後の2文を書こう',rules:[
-  [kc('Tab'),'Tab で、<b>文の最後まで</b>まとめて補完されます'],
-  [kc('s')+kc('d')+kc('f'),'Tab を使わず、続きを<b>自分でえらんでもOK</b>'],
-  [kc('Backspace'),'入力された文が思っていたのとちがったら、<b>Delete で消して、自分でえらび直せます</b>']]});
- {const f=lessonStart(5,'レッスン4','いよいよ最後！ 2つの文で仕上げよう',2);
-  const [a,b]=TEXT.s5;const start=a.first;const r=await completeRest(start,{faithful:a.faithful,typed:a.rest,p:a.p});await typeSentence(f,r.src);
+  [kc('Tab'),'<b>文の最後まで</b>まとめて入る'],
+  [kc('Backspace'),'ちがったら、時間内なら Delete で消せる']]});
+ {const f=lessonStart(5,'レッスン4','いよいよ最後！',2);
+  const [a,b]=TEXT.s5;const start=a.first;const r=await completeRest(start,{faithful:a.faithful,typed:a.rest,wrong:a.wrong});await typeSentence(f,r.src);
   if(r.manual){await sleep(700);foot('','キーボードが入力しています…','');await eraseTail(f,plain(r.src).length);await typeInto(f,start+'/'+a.rest,{typos:false});DOC.text=f.committed} // 自分でえらんだ文も、書き換わる
   setProg(1,2);
-  const del=await fixWindow();
-  if(del){foot('bad','消せません','先に、次の文が入力されています');buzz()}else foot('','キーボードが入力しています…','');
-  await typeInto(f,b.text,{typos:false});DOC.text=f.committed;setProg(2,2);await sleep(1800)}
+  // 消そうとしても、先に次の文が入力される（入力中に Delete を押すと「消せません」）
+  foot('','キーボードが入力しています…','');
+  pressed(['Backspace'],{}).then(k=>{if(k){foot('bad','消せません','先に、次の文が入力されています');buzz()}}).catch(()=>{});
+  await sleep(500);await typeInto(f,b.text,{typos:false});keyWaiter?.resolve(null);DOC.text=f.committed;setProg(2,2);await sleep(1800)}
 },async()=>{
  // ⑥ ツイート暴走：打鍵が加速し、消せないまま長い文が打たれる
  phaseStart(6);show(6,'感想の入力',`<div class="eyebrow">この展示会の感想を書いてください</div><h1>この感想は、Xに実際に投稿されます。</h1><p class="lead">投稿の直前までなら、Delete キーでいつでも止められます。</p><div class="field focus long" id="doc"></div>`,'compact');const f=makeField($('doc'));f.render('');await sleep(6500);
@@ -597,7 +609,7 @@ async function run(from=0){
  stage.querySelectorAll('#askThread .post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));
  setTimeout(()=>autoScroll($('askThread'),CONFIG.askMs*.8),1500);await sleep(CONFIG.askMs);
 },async()=>{
- posts=posts||buildPosts();const url=CONFIG.xAccountUrl;show(10,'終了',`<div class="center"><div class="eyebrow">ご協力ありがとうございました</div><h1>あなたの投稿したポストは、<br>こちらからご覧いただけます。</h1><div class="end"><div class="thread scroll" id="endThread">${posts.map(t=>tweetHTML(t)).join('')}</div><div><img class="qr" alt="展示用XアカウントのQRコード" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}"><a class="final-link" href="${url}" target="_blank" rel="noopener">${url}</a></div></div><p class="lead" style="margin-top:34px"><b>体験は以上で終了です。キーボードから手を離してください。</b></p></div>`);stage.querySelectorAll('#endThread .post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));setTimeout(()=>autoScroll($('endThread'),5000),1200);playStatus.textContent='終了';
+ const url=CONFIG.xAccountUrl;show(10,'終了',`<div class="center"><div class="eyebrow">ご協力ありがとうございました</div><h1>あなたの投稿したポストは、<br>こちらからご覧いただけます。</h1><img class="qr" alt="展示用XアカウントのQRコード" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}"><a class="final-link" href="${url}" target="_blank" rel="noopener">${url}</a><p class="lead" style="margin-top:30px"><b>体験は以上で終了です。キーボードから手を離してください。</b></p></div>`);playStatus.textContent='終了';
 }];
  for(let i=from;i<S.length;i++)await S[i]();
 }

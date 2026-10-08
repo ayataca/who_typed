@@ -1,5 +1,5 @@
 // Who Typed? 展示用ローカルサーバー
-// - 展示HTMLと音声を配信する（file:// で開いたときのカメラ権限の問題も避けられる）
+// - 展示HTMLを配信する（file:// で開いたときのカメラ権限の問題も避けられる）
 // - X API の認証情報をこのPCの .env にだけ置き、HTMLの代わりにXへ投稿する
 // 起動: node server.mjs  → http://localhost:8787
 import http from 'node:http';
