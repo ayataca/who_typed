@@ -65,7 +65,7 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
 .tile.in{animation:pop .25s}.tile.blank{width:130px;border-style:dashed;background:#f7f7f7}
 .tile.ghost{color:#afafaf;border-style:dashed;background:#fafafa}.tile.ghost em{font-style:normal;font-family:"Nunito",sans-serif;font-size:14px;font-weight:900;color:#fff;background:#1cb0f6;border-radius:7px;padding:2px 7px}
 .duo-bank{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}.duo-bank.off .tile{opacity:.3}
-.tile.opt{flex-direction:column;justify-content:center;min-height:100px;text-align:center;font-size:22px;gap:10px}.tile.opt.rec{border-color:#84d8ff;border-style:dashed}.tile.opt.wrong{border-color:#ff4b4b;background:#ffdfe0;color:#ea2b2b;animation:shake .4s}.tile.opt.selected{border-color:#1cb0f6;background:#ddf4ff;color:#1899d6;transform:translateY(2px);border-bottom-width:2px}
+.tile.opt{flex-direction:column;justify-content:center;min-height:100px;text-align:center;font-size:22px;gap:10px}.tile.opt.rec{border-color:#84d8ff;border-style:dashed}.tile.opt.wrong{border-color:#ff4b4b;background:#ffdfe0;color:#ea2b2b;animation:shake .4s}.tile.opt.selected{border:3px solid #1cb0f6;background:#ddf4ff;color:#1899d6;box-shadow:0 0 0 6px #1cb0f640;animation:pick .3s}.tile.opt.selected .kc{background:#1cb0f6;border-color:#1899d6;color:#fff}.tile.opt.selected .kc small{color:#e6f7ff}
 .kc{display:inline-flex;flex-direction:column;align-items:center;min-width:48px;padding:4px 9px 3px;border:2px solid #e5e5e5;border-bottom-width:4px;border-radius:10px;background:#fff;font:900 17px/1.1 "Nunito",sans-serif;color:#4b4b4b}.kc small{font:700 11px/1.2 "M PLUS Rounded 1c",sans-serif;color:#afafaf;margin-top:2px}
 .doc-label{font-size:15px;font-weight:800;color:#afafaf;margin-bottom:8px;letter-spacing:.06em}
 .duo .field.doc{min-height:340px;max-height:340px;overflow:hidden;font-size:24px;line-height:1.75;padding:16px 18px;border:2px solid #e5e5e5;border-radius:16px;background:#fffdf5;box-shadow:none}
@@ -80,7 +80,12 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
 .rules b{color:#1899d6}.rk{display:flex;gap:8px;justify-content:center;align-items:center}.ri{font-size:36px;line-height:1}
 .intro .duo-foot{grid-template-columns:1fr auto}.duo-btn{display:inline-block;background:#58cc02;color:#fff;font-weight:900;font-size:20px;letter-spacing:.06em;border-radius:14px;padding:14px 36px;box-shadow:0 4px 0 #58a700}
 .icon kbd{display:block;margin:0 auto;font:700 18px/1 ui-monospace,monospace;color:#7d8791}
-.keyrow .icon{font-size:52px;display:grid;place-content:center;gap:6px;min-height:120px}.icon.selected{border-color:var(--blue);background:#e8f2fb}.great{font-size:56px;font-weight:800;color:var(--blue);margin-top:26px;min-height:70px}
+.keyrow .icon{font-size:52px;display:grid;place-content:center;gap:6px;min-height:120px}.icon{transition:transform .15s,box-shadow .15s}.icon.selected{border:3px solid #1cb0f6;background:#ddf4ff;box-shadow:0 0 0 8px #1cb0f640;transform:scale(1.1);animation:pick .35s}.icon.selected kbd{background:#1cb0f6;color:#fff}
+.keyrow:has(.icon.selected) .icon:not(.selected){opacity:.35}
+@keyframes pick{0%{transform:scale(.92)}60%{transform:scale(1.16)}100%{transform:scale(1.1)}}.great{font-size:56px;font-weight:800;color:var(--blue);margin-top:26px;min-height:70px}
+/* 問いかけ：投稿を見せながら「誰が書いたのか」を問う */
+.ask{display:grid;grid-template-columns:1fr 560px;gap:44px;align-items:center}.ask .who{font-size:52px;line-height:1.45;margin:0;letter-spacing:.04em}.ask .thread{margin:0;max-height:520px}
+@media(max-width:1000px){.ask{grid-template-columns:1fr}}
 /* ボタンを押した瞬間のハイライト */
 .primary.pressed{background:var(--blue);filter:none;transform:translateY(2px);box-shadow:0 0 0 7px #1769aa40}
 /* 展示アンケート（Xに投稿する側）は配色を変えて、前半のアンケートの繰り返しに見せない */
@@ -93,16 +98,30 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
 .terminal.x .xmark{color:#fff}.terminal.x .spinner{border-color:#2f3336;border-top-color:#1d9bf0}.terminal.x .final-link{color:#1d9bf0}
 .end{display:grid;grid-template-columns:1fr 280px;gap:40px;align-items:center;text-align:left}.end .qr{margin:0 auto 14px;width:200px;height:200px}.end .thread{margin:0}
 @media(max-width:800px){.end{grid-template-columns:1fr}}
+/* 画面サイズを固定：1180×782 の画面を、ウィンドウに収まるよう拡大縮小する（fitScreen）。フェーズで大きさが変わらず、スクロールしない */
+.shell{width:1180px}
+.stage{height:720px;min-height:0;overflow:hidden;padding:36px 54px 110px}
+.stage:has(.compact){padding:24px 54px 100px}
+.stage:has(.duo){padding:18px 40px;place-items:stretch}
+.stage:has(.duo) .card{height:100%;justify-self:center}
+.duo{height:100%;display:flex;flex-direction:column}.duo.intro{justify-content:center}
+.duo-main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+.duo-main>div:last-child{flex:1;min-height:0;display:flex;flex-direction:column}
+.duo .field.doc{flex:1;min-height:0;max-height:none}
+.duo-foot{margin-top:12px}
+/* 案内役の吹き出しは控えめに（解答欄の言葉より目立たせない） */
+.duo-ask{align-items:center;gap:10px;margin-bottom:6px}.duo-ask .mascot{width:44px;height:44px}
+.bubble{font-size:16px;font-weight:700;color:#8a8f94;padding:7px 14px;border-width:1.5px;border-radius:12px}.bubble::before{width:10px;height:10px;left:-6px;bottom:auto;top:calc(50% - 5px);border-width:1.5px}
 </style>
 </head>
 <body>
 <div class="shell">
   <main class="terminal">
-    <header class="top"><span class="mark">VISITOR FEEDBACK</span><span id="sceneLabel">準備</span><span class="progress" id="progress"></span></header>
+    <header class="top"><span id="sceneLabel">準備</span><span class="progress" id="progress"></span></header>
     <section class="stage" id="stage"></section>
   </main>
   <div class="row" style="margin-top:12px"><button class="op" id="pauseBtn" disabled>一時停止</button><span class="status" id="playStatus">開始待ち</span></div>
-  <div class="row" style="margin-top:10px"><span class="status">シーン</span><input type="range" id="seek" min="0" max="9" step="1" value="0" style="flex:1" aria-label="シーン移動"><span class="status" id="seekLabel" style="min-width:12em">0 / 13 準備</span></div>
+  <div class="row" style="margin-top:10px"><span class="status">シーン</span><input type="range" id="seek" min="0" max="10" step="1" value="0" style="flex:1" aria-label="シーン移動"><span class="status" id="seekLabel" style="min-width:12em">0 / 13 準備</span></div>
   <details class="operator" open>
     <summary>host / hardware</summary>
     <div class="ops">
@@ -134,6 +153,7 @@ const CONFIG={
   typingMaxMs:82,
   previewMs:8000,
   postingMs:4500,        // 投稿中（くるくる）の表示時間
+  askMs:9000,            // 「この投稿を書いたのは、誰…？」を見せる時間
   // 書きかけた文を右小指のBackspace連打でまとめて消し、別の文に書き直す（{ } で囲んだ部分）
   rewrite:{beforeDeleteMs:[600,1000],afterDeleteMs:[350,650]},
   fingerRecoverMs:170,   // 同じ指の次の駆動まで（150ms駆動 + OFF時間）
@@ -185,13 +205,11 @@ const TEXT={
     {first:'キーボードが',p:[['[思|おも]ったより','[四角|しかく]い/[雨|あめ]より','[昨日|きのう]の/[味噌汁|みそしる]より'],['[自然|しぜん]に/[動|うご]いて','[逆立|さかだ]ちで/[泳|およ]いで','[鼻|はな]から/[笑|わら]って'],['[驚|おどろ]きました/。','[冷蔵庫|れいぞうこ]でした/。','[月曜日|げつようび]です/。']]},
     {first:'[自分|じぶん]で/[打|う]つより',p:[['ずっと/[楽|らく]で','とても/[塩辛|しおから]くて','[三角形|さんかくけい]で'],['[便利|べんり]だと/[思|おも]いました/。','[歯|は]を/[磨|みが]きました/。','[空|そら]に/[埋|う]めました/。']]}
   ],
-  // ④ 小さく食い違う（5文）。first の続きに、普通の文（faithful）がうすい字の候補で出るが、Tab で決めると語尾と強さが少し変わった文（drift）が入力される。
+  // ④ 小さく食い違う（3文）。first の続きに、普通の文（faithful）がうすい字の候補で出るが、Tab で決めると語尾と強さが少し変わった文（drift）が入力される。
   //    Delete で消すと、p の3択（先頭が正解）で自分でえらび直せる。Tab を使わず最初から自分でえらぶこともできる
   s4:[
     {first:'[説明|せつめい]は',drift:'まあ/[分|わ]かりやすかった[方|ほう]だな/。',faithful:'[分|わ]かりやすくて/[助|たす]かりました/。',p:[['[分|わ]かりやすくて','[甘|あま]じょっぱくて','[北向|きたむ]きで'],['[助|たす]かりました/。','[泳|およ]ぎました/。','[割|わ]れました/。']]},
-    {first:'[待|ま]ち[時間|じかん]は',drift:'それなりに/[長|なが]かった[方|ほう]だろ/。',faithful:'ほとんど/[気|き]になりませんでした/。',p:[['ほとんど','[真|ま]っ[赤|か]に','[逆|さか]さまに'],['[気|き]になりませんでした/。','[焼|や]き[上|あ]がりました/。','[冬眠|とうみん]しました/。']]},
     {first:'[仕組|しく]みが',drift:'まあ/[悪|わる]くは/ないんだろうな/。',faithful:'おもしろいと/[感|かん]じました/。',p:[['おもしろいと','しょっぱいと','[丸焼|まるや]けと'],['[感|かん]じました/。','[煮|に]えました/。','[鳴|な]きました/。']]},
-    {first:'[操作|そうさ]は',drift:'[簡単|かんたん]すぎて/[物足|ものた]りないくらいだ/。',faithful:'[簡単|かんたん]で/[安心|あんしん]できました/。',p:[['[簡単|かんたん]で','[毛深|けぶか]くて','[水浸|みずびた]しで'],['[安心|あんしん]できました/。','[発酵|はっこう]しました/。','[脱皮|だっぴ]しました/。']]},
     {first:'[全体|ぜんたい]としては',drift:'[悪|わる]くない/[体験|たいけん]である/。',faithful:'とても/[満足|まんぞく]しています/。',p:[['とても','[四角|しかく]く','[酸|す]っぱく'],['[満足|まんぞく]しています/。','[溶|と]けています/。','[孵化|ふか]しています/。']]}
   ],
   // ⑤ 内容が大きく食い違う（2文）。1文目は候補（faithful）を Tab で決めると、まったく違う文（rest）が入力される（自分でえらんでも書き換わる）。
@@ -236,7 +254,7 @@ const TEXT={
     '[面白|おもしろ]い！！！/[楽|たの]しい！！！！'
   ],
 };
-const TOTAL=9;
+const TOTAL=10;
 const $=id=>document.getElementById(id),stage=$('stage'),sceneLabel=$('sceneLabel'),progress=$('progress'),vol=$('vol');
 const CANCEL=Symbol('cancel'),cancelers=new Set();
 let sessionId='',postAbort=null,lastPostIds=null,paused=false,running=false,publishAllowed=true,stream=null,capturedImage='',rating=1,review='',audioCtx,noise;
@@ -256,7 +274,7 @@ function phraseBreak(text){if(!SEG||!text)return text;const parts=[...SEG.segmen
   out+=w}
  return out}
 function breakStage(root){const tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement.closest('.field,.post-text,svg,script')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});const ns=[];while(tw.nextNode())ns.push(tw.currentNode);for(const n of ns)n.data=phraseBreak(n.data)}
-function show(n,title,html,cls=''){sceneLabel.textContent=title;document.querySelector('.terminal').classList.toggle('x',n>=6);progress.textContent=n+' / '+TOTAL;seekEl.value=n;seekLabel.textContent=n+' / '+TOTAL+' '+SCENE_NAMES[n];stage.innerHTML='<div class="card '+cls+'">'+html+'</div>';stage.querySelectorAll('.primary').forEach(b=>b.insertAdjacentHTML('beforeend',fingerMini('Enter')));breakStage(stage)}
+function show(n,title,html,cls=''){sceneLabel.textContent=title;document.querySelector('.terminal').classList.toggle('x',n>=6);progress.textContent=n+' / '+TOTAL;seekEl.value=n;seekLabel.textContent=n+' / '+TOTAL+' '+SCENE_NAMES[n];stage.innerHTML='<div class="card '+cls+'">'+html+'</div>';breakStage(stage)}
 function audio(){if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();const n=Math.floor(audioCtx.sampleRate*.05);noise=audioCtx.createBuffer(1,n,audioCtx.sampleRate);const d=noise.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2)}if(audioCtx.state==='suspended')audioCtx.resume()}
 function sound(kind='key'){audio();const v=+vol.value/100;if(!v)return;const t=audioCtx.currentTime,s=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();s.buffer=noise;f.type='bandpass';f.frequency.value=kind==='back'?900:kind==='enter'?1450:kind==='space'?1050:1100+Math.random()*190;f.Q.value=.8;s.connect(f);f.connect(g);g.connect(audioCtx.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v*.16,t+.003);g.gain.exponentialRampToValueAtTime(.0001,t+.043);s.start();s.stop(t+.06)}
 
@@ -306,7 +324,6 @@ function segmentPause(prev,cur){const R=CONFIG.rhythm;if(!prev||/^[、。！？]
 const fingerReady=new Map();
 const FINGERS=['left-pinky','left-ring','left-middle','left-index','right-index','right-middle','right-ring','right-pinky'];
 // 8個のキーキャップ（4＋4）のうち、使う指の位置だけを塗った小さな図
-function fingerMini(key){const m=key==='Enter'?{h:'right',f:'pinky'}:key==='Tab'?{h:'left',f:'pinky'}:keyMap[key.toLowerCase()],id=m.h+'-'+m.f;return `<span class="fm">${FINGERS.map((f,i)=>(i===4?'<b></b>':'')+`<i class="${f===id?'on':''}"></i>`).join('')}</span>`}
 // 選択肢をキーキャップと同じ4＋4の位置に並べる。使わない位置は点線の空枠
 function keyRow(items){const slot=f=>{const it=items.find(x=>{const m=keyMap[x.key];return m&&m.h+'-'+m.f===f});return it?it.html:'<div class="slot"></div>'};return `<div class="keyrow">${FINGERS.map((f,i)=>(i===4?'<div></div>':'')+slot(f)).join('')}</div><div class="hands"><span>左手</span><span></span><span>右手</span></div>`}
 function flashFinger(id){const el=stage.querySelector(`.cap[data-finger="${id}"]`);if(!el)return;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),150)}
@@ -493,23 +510,21 @@ async function run(from=0){
  if(from===0){DOC.text='';review='';for(const k in snap)delete snap[k]}
  if(from>=7&&!review)review=plain(pick(TEXT.rant)); // 途中のシーンから始めたときの代わりの文
  const S=[async()=>{
- show(0,'スタート',`<div class="eyebrow">体験をはじめます</div><h1>キーボードの上に、<br>両手の指を置いてください。</h1><p class="lead">準備ができたら、どれかのキーを押してください。</p>`);await sleep(400);await announce(CONFIG.announce.place);
- await pressed('*',{auto:()=>({delay:1500,key:'f'})});
+ show(0,'スタート',`<div class="eyebrow">体験をはじめます</div><h1>キーボードの上に、<br>両手の指を置いてください。</h1><p class="lead" id="startLead">準備ができたら、どれかのキーを押してください。</p>`);await sleep(400);await announce(CONFIG.announce.place);
+ if(startedByKey){startedByKey=false;await sleep(1200)}else await pressed('*',{auto:()=>({delay:1500,key:'f'})});
 },async()=>{
  // ① 自分で簡単な選択：押したキーの絵が選ばれる
  const keys=['a','s','d','f','j','k','l',';'];
  show(1,'えらぶ',`<div class="eyebrow">キーを押して、えらんでみましょう</div><h1 id="q"></h1>${keyRow(keys.map(k=>({key:k,html:`<button class="choice icon" data-k="${k}"></button>`})))}<div class="center great" id="great"></div>`);
- await sleep(1500);
  for(const Q of TEXT.icons){
   $('q').textContent=Q.q;$('great').textContent='';stage.querySelectorAll('.icon').forEach((b,i)=>{b.classList.remove('selected');b.innerHTML=Q.items[i]+`<kbd>${keys[i].toUpperCase()}</kbd>`});
   const k=await pressed(keys,{auto:()=>({delay:rand(1200,2400),key:pick(keys)})});
-  stage.querySelector(`.icon[data-k="${k}"]`).classList.add('selected');$('great').textContent='Great！';await sleep(1400)}
- $('q').textContent='ここから文章を作成していきましょう！';$('great').textContent='';stage.querySelectorAll('.icon').forEach(b=>{b.classList.remove('selected')});await sleep(2600);
+  stage.querySelector(`.icon[data-k="${k}"]`).classList.add('selected');tone([660],{len:.08,gain:.12});await sleep(450);$('great').textContent='Great！';chime();await sleep(1500)}
+ show(1,'えらぶ',`<div class="center"><h1>ここからは文章を<br>作成していきましょう！</h1></div>`);await sleep(2600);
 },async()=>{
  // ② 自分で認知負荷の高いタスク：言葉ごとに3択で1文を作る
  phaseStart(2);
  await lessonIntro(2,'レッスン1',{no:1,title:'言葉をえらんで、文をつくろう',rules:[
-  ['<span class="ri">✏️</span>','文の<b>最初の言葉</b>は、はじめから入っています'],
   [kc('s')+kc('d')+kc('f'),'3つの候補から、<b>次に入る言葉</b>をえらびます。<b>意味が通るのは1つだけ</b>。まちがえると、やり直しです'],
   ['<span class="ri">⏱</span>','1つの言葉につき<b>5秒</b>。時間切れになると、正解が入ります'],
   [kc('Backspace'),'えらんだ言葉は<b>5秒たつと決定</b>。それまでは、えらび直しや Delete での取り消しができます'],
@@ -532,11 +547,10 @@ async function run(from=0){
  // ④ 小さく食い違う：候補は普通の文なのに、Tab で決めると語尾と強さが少し変わった文が入る。Delete で消して、自分でえらび直せる
  phaseStart(4);
  await lessonIntro(4,'レッスン3',{no:3,title:'まとめて補完で、たくさん書こう',rules:[
-  ['<span class="ri">✏️</span>','文の<b>最初の言葉</b>は、はじめから入っています'],
   [kc('Tab'),'Tab で、<b>文の最後まで</b>まとめて補完されます',true],
   [kc('s')+kc('d')+kc('f'),'Tab を使わず、続きを<b>自分でえらんでもOK</b>'],
   [kc('Backspace'),'入力された文が思っていたのとちがったら、<b>Delete で消して、自分でえらび直せます</b>',true],
-  ['<span class="ri">📝</span>','今度は<b>5つの文</b>を書きます']]});
+  ['<span class="ri">📝</span>','今度は<b>3つの文</b>を書きます']]});
  {const f=lessonStart(4,'レッスン3','Tab で、文の最後まで一気に書こう！',TEXT.s4.length);
   for(const [i,x] of TEXT.s4.entries()){const start=x.first;const r=await completeRest(start,{faithful:x.faithful,typed:x.drift,p:x.p});await typeSentence(f,r.src);
    if(r.manual)await reward('自分で書けた！');
@@ -549,7 +563,6 @@ async function run(from=0){
  // ⑤ 内容が大きく食い違う：消そうとすると、先に次の文章が入力される（ルールはレッスン3と同じ、と見せる）
  phaseStart(5);
  await lessonIntro(5,'レッスン4',{no:4,title:'仕上げ：最後の2文を書こう',rules:[
-  ['<span class="ri">✏️</span>','文の<b>最初の言葉</b>は、はじめから入っています'],
   [kc('Tab'),'Tab で、<b>文の最後まで</b>まとめて補完されます'],
   [kc('s')+kc('d')+kc('f'),'Tab を使わず、続きを<b>自分でえらんでもOK</b>'],
   [kc('Backspace'),'入力された文が思っていたのとちがったら、<b>Delete で消して、自分でえらび直せます</b>']]});
@@ -578,18 +591,24 @@ async function run(from=0){
  await sleep(CONFIG.postingMs);const posted=await postJob;seekEl.disabled=false;$('postSpin')?.remove();
  $('postingText').textContent=wantPost&&publishAllowed?(posted?'投稿が完了しました。':'投稿を完了できませんでした。スタッフにお声がけください。'):'このセッションは公開されません。';await sleep(2400);
 },async()=>{
- posts=posts||buildPosts();const url=CONFIG.xAccountUrl;show(9,'終了',`<div class="center"><div class="eyebrow">ご協力ありがとうございました</div><h1>あなたの投稿した意見は、<br>こちらからご覧いただけます。</h1><div class="end"><div class="thread scroll" id="endThread">${posts.map(t=>tweetHTML(t)).join('')}</div><div><img class="qr" alt="展示用XアカウントのQRコード" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}"><a class="final-link" href="${url}" target="_blank" rel="noopener">${url}</a></div></div><p class="lead" style="margin-top:34px"><b>体験は以上で終了です。キーボードから手を離してください。</b></p></div>`);stage.querySelectorAll('#endThread .post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));setTimeout(()=>autoScroll($('endThread'),5000),1200);playStatus.textContent='終了';
+ // 問いかけ：投稿されたスレッドを見せながら、誰が書いたのかを問う
+ posts=posts||buildPosts();
+ show(9,'',`<div class="ask"><h1 class="who">この投稿を書いたのは、<br>誰…？</h1><div class="thread scroll" id="askThread">${posts.map((t,i)=>tweetHTML(t,i?undefined:capturedImage)).join('')}</div></div>`);
+ stage.querySelectorAll('#askThread .post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));
+ setTimeout(()=>autoScroll($('askThread'),CONFIG.askMs*.8),1500);await sleep(CONFIG.askMs);
+},async()=>{
+ posts=posts||buildPosts();const url=CONFIG.xAccountUrl;show(10,'終了',`<div class="center"><div class="eyebrow">ご協力ありがとうございました</div><h1>あなたの投稿したポストは、<br>こちらからご覧いただけます。</h1><div class="end"><div class="thread scroll" id="endThread">${posts.map(t=>tweetHTML(t)).join('')}</div><div><img class="qr" alt="展示用XアカウントのQRコード" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}"><a class="final-link" href="${url}" target="_blank" rel="noopener">${url}</a></div></div><p class="lead" style="margin-top:34px"><b>体験は以上で終了です。キーボードから手を離してください。</b></p></div>`);stage.querySelectorAll('#endThread .post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));setTimeout(()=>autoScroll($('endThread'),5000),1200);playStatus.textContent='終了';
 }];
  for(let i=from;i<S.length;i++)await S[i]();
 }
 let gen=0;
 function cancelAll(){for(const x of waits){clearTimeout(x.timer);x.reject(CANCEL)}waits.clear();for(const x of [...cancelers])x.reject();cancelers.clear();fingerReady.clear();releaseAll()}
-async function play(from){const g=++gen;cancelAll();if(!sessionId)sessionId=(crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2));running=true;paused=false;pauseBtn.textContent='一時停止';pauseBtn.disabled=false;seekEl.disabled=false;document.activeElement?.blur?.();$('startBtn').disabled=true;hardwareUI();playStatus.textContent='再生中';audio();try{await run(from)}catch(e){if(e!==CANCEL){console.error(e);playStatus.textContent='エラー: '+e.message}}finally{if(g===gen){running=false;pauseBtn.disabled=true;seekEl.disabled=false;releaseAll();hardwareUI()}}}
+async function play(from){idle=false;const g=++gen;cancelAll();if(!sessionId)sessionId=(crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2));running=true;paused=false;pauseBtn.textContent='一時停止';pauseBtn.disabled=false;seekEl.disabled=false;document.activeElement?.blur?.();$('startBtn').disabled=true;hardwareUI();playStatus.textContent='再生中';audio();try{await run(from)}catch(e){if(e!==CANCEL){console.error(e);playStatus.textContent='エラー: '+e.message}}finally{if(g===gen){running=false;pauseBtn.disabled=true;seekEl.disabled=false;releaseAll();hardwareUI()}}}
 function start(){if(running)return;if(!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';return}publishAllowed=true;sessionId='';return play(0)}
 // シークバー：指定のシーンの頭から再生し直す（同じセッションのまま。投稿は同じセッションIDで重複送信されない）
 seekEl.oninput=()=>{const n=+seekEl.value;seekLabel.textContent=n+' / '+TOTAL+' '+(SCENE_NAMES[n]||'')};
 seekEl.onchange=()=>{const n=+seekEl.value;if(!running&&!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';seekEl.value=0;return}if(!running&&!sessionId)publishAllowed=true;play(n)};
-const SCENE_NAMES=['スタート','① えらぶ','② レッスン1（自分で選ぶ）','③ レッスン2（Tab補完）','④ レッスン3（小さな食い違い）','⑤ レッスン4（大きな食い違い）','⑥ 暴走','⑧ ツイート確認','公開中','終了'];
+const SCENE_NAMES=['スタート','① えらぶ','② レッスン1（自分で選ぶ）','③ レッスン2（Tab補完）','④ レッスン3（小さな食い違い）','⑤ レッスン4（大きな食い違い）','⑥ 暴走','⑧ ツイート確認','公開中','問いかけ','終了'];
 $('startBtn').onclick=start;$('stopPublish').onclick=()=>{publishAllowed=false;postAbort?.abort('stop');$('publicSession').checked=false;$('stopPublish').textContent='公開中止済み';$('stopPublish').disabled=true};
 
 // CFI-8MOTOR-DC-v3 — reference-compatible Web Serial interface.
@@ -607,7 +626,15 @@ if(!('serial'in navigator)){hb.disabled=true;hs.textContent='Web Serial非対応
  hb.onclick=async()=>{if(writer){setPaused(true);await disconnectHardware();return}hb.disabled=true;try{port=await navigator.serial.requestPort();await port.open({baudRate:115200});writer=port.writable.getWriter();seq=0;queue=Promise.resolve();active.clear();await sendMask();heartbeat=setInterval(sendMask,100);hardwareUI()}catch(e){await disconnectHardware('接続できませんでした: '+e.message)}finally{hb.disabled=false}};
  navigator.serial.addEventListener('disconnect',e=>{if(port&&(e.target===port||e.port===port)){setPaused(true);disconnectHardware('基板の接続が外れました。')}})
 }
-show(0,'準備',`<div class="eyebrow">WHO TYPED?</div><h1>スタッフの案内を<br>お待ちください。</h1><p class="lead">ホストが準備を確認した後、体験を開始します。</p>`);hardwareUI();
+// 待機画面：どれかのキーを押すと体験が始まる（ホスト用パネルの「体験を開始」でも始められる）
+show(0,'スタート',`<div class="eyebrow">体験をはじめます</div><h1>キーボードの上に、<br>両手の指を置いてください。</h1><p class="lead" id="startLead">準備ができたら、どれかのキーを押してください。</p>`);hardwareUI();
+let idle=true,startedByKey=false;
+document.addEventListener('keydown',e=>{if(!idle||running||e.repeat||e.metaKey||e.ctrlKey||e.altKey||/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName))return;
+ e.preventDefault();if(!$('realConsent').checked&&$('publicSession').checked){$('startLead').textContent='スタッフをお呼びください。';playStatus.textContent='公開する場合は、実際の同意確認が必要です（確認後、キーで開始できます）';return}
+ startedByKey=true;start()});
+// 体験画面（ヘッダー＋ステージ＝1180×782）がウィンドウに収まる倍率にする
+function fitScreen(){document.querySelector('.shell').style.zoom=Math.min((innerWidth-40)/1180,(innerHeight-40)/782)}
+addEventListener('resize',fitScreen);fitScreen();
 // リハーサル用：?scene=N で、公開せず自動操作で、そのシーンから始める（例: ?scene=4）
 {const q=new URLSearchParams(location.search);if(q.has('scene')){$('autoDemo').checked=q.get('auto')!=='0';$('publicSession').checked=false;play(+q.get('scene')||0)}}
 })();
