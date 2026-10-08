@@ -69,14 +69,25 @@ async function xFetch(method, url, body) {
   return json;
 }
 
-async function postToX({ text, imageBase64 }) {
+// texts[0] に画像を付けて投稿し、2つ目以降はそのツイートへの返信（スレッド）として続ける
+async function postToX({ texts, imageBase64 }) {
   const media = await xFetch('POST', 'https://api.x.com/2/media/upload', {
     media: imageBase64, media_category: 'tweet_image', media_type: 'image/jpeg',
   });
   const mediaId = media?.data?.id;
   if (!mediaId) throw new Error('画像のアップロード結果にIDがありません');
-  const tweet = await xFetch('POST', 'https://api.x.com/2/tweets', { text, media: { media_ids: [mediaId] } });
-  return tweet.data.id;
+  const first = await xFetch('POST', 'https://api.x.com/2/tweets', { text: texts[0], media: { media_ids: [mediaId] } });
+  const ids = [first.data.id];
+  let warning = null;
+  try {
+    for (const text of texts.slice(1)) {
+      const r = await xFetch('POST', 'https://api.x.com/2/tweets', { text, reply: { in_reply_to_tweet_id: ids[ids.length - 1] } });
+      ids.push(r.data.id);
+    }
+  } catch (e) {
+    warning = `スレッドの続きの投稿に失敗しました（${ids.length}/${texts.length}件まで投稿済み）: ${e.message}`;
+  }
+  return { ids, warning };
 }
 
 // ---- 投稿記録（重複送信の防止と、削除・保存期間の確認用） ----
@@ -88,9 +99,11 @@ if (fs.existsSync(LOG)) for (const line of fs.readFileSync(LOG, 'utf8').split('\
 const log = entry => fs.appendFileSync(LOG, JSON.stringify(entry) + '\n');
 
 async function handlePost(req) {
-  const { sessionId, text, imageData, rating } = req;
+  const { sessionId, imageData, rating } = req;
+  const texts = Array.isArray(req.texts) ? req.texts : (typeof req.text === 'string' ? [req.text] : []);
   if (!/^[\w-]{8,64}$/.test(sessionId || '')) return { status: 400, body: { ok: false, error: 'sessionId がありません' } };
-  if (!text || typeof text !== 'string' || text.length > 280) return { status: 400, body: { ok: false, error: '本文が不正です' } };
+  // 日本語は1文字が2文字分に数えられるので、1ツイート140字まで。スレッドは10件まで
+  if (!texts.length || texts.length > 10 || texts.some(x => typeof x !== 'string' || !x.trim() || x.length > 140)) return { status: 400, body: { ok: false, error: '本文が不正です' } };
   const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(imageData || '');
   if (!m) return { status: 400, body: { ok: false, error: '手元写真がありません（撮影に失敗した回は投稿しません）' } };
 
@@ -101,13 +114,13 @@ async function handlePost(req) {
   }
   const job = (async () => {
     fs.writeFileSync(path.join(POSTS_DIR, `${sessionId}.jpg`), Buffer.from(m[1], 'base64'));
-    const entry = { sessionId, at: new Date().toISOString(), rating, text, dryRun };
+    const entry = { sessionId, at: new Date().toISOString(), rating, texts, dryRun };
     try {
       if (dryRun) {
         Object.assign(entry, { ok: true, id: null, url: null });
       } else {
-        const id = await postToX({ text, imageBase64: m[1] });
-        Object.assign(entry, { ok: true, id, url: `https://x.com/${handle.slice(1) || 'i'}/status/${id}` });
+        const { ids, warning } = await postToX({ texts, imageBase64: m[1] });
+        Object.assign(entry, { ok: true, id: ids[0], ids, url: `https://x.com/${handle.slice(1) || 'i'}/status/${ids[0]}`, ...(warning ? { warning } : {}) });
       }
     } catch (e) {
       Object.assign(entry, { ok: false, error: e.message });
@@ -122,12 +135,13 @@ async function handlePost(req) {
   return { status: result.ok ? 200 : 502, body: result };
 }
 
-async function handleDelete({ id }) {
-  if (!/^\d{5,25}$/.test(id || '')) return { status: 400, body: { ok: false, error: '投稿IDが不正です' } };
+async function handleDelete({ id, ids }) {
+  const list = Array.isArray(ids) ? ids : [id];
+  if (!list.length || list.length > 10 || !list.every(x => /^\d{5,25}$/.test(x || ''))) return { status: 400, body: { ok: false, error: '投稿IDが不正です' } };
   if (dryRun) return { status: 200, body: { ok: true, dryRun: true } };
   try {
-    await xFetch('DELETE', `https://api.x.com/2/tweets/${id}`);
-    log({ deleted: id, at: new Date().toISOString(), ok: true });
+    for (const x of list) await xFetch('DELETE', `https://api.x.com/2/tweets/${x}`);
+    log({ deleted: list, at: new Date().toISOString(), ok: true });
     return { status: 200, body: { ok: true } };
   } catch (e) {
     return { status: 502, body: { ok: false, error: e.message } };

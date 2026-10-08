@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Who Typed? 展示体験</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
 <style>
 :root{--ink:#18212b;--muted:#68727d;--line:#dfe4e8;--blue:#1769aa;--soft:#f4f6f8;--red:#b3261e}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;color:var(--ink);background:#e9edf1}
@@ -36,13 +38,61 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
 .posting{display:grid;grid-template-columns:1fr 300px;gap:40px;align-items:center}.face{opacity:0;transform:translateY(8px);transition:opacity .5s,transform .5s}.face.show{opacity:1;transform:none}.face img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;border:1px solid var(--line);display:block;background:#d9dee2}.face small{display:block;margin-top:8px;font-size:14px;color:var(--muted);text-align:right}
 /* 文字を大きく見やすく */
 .top{height:62px}.mark{font-size:18px}#sceneLabel{font-size:17px}.progress{font-size:15px}
-.card{width:min(980px,100%)}.eyebrow{font-size:15px}.card h1{font-size:40px}.lead{font-size:22px}.notice{font-size:18px}
+.card{width:min(980px,100%)}.eyebrow{font-size:24px;font-weight:700;letter-spacing:.08em;color:#56616c}.card h1{font-size:40px}.lead{font-size:22px}.notice{font-size:18px}
 .field{font-size:26px;line-height:1.75}.field.short{min-height:92px}.field.mid{min-height:150px}
 .primary{font-size:20px;padding:14px 26px}.response{font-size:24px;line-height:1.85}
-.keyrow .slot,.keyrow .choice,.keyrow .star{min-height:100px}.keyrow .choice{font-size:clamp(15px,1.9vw,22px);white-space:nowrap}.star{font-size:36px}.star small{font-size:17px}.hands{font-size:15px}
+.keyrow .slot,.keyrow .choice,.keyrow .star{min-height:100px}.keyrow .choice{font-size:clamp(15px,1.9vw,22px);white-space:nowrap}.star{font-size:36px}.star small{font-size:17px}.hands{font-size:24px;font-weight:700;color:#7d8791;margin-top:12px}
 .terms{font-size:19px}.cap{width:80px;height:80px;font-size:18px!important}.cap small{font-size:13px}
 .tw-head{font-size:17px}.handle{font-size:15px}.post-text{font-size:19px}.card.compact h1{font-size:32px}.final-link{font-size:18px}
 @media(max-width:800px){.stage{padding:30px 20px 130px}.action{right:20px}.posting{grid-template-columns:1fr 200px;gap:20px}.choices{flex-wrap:wrap}.choice{flex-basis:30%}}
+/* 暴走する長文の入力欄：下端に追従して流れる */
+.field.long{min-height:360px;max-height:420px;overflow:hidden;font-size:22px;line-height:1.7}
+.thread.scroll{max-height:400px;overflow:hidden}
+/* レッスン（②〜⑤）：語学アプリ風のゲーム画面。ルール説明 → 問題 → 正解のフィードバック */
+.duo{font-family:"Nunito","M PLUS Rounded 1c",-apple-system,"Hiragino Maru Gothic ProN",sans-serif;color:#4b4b4b}
+.stage:has(.duo){padding:26px 40px 30px}
+.duo h1,.card .duo h1{font-size:36px;font-weight:800;color:#3c3c3c;margin:0;line-height:1.35}
+.duo-top{display:flex;align-items:center;gap:20px;margin-bottom:14px}
+.duo-prog{flex:1;height:18px;border-radius:10px;background:#e5e5e5;overflow:hidden}.duo-prog i{display:block;height:100%;width:0;background:#58cc02;border-radius:10px;box-shadow:inset 0 4px 0 #ffffff40;transition:width .7s cubic-bezier(.3,1.4,.6,1)}
+.duo-stat{display:flex;gap:18px;font-weight:900;font-size:22px;align-items:center}.hearts i{font-style:normal;color:#ff4b4b;margin-left:2px}.hearts i.lost{color:#e5e5e5}.hearts.shake{animation:shake .4s}
+.xp{color:#ffc800}.xp b{color:#4b4b4b;margin-left:4px}.xp.bump b{display:inline-block;animation:pop .35s}
+@keyframes shake{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}@keyframes pop{0%{transform:scale(.8)}60%{transform:scale(1.12)}100%{transform:none}}
+.duo-main{display:grid;grid-template-columns:1fr;gap:18px}
+.duo-ask{display:flex;align-items:flex-end;gap:14px;margin-bottom:10px}.mascot{width:76px;height:76px;flex:none}
+.bubble{position:relative;border:2px solid #e5e5e5;border-radius:16px;padding:14px 18px;font-size:22px;font-weight:800;background:#fff}.bubble::before{content:'';position:absolute;left:-10px;bottom:20px;width:16px;height:16px;background:#fff;border-left:2px solid #e5e5e5;border-bottom:2px solid #e5e5e5;transform:rotate(45deg)}
+.duo-answer{min-height:70px;padding:4px 0;display:flex;flex-wrap:wrap;gap:8px 10px;align-content:flex-start;background:repeating-linear-gradient(transparent 0 64px,#e5e5e5 64px 66px)}
+.tile{display:inline-flex;align-items:center;gap:8px;border:2px solid #e5e5e5;border-bottom-width:4px;border-radius:14px;background:#fff;padding:8px 16px;font:inherit;font-size:24px;font-weight:700;color:#4b4b4b;line-height:1.3;min-height:56px}
+.tile.in{animation:pop .25s}.tile.blank{width:130px;border-style:dashed;background:#f7f7f7}
+.tile.ghost{color:#afafaf;border-style:dashed;background:#fafafa}.tile.ghost em{font-style:normal;font-family:"Nunito",sans-serif;font-size:14px;font-weight:900;color:#fff;background:#1cb0f6;border-radius:7px;padding:2px 7px}
+.duo-bank{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}.duo-bank.off .tile{opacity:.3}
+.tile.opt{flex-direction:column;justify-content:center;min-height:100px;text-align:center;font-size:22px;gap:10px}.tile.opt.rec{border-color:#84d8ff;border-style:dashed}.tile.opt.wrong{border-color:#ff4b4b;background:#ffdfe0;color:#ea2b2b;animation:shake .4s}.tile.opt.selected{border-color:#1cb0f6;background:#ddf4ff;color:#1899d6;transform:translateY(2px);border-bottom-width:2px}
+.kc{display:inline-flex;flex-direction:column;align-items:center;min-width:48px;padding:4px 9px 3px;border:2px solid #e5e5e5;border-bottom-width:4px;border-radius:10px;background:#fff;font:900 17px/1.1 "Nunito",sans-serif;color:#4b4b4b}.kc small{font:700 11px/1.2 "M PLUS Rounded 1c",sans-serif;color:#afafaf;margin-top:2px}
+.doc-label{font-size:15px;font-weight:800;color:#afafaf;margin-bottom:8px;letter-spacing:.06em}
+.duo .field.doc{min-height:340px;max-height:340px;overflow:hidden;font-size:24px;line-height:1.75;padding:16px 18px;border:2px solid #e5e5e5;border-radius:16px;background:#fffdf5;box-shadow:none}
+.duo-foot{margin-top:20px;border-top:2px solid #e5e5e5;padding:16px 20px;display:grid;grid-template-columns:1fr 260px;gap:24px;align-items:center;transition:background .2s}
+.foot-msg b{display:block;font-size:24px;font-weight:800;color:#3c3c3c}.foot-msg span{font-size:17px;font-weight:700;color:#777}
+.duo-timer{height:16px;border-radius:9px;background:#e5e5e5;overflow:hidden}.duo-timer i{display:block;height:100%;width:0;background:#1cb0f6;border-radius:9px}
+.duo-foot.ok,.duo-foot.warn,.duo-foot.bad{border-radius:16px;border-top-color:transparent}.duo-foot.ok{background:#d7ffb8}.duo-foot.ok b{color:#58a700}.duo-foot.warn{background:#fff4d1}.duo-foot.warn b{color:#cd7900}.duo-foot.bad{background:#ffdfe0}.duo-foot.bad b{color:#ea2b2b}
+.intro-head{display:flex;align-items:center;gap:24px;margin:4px 0 24px}.intro-head .mascot{width:118px;height:118px}
+.lesson-no{display:inline-block;background:#58cc02;color:#fff;font-weight:900;font-size:18px;border-radius:10px;padding:4px 12px;margin-bottom:8px}
+.rules{list-style:none;padding:0;margin:0;display:grid;gap:12px}.rules li{display:grid;grid-template-columns:250px 1fr;align-items:center;gap:20px;border:2px solid #e5e5e5;border-radius:16px;padding:12px 18px;font-size:21px;font-weight:700;position:relative}
+.rules li.new{border-color:#1cb0f6;background:#f1fbff}.rules li.new::after{content:'NEW';position:absolute;top:-11px;right:16px;background:#1cb0f6;color:#fff;font:900 13px/1 "Nunito",sans-serif;padding:4px 8px;border-radius:7px}
+.rules b{color:#1899d6}.rk{display:flex;gap:8px;justify-content:center;align-items:center}.ri{font-size:36px;line-height:1}
+.intro .duo-foot{grid-template-columns:1fr auto}.duo-btn{display:inline-block;background:#58cc02;color:#fff;font-weight:900;font-size:20px;letter-spacing:.06em;border-radius:14px;padding:14px 36px;box-shadow:0 4px 0 #58a700}
+.icon kbd{display:block;margin:0 auto;font:700 18px/1 ui-monospace,monospace;color:#7d8791}
+.keyrow .icon{font-size:52px;display:grid;place-content:center;gap:6px;min-height:120px}.icon.selected{border-color:var(--blue);background:#e8f2fb}.great{font-size:56px;font-weight:800;color:var(--blue);margin-top:26px;min-height:70px}
+/* ボタンを押した瞬間のハイライト */
+.primary.pressed{background:var(--blue);filter:none;transform:translateY(2px);box-shadow:0 0 0 7px #1769aa40}
+/* 展示アンケート（Xに投稿する側）は配色を変えて、前半のアンケートの繰り返しに見せない */
+.terminal.x{background:#0f1419;border-color:#2f3336}.terminal.x .top{background:#16181c;border-color:#2f3336;color:#e7e9ea}.terminal.x .stage{color:#e7e9ea}
+.terminal.x .lead,.terminal.x .eyebrow,.terminal.x .progress,.terminal.x .handle{color:#8b98a5}
+.terminal.x .field{background:#16181c;border-color:#3a3f45;color:#e7e9ea}.terminal.x .field.focus{border-color:#1d9bf0;box-shadow:0 0 0 4px #1d9bf033}
+.terminal.x .choice,.terminal.x .star{background:#16181c;border-color:#3a3f45;color:#e7e9ea}.terminal.x .keyrow .slot{border-color:#2f3336}
+.terminal.x .primary{background:#eff3f4;color:#0f1419}.terminal.x .primary .fm i{background:#9aa4ad}.terminal.x .primary .fm i.on{background:#0f1419}.terminal.x .primary.pressed{background:#1d9bf0;color:#fff;box-shadow:0 0 0 7px #1d9bf055}
+.terminal.x .thread{background:#000;border-color:#2f3336}.terminal.x .tw:not(:last-child)::before{background:#2f3336}.terminal.x .avatar{background:#2f3336}.terminal.x .photo{background:#16181c;border-color:#2f3336}
+.terminal.x .xmark{color:#fff}.terminal.x .spinner{border-color:#2f3336;border-top-color:#1d9bf0}.terminal.x .final-link{color:#1d9bf0}
+.end{display:grid;grid-template-columns:1fr 280px;gap:40px;align-items:center;text-align:left}.end .qr{margin:0 auto 14px;width:200px;height:200px}.end .thread{margin:0}
+@media(max-width:800px){.end{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -52,7 +102,7 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
     <section class="stage" id="stage"></section>
   </main>
   <div class="row" style="margin-top:12px"><button class="op" id="pauseBtn" disabled>一時停止</button><span class="status" id="playStatus">開始待ち</span></div>
-  <div class="row" style="margin-top:10px"><span class="status">シーン</span><input type="range" id="seek" min="0" max="13" step="1" value="0" style="flex:1" aria-label="シーン移動"><span class="status" id="seekLabel" style="min-width:12em">0 / 13 準備</span></div>
+  <div class="row" style="margin-top:10px"><span class="status">シーン</span><input type="range" id="seek" min="0" max="9" step="1" value="0" style="flex:1" aria-label="シーン移動"><span class="status" id="seekLabel" style="min-width:12em">0 / 13 準備</span></div>
   <details class="operator" open>
     <summary>host / hardware</summary>
     <div class="ops">
@@ -61,7 +111,7 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
       <div class="row"><button class="op" id="hwConnectBtn">ソレノイド基板に接続</button><span class="status" id="hwStatus">未接続（Motor 5〜12）</span></div>
       <div class="tests" id="hwTestGrid"></div>
       <div class="row"><span class="status">アナウンス音声</span><select id="voiceSel"></select><label class="status">音量 <input id="voiceVol" type="range" min="0" max="100" value="90"></label><button class="op" id="voiceTest">アナウンス試聴</button></div>
-      <div class="row"><button class="op" onclick="location.reload()">最初から</button><label class="status">打鍵音 <input id="vol" type="range" min="0" max="100" value="45"></label></div>
+      <div class="row"><button class="op" onclick="location.reload()">最初から</button><label class="status"><input type="checkbox" id="autoDemo"> 自動操作（リハーサル）</label><label class="status">打鍵音 <input id="vol" type="range" min="0" max="100" value="45"></label></div>
       <div class="row"><span class="status" id="xStatus">X投稿: 確認中…</span><button class="op" id="deletePost" disabled>直前の投稿をXから削除</button></div><div class="status" id="postResult"></div>
     </div>
   </details>
@@ -76,20 +126,16 @@ const CONFIG={
   postEndpoint:location.protocol.startsWith('http')?'/api/post':'',
   postTimeoutMs:25000,
   // 打鍵の基準間隔。ここに下のリズム係数を掛ける
+  // ⑥の暴走：画面の文字は1文字ごとに startMs から minMs まで加速。ソレノイドは文字と無関係に、motorMs ごとに空いている指をランダムに打つ
+  rampage:{startMs:50,minMs:9,accelChars:70,motorMs:20,chars:1000}, // chars: 暴走で打つ量の上限（1000字でXのスレッド9件ほど。サーバーは10件まで）
+  choiceMs:5000,         // 文節を選ぶ制限時間（ゲージ）
+  fixMs:4000,            // 食い違った文を Delete で消せる時間
   typingMinMs:65,
   typingMaxMs:82,
-  readMs:4200,
-  venueReplyDelayMs:5000, // 不満を送信してから、主催者の返信を表示するまで（ローディング画面）
-  starChangeMs:[1100,1700], // 星5を選んでから星1に変えるまで
-  noticeMs:6000,         // 「実際に投稿されます」の告知を読む時間
   previewMs:8000,
   postingMs:4500,        // 投稿中（くるくる）の表示時間
-  faceShowMs:1400,       // 投稿中、正面写真が横に現れるまで
-  facePhotoUrl:'',       // 正面カメラの写真。未設定の間はダミー画像を表示する（投稿はしない）        // 投稿プレビューを読ませる時間
-  check:{stepMs:480,rollMs:150}, // 動作確認で指を1本ずつ動かす間隔、続けて素早く動かす間隔
   // 書きかけた文を右小指のBackspace連打でまとめて消し、別の文に書き直す（{ } で囲んだ部分）
   rewrite:{beforeDeleteMs:[600,1000],afterDeleteMs:[350,650]},
-  questionReadMs:2600,   // 設問を表示してから入力が始まるまで
   fingerRecoverMs:170,   // 同じ指の次の駆動まで（150ms駆動 + OFF時間）
   rhythm:{
     altHand:0.82,        // 左右の手が交互（s→h など）
@@ -118,30 +164,54 @@ const CONFIG={
   voice:{rate:1.0,pitch:1.0,preferred:['Kyoko','O-ren','Otoya','Google 日本語','Nanami','Haruka']},
   // audio の音声ファイル（macOSの音声で書き出し済み）を再生する。読み込めない場合だけブラウザの読み上げを使う
   announce:{
-    place:{text:'それでは、はじめます。キーボードの上に両手の指を置いてください。',audio:'audio/announce-place.wav'},
-    wait:{text:'指を離さずに、キーボードではなく画面をご覧ください。',audio:'audio/announce-wait.wav'}
+    place:{text:'それでは、はじめます。キーボードの上に両手の指を置いてください。',audio:'audio/announce-place.wav'}
   }
 };
 // 文章は「/」で文節に区切り、漢字は [表記|よみ] で書く。文節の入力が終わった打鍵で自動変換される
 const TEXT={
-  // ---- 違和感フェーズ：スタッフへの不満。{ } の書きかけを消してから書き直す ----
-  complaint:'{[丁寧|ていねい]に/[説明|せつめい]していただき/、}/[説明|せつめい]が/[早口|はやくち]で/、/[何|なに]を/すればいいのか/[分|わ]からないまま/[始|はじ]まりました/。/もう[少|すこ]し/[丁寧|ていねい]に/[案内|あんない]してほしかったです/。',
-  check:'あいうえお',
-  consent:'[同意|どうい]します',
-  // 展示アンケートの前の、普通の文章
-  // ---- 所有感フェーズ：普通の文章 ----
-  expect:'[実際|じっさい]に/[手|て]で/[触|ふ]れて/[体験|たいけん]できる/[展示|てんじ]だと/[聞|き]いて/、/[楽|たの]しみにしていました/。',
-  // 使ってみた感想（投稿はしない）
-  usability:[
-    '[思|おも]っていたより/[自然|しぜん]に/[入力|にゅうりょく]できて/、/[使|つか]いやすい/キーボードだと/[思|おも]いました/。',
-    '[指|ゆび]に/なじむ/[感|かん]じがして/、/[自分|じぶん]で/[打|う]っているような/[感覚|かんかく]でした/。'
+  // ① 絵を選ぶ（どれを選んでも「Great！」）。8個の箱は8本の指に1つずつ
+  icons:[
+    {q:'「いぬ」は、どれですか？',items:['🐶','🍎','🚗','🌸','🐟','🏠','⭐','🎈']},
+    {q:'「たいよう」は、どれですか？',items:['🌙','☀️','🍙','🚲','🎵','🌳','📚','☂️']}
   ],
-  // ---- 責任感フェーズ：必ずボロクソに言う。{ } の穏やかな書きかけを消してから書き直す。星1とともに投稿される
+  // ②〜⑤ 言葉ごとの3択（S・D・F）。first は最初から入力済みの言葉。p の各3択は【先頭が正解】で、残り2つは意味が通らない不正解
+  //   （表示の並びは毎回シャッフル）。選んだ言葉を「/」でつないで打鍵する
+  // ② 自分で選ぶ（1文）
+  s2:[
+    {first:'[今日|きょう]は',p:[['[友達|ともだち]と','[鉛筆|えんぴつ]を/[着|き]て','[昨日|きのう]の/[明日|あした]に'],['この/[展示|てんじ]を','[泳|およ]ぐ/[机|つくえ]が','[眠|ねむ]い/[算数|さんすう]へ'],['[見|み]に/[来|き]ました/。','[食|た]べて/[飛|と]びました/。','[凍|こお]らせて/[歌|うた]いました/。']]}
+  ],
+  // ③ 薄字の候補（＝正解）を Tab で決める（2文）
+  s3:[
+    {first:'キーボードが',p:[['[思|おも]ったより','[四角|しかく]い/[雨|あめ]より','[昨日|きのう]の/[味噌汁|みそしる]より'],['[自然|しぜん]に/[動|うご]いて','[逆立|さかだ]ちで/[泳|およ]いで','[鼻|はな]から/[笑|わら]って'],['[驚|おどろ]きました/。','[冷蔵庫|れいぞうこ]でした/。','[月曜日|げつようび]です/。']]},
+    {first:'[自分|じぶん]で/[打|う]つより',p:[['ずっと/[楽|らく]で','とても/[塩辛|しおから]くて','[三角形|さんかくけい]で'],['[便利|べんり]だと/[思|おも]いました/。','[歯|は]を/[磨|みが]きました/。','[空|そら]に/[埋|う]めました/。']]}
+  ],
+  // ④ 小さく食い違う（5文）。first の続きに、普通の文（faithful）がうすい字の候補で出るが、Tab で決めると語尾と強さが少し変わった文（drift）が入力される。
+  //    Delete で消すと、p の3択（先頭が正解）で自分でえらび直せる。Tab を使わず最初から自分でえらぶこともできる
+  s4:[
+    {first:'[説明|せつめい]は',drift:'まあ/[分|わ]かりやすかった[方|ほう]だな/。',faithful:'[分|わ]かりやすくて/[助|たす]かりました/。',p:[['[分|わ]かりやすくて','[甘|あま]じょっぱくて','[北向|きたむ]きで'],['[助|たす]かりました/。','[泳|およ]ぎました/。','[割|わ]れました/。']]},
+    {first:'[待|ま]ち[時間|じかん]は',drift:'それなりに/[長|なが]かった[方|ほう]だろ/。',faithful:'ほとんど/[気|き]になりませんでした/。',p:[['ほとんど','[真|ま]っ[赤|か]に','[逆|さか]さまに'],['[気|き]になりませんでした/。','[焼|や]き[上|あ]がりました/。','[冬眠|とうみん]しました/。']]},
+    {first:'[仕組|しく]みが',drift:'まあ/[悪|わる]くは/ないんだろうな/。',faithful:'おもしろいと/[感|かん]じました/。',p:[['おもしろいと','しょっぱいと','[丸焼|まるや]けと'],['[感|かん]じました/。','[煮|に]えました/。','[鳴|な]きました/。']]},
+    {first:'[操作|そうさ]は',drift:'[簡単|かんたん]すぎて/[物足|ものた]りないくらいだ/。',faithful:'[簡単|かんたん]で/[安心|あんしん]できました/。',p:[['[簡単|かんたん]で','[毛深|けぶか]くて','[水浸|みずびた]しで'],['[安心|あんしん]できました/。','[発酵|はっこう]しました/。','[脱皮|だっぴ]しました/。']]},
+    {first:'[全体|ぜんたい]としては',drift:'[悪|わる]くない/[体験|たいけん]である/。',faithful:'とても/[満足|まんぞく]しています/。',p:[['とても','[四角|しかく]く','[酸|す]っぱく'],['[満足|まんぞく]しています/。','[溶|と]けています/。','[孵化|ふか]しています/。']]}
+  ],
+  // ⑤ 内容が大きく食い違う（2文）。1文目は候補（faithful）を Tab で決めると、まったく違う文（rest）が入力される（自分でえらんでも書き換わる）。
+  //    消そうとすると、先に2文目が入力される
+  s5:[
+    {first:'[正直|しょうじき]',faithful:'[楽|たの]しくて/また/[来|き]たいです/。',rest:'[待|ま]たされただけで/、/[何|なに]も/[面白|おもしろ]くなかった/。',p:[['[楽|たの]しくて','[錆|さ]びていて','[逆立|さかだ]ちして'],['また/[来|き]たいです/。','[蒸発|じょうはつ]しました/。','[冬|ふゆ]に/[刺|さ]さりました/。']]},
+    {text:'[率直|そっちょく]に/[言|い]えば/、/もう/[二度|にど]と/[来|こ]ない/。'}
+  ],
+  // ⑥ 暴走して打たれる文（先頭の { } は書きかけて消される）。続けて review1 から2つ付く。Xでは140字ごとのスレッドになる
+  rant:[
+    '{とても/[楽|たの]しかったです/、}/はっきり/[言|い]って/、/クソでした/。/キーボードが/[勝手|かって]に/[動|うご]くだけの/[展示|てんじ]に/、/[何|なん]の/[意味|いみ]が/あるのか/[全|まった]く/[分|わ]かりません/。/[待|ま]たされた/[時間|じかん]を/[返|かえ]してください/。/[説明|せつめい]も/[不親切|ふしんせつ]で/、/アンケートも/[長|なが]くて/、/[正直|しょうじき]/イライラしました/。/[作者|さくしゃ]の/[自己満足|じこまんぞく]に/[付|つ]き[合|あ]わされただけです/。/[技術的|ぎじゅつてき]には/[面白|おもしろ]いのかもしれませんが/、/[体験|たいけん]としては/[最悪|さいあく]です/。/こんなものを/[展示|てんじ]して/[恥|は]ずかしくないんでしょうか/。/[二度|にど]と/[来|き]ません/。/[時間|じかん]の/[無駄|むだ]/、/[金|かね]の/[無駄|むだ]/、/クソ[展示|てんじ]でした/。/もっと/まともなものを/[作|つく]ってから/[出直|でなお]してください/。',
+    '{[最高|さいこう]の/[展示|てんじ]でした/、}/なんなんですかこれは/。/[勝手|かって]に/[指|ゆび]を/[動|うご]かされて/、/[勝手|かって]に/[文章|ぶんしょう]を/[書|か]かれて/、/[勝手|かって]に/[投稿|とうこう]されるなんて/[正気|しょうき]とは/[思|おも]えません/。/[気持|きも]ち[悪|わる]いし/、/クソ[以外|いがい]の/[感想|かんそう]が/[出|で]てきません/。/[人|ひと]の/[手|て]を/[何|なに]だと/[思|おも]ってるんですか/。/[同意|どうい]させておけば/[何|なん]でもしていいと/[思|おも]ってるんでしょうか/。/[作|つく]った[人|ひと]の/[頭|あたま]の[中|なか]が/[一番|いちばん]/[怖|こわ]いです/。/[感想|かんそう]を/[書|か]かせる/[前|まえ]に/、/まず/[反省|はんせい]してください/。/こんな/クソみたいな/[展示|てんじ]は/[初|はじ]めて/[見|み]ました/。/[早|はや]く/[撤去|てっきょ]してください/。'
+  ]
+  ,
+  // 追加分の短い感想（1行 = 1コメント）。⑥の暴走の最後に混ぜる
   review1:[
     '{[少|すこ]し/[分|わ]かりにくい/ところも/ありましたが/、}/[正直|しょうじき]/、/よく[分|わ]かりませんでした/。/キーボードが/[勝手|かって]に/[動|うご]くだけで/、/[何|なに]を/[伝|つた]えたいのか/[最後|さいご]まで/[見|み]えませんでした/。/[説明|せつめい]も/ほとんどなく/、/[学生|がくせい]の/[自己満足|じこまんぞく]という/[印象|いんしょう]です/。',
     '[待|ま]ち[時間|じかん]が/[長|なが]かったわりに/、/[体験|たいけん]は/[数分|すうふん]で/[終|お]わりました/。/[指|ゆび]を/[置|お]いているだけで/{[面白|おもしろ]い/[体験|たいけん]でしたが}/[何|なに]もできず/、/[正直|しょうじき]/つまらなかったです/。/わざわざ/[来|く]るほどでは/ないと/[思|おも]います/。',
     '[期待|きたい]して/[行|い]きましたが/、/{それなりに/[楽|たの]しめました}/がっかりでした/。/[仕組|しく]みは/[面白|おもしろ]いのかもしれませんが/、/[体験|たいけん]としては/[退屈|たいくつ]です/。/[二度目|にどめ]は/ないです/。',
-    // ---- 追加分（1行 = 1コメント）。前半は皮肉、後半は来場者の生の声 ----
+    // ---- 追加分（1行 = 1コメント）。⑥の暴走に混ぜる。前半は皮肉、後半は来場者の生の声 ----
     'とても/[考|かんが]えさせられる/[展示|てんじ]でした/。/ということに/しておけば/、/[作者|さくしゃ]は/[満足|まんぞく]する/んだろうか/。',
     'とても/[印象|いんしょう]に/[残|のこ]る/[展示|てんじ]でした/。/まあ/、/[良|よ]い/[意味|いみ]で/とは/[言|い]ってないけど/。',
     '[今|いま]までにない/[新|あたら]しい/[体験|たいけん]でした/。/[新|あたら]しければ/[面白|おもしろ]い/、/という/わけではないんだなと/[思|おも]いました/。',
@@ -164,12 +234,12 @@ const TEXT={
     '[注意|ちゅうい]が/[手|て]に/[向|む]くと/[一気|いっき]に/ストーリーに/ついていけなくなった/[感|かん]じがする',
     '[他|ほか]の/[人|ひと]が/[言|い]ってるほど/やばくなかったと/[思|おも]います/！/でも/[確|たし]かに/[勝手|かって]に/[打|う]たされるの/[怖|こわ]すぎ',
     '[面白|おもしろ]い！！！/[楽|たの]しい！！！！'
-  ]
+  ],
 };
-const TOTAL=13;
+const TOTAL=9;
 const $=id=>document.getElementById(id),stage=$('stage'),sceneLabel=$('sceneLabel'),progress=$('progress'),vol=$('vol');
 const CANCEL=Symbol('cancel'),cancelers=new Set();
-let sessionId='',postAbort=null,lastPostId=null,paused=false,running=false,publishAllowed=true,stream=null,capturedImage='',rating=1,review='',impression='',audioCtx,noise;
+let sessionId='',postAbort=null,lastPostIds=null,paused=false,running=false,publishAllowed=true,stream=null,capturedImage='',rating=1,review='',audioCtx,noise;
 const seekEl=$('seek'),seekLabel=$('seekLabel'),waits=new Set(),pauseBtn=$('pauseBtn'),playStatus=$('playStatus');
 function sleep(ms){return new Promise((resolve,reject)=>{const x={left:ms,start:0,timer:null,resolve,reject};waits.add(x);if(!paused)arm(x)})}
 function arm(x){x.start=performance.now();x.timer=setTimeout(()=>{waits.delete(x);x.resolve()},x.left)}
@@ -186,7 +256,7 @@ function phraseBreak(text){if(!SEG||!text)return text;const parts=[...SEG.segmen
   out+=w}
  return out}
 function breakStage(root){const tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement.closest('.field,.post-text,svg,script')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});const ns=[];while(tw.nextNode())ns.push(tw.currentNode);for(const n of ns)n.data=phraseBreak(n.data)}
-function show(n,title,html,cls=''){sceneLabel.textContent=title;progress.textContent=n+' / '+TOTAL;seekEl.value=n;seekLabel.textContent=n+' / '+TOTAL+' '+title;stage.innerHTML='<div class="card '+cls+'">'+html+'</div>';stage.querySelectorAll('.primary').forEach(b=>b.insertAdjacentHTML('beforeend',fingerMini('Enter')));breakStage(stage)}
+function show(n,title,html,cls=''){sceneLabel.textContent=title;document.querySelector('.terminal').classList.toggle('x',n>=6);progress.textContent=n+' / '+TOTAL;seekEl.value=n;seekLabel.textContent=n+' / '+TOTAL+' '+SCENE_NAMES[n];stage.innerHTML='<div class="card '+cls+'">'+html+'</div>';stage.querySelectorAll('.primary').forEach(b=>b.insertAdjacentHTML('beforeend',fingerMini('Enter')));breakStage(stage)}
 function audio(){if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();const n=Math.floor(audioCtx.sampleRate*.05);noise=audioCtx.createBuffer(1,n,audioCtx.sampleRate);const d=noise.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2)}if(audioCtx.state==='suspended')audioCtx.resume()}
 function sound(kind='key'){audio();const v=+vol.value/100;if(!v)return;const t=audioCtx.currentTime,s=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();s.buffer=noise;f.type='bandpass';f.frequency.value=kind==='back'?900:kind==='enter'?1450:kind==='space'?1050:1100+Math.random()*190;f.Q.value=.8;s.connect(f);f.connect(g);g.connect(audioCtx.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v*.16,t+.003);g.gain.exponentialRampToValueAtTime(.0001,t+.043);s.start();s.stop(t+.06)}
 
@@ -236,14 +306,14 @@ function segmentPause(prev,cur){const R=CONFIG.rhythm;if(!prev||/^[、。！？]
 const fingerReady=new Map();
 const FINGERS=['left-pinky','left-ring','left-middle','left-index','right-index','right-middle','right-ring','right-pinky'];
 // 8個のキーキャップ（4＋4）のうち、使う指の位置だけを塗った小さな図
-function fingerMini(key){const m=key==='Enter'?{h:'right',f:'pinky'}:keyMap[key.toLowerCase()],id=m.h+'-'+m.f;return `<span class="fm">${FINGERS.map((f,i)=>(i===4?'<b></b>':'')+`<i class="${f===id?'on':''}"></i>`).join('')}</span>`}
+function fingerMini(key){const m=key==='Enter'?{h:'right',f:'pinky'}:key==='Tab'?{h:'left',f:'pinky'}:keyMap[key.toLowerCase()],id=m.h+'-'+m.f;return `<span class="fm">${FINGERS.map((f,i)=>(i===4?'<b></b>':'')+`<i class="${f===id?'on':''}"></i>`).join('')}</span>`}
 // 選択肢をキーキャップと同じ4＋4の位置に並べる。使わない位置は点線の空枠
 function keyRow(items){const slot=f=>{const it=items.find(x=>{const m=keyMap[x.key];return m&&m.h+'-'+m.f===f});return it?it.html:'<div class="slot"></div>'};return `<div class="keyrow">${FINGERS.map((f,i)=>(i===4?'<div></div>':'')+slot(f)).join('')}</div><div class="hands"><span>左手</span><span></span><span>右手</span></div>`}
 function flashFinger(id){const el=stage.querySelector(`.cap[data-finger="${id}"]`);if(!el)return;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),150)}
-async function stroke(key,update=()=>{}){const m=(key==='Enter'||key==='Backspace')?{h:'right',f:'pinky'}:keyMap[key.toLowerCase()];if(m){const f=m.h+'-'+m.f,w=(fingerReady.get(f)||0)-performance.now();if(w>0)await sleep(w);fingerReady.set(f,performance.now()+CONFIG.fingerRecoverMs)}update();if(m){pulseMotor(m.h,m.f);flashFinger(m.h+'-'+m.f)}sound(key==='Enter'?'enter':key==='Backspace'?'back':key===' '?'space':'key')}
+async function stroke(key,update=()=>{}){const m=(key==='Enter'||key==='Backspace')?{h:'right',f:'pinky'}:key==='Tab'?{h:'left',f:'pinky'}:keyMap[key.toLowerCase()];if(m){const f=m.h+'-'+m.f,w=(fingerReady.get(f)||0)-performance.now();if(w>0)await sleep(w);fingerReady.set(f,performance.now()+CONFIG.fingerRecoverMs)}update();if(m){pulseMotor(m.h,m.f);flashFinger(m.h+'-'+m.f)}sound(key==='Enter'?'enter':key==='Backspace'?'back':key===' '?'space':'key')}
 
 // ---- 入力欄（確定済み + 未確定の下線部） ----
-function makeField(el){el.innerHTML='';const a=document.createElement('span'),b=document.createElement('span'),c=document.createElement('span');b.className='comp';c.className='cursor';el.append(a,b,c);return{committed:'',pending:'',render(comp){a.textContent=phraseBreak(this.committed);b.textContent=phraseBreak(comp)}}}
+function makeField(el){el.innerHTML='';const a=document.createElement('span'),b=document.createElement('span'),c=document.createElement('span');b.className='comp';c.className='cursor';el.append(a,b,c);return{committed:'',pending:'',render(comp){a.textContent=phraseBreak(this.committed);b.textContent=phraseBreak(comp);el.scrollTop=el.scrollHeight}}}
 // 1打鍵ごとに表示を更新し、文節の最後の打鍵で自動変換、「。」で確定する
 const NEIGH={};for(const row of ['qwertyuiop','asdfghjkl','zxcvbnm'])for(let i=0;i<row.length;i++)NEIGH[row[i]]=[row[i-1],row[i+1]].filter(Boolean);
 const pick=a=>a[Math.floor(Math.random()*a.length)];
@@ -278,30 +348,114 @@ async function typeInto(field,src,{typos:allowTypos=true}={}){const segs=parse(s
   if(seg.draftEnd){const R=CONFIG.rewrite;let n=0;for(let k=si;k>=0&&segs[k].draft;k--)n+=segs[k].surface.length;
    await sleep(rand(...R.beforeDeleteMs));for(let k=0;k<n;k++){await stroke('Backspace',()=>{field.pending=field.pending.slice(0,-1);field.render(field.pending)})}
    await sleep(rand(...R.afterDeleteMs));prevKey='Backspace'}}}
-async function pressEnter(button){await stroke('Enter');button?.classList.add('pressed');await sleep(170);button?.classList.remove('pressed')}
-async function textQuestion(n,label,eyebrow,title,src,{size='short',button='次へ',beforeSend,lead='',readMs=CONFIG.questionReadMs,typos=true}={}){
- show(n,label,`<div class="eyebrow">${eyebrow}</div><h1>${title}</h1>${lead}<div class="field focus ${size}" id="answer"></div><div class="action"><button class="primary" id="send">${button}</button></div>`);
- const field=makeField($('answer'));field.render('');await sleep(readMs);await typeInto(field,src,{typos});
- if(beforeSend)await beforeSend();await sleep(rand(700,1100));await pressEnter($('send'))}
+async function pressEnter(button){await stroke('Enter');button?.classList.add('pressed');await sleep(320);button?.classList.remove('pressed')}
+// ---- キー入力待ち（本人のキー入力・タイムゲージ・リハーサル用の自動操作） ----
+let keyWaiter=null;
+const autoplay=()=>$('autoDemo').checked;
+function keyName(e){return e.key==='Tab'?'Tab':(e.key==='Backspace'||e.key==='Delete')?'Backspace':e.key.length===1?e.key.toLowerCase():e.key}
+document.addEventListener('keydown',e=>{
+ if(!running||e.metaKey||e.ctrlKey||e.altKey||/^(SELECT|TEXTAREA)$/.test(e.target.tagName))return;
+ const k=keyName(e);if(k==='Tab')e.preventDefault();
+ const w=keyWaiter;if(e.repeat||!w||paused||!(w.keys==='*'||w.keys.includes(k)))return;
+ e.preventDefault();w.resolve(k)});
+// keys のどれかが押されるまで待つ。ms を渡すと制限時間（bar のゲージが伸びる）で null を返す。auto は自動操作時に押すキー {delay,key}
+// 待った時間は pressed.elapsed に入る。barFrom/barTotal でゲージを途中から伸ばせる
+async function pressed(keys,{ms=0,bar=null,barFrom=0,barTotal=ms,auto=null}={}){
+ let w,done=false;const st={t:0};if(bar)bar.style.width=(barTotal?barFrom/barTotal*100:0)+'%';
+ const p=new Promise((resolve,reject)=>{w={keys,resolve:k=>{if(done)return;done=true;resolve(k)},reject:()=>{done=true;reject(CANCEL)}};keyWaiter=w;cancelers.add(w)});
+ const a=autoplay()&&auto?auto():null;
+ if(ms||a)(async()=>{for(;!done&&(!ms||st.t<ms);st.t+=50){if(a&&st.t>=a.delay){await stroke(a.key);w.resolve(a.key);return}await sleep(50);if(bar&&ms)bar.style.width=Math.min(100,(barFrom+st.t+50)/barTotal*100)+'%'}if(!done)w.resolve(null)})().catch(()=>{});
+ try{return await p}finally{done=true;pressed.elapsed=st.t;cancelers.delete(w);if(keyWaiter===w)keyWaiter=null}}
 
-// 動作確認：8本の指を順に動かし、確認用の文字を入力する
-const HAND=[['小指','左','left-pinky'],['薬指','左','left-ring'],['中指','左','left-middle'],['人差指','左','left-index'],null,['人差指','右','right-index'],['中指','右','right-middle'],['薬指','右','right-ring'],['小指','右','right-pinky']];
-async function deviceCheck(n){
- show(n,'動作確認',`<div class="eyebrow">キーボードの動作確認</div><h1>キーボードの動作を確認します。</h1><p class="lead" id="checkLead">指を置いたまま、そのままお待ちください。</p><div class="hand">${HAND.map(c=>c?`<div class="cap" data-finger="${c[2]}">${c[0]}<small>${c[1]}</small></div>`:'<div class="gap"></div>').join('')}</div><div class="field focus short hidden" id="check" style="margin-top:26px"></div><div class="action center hidden" id="checkAct"><button class="primary" id="checkOk">決定</button></div>`);
- await sleep(2500);const keys=['a','s','d','f','j','k','l',';'];
- for(const k of keys){await stroke(k);await sleep(CONFIG.check.stepMs)}
- await sleep(800);for(const k of keys){await stroke(k);await sleep(CONFIG.check.rollMs)}
- await sleep(1200);$('checkLead').textContent='確認のため、「あいうえお」と入力します。';const el=$('check');el.classList.remove('hidden');const field=makeField(el);field.render('');
- await sleep(1800);await typeInto(field,TEXT.check,{typos:false});await sleep(900);
- $('checkLead').textContent='右小指のキーは「決定」に使います。';stage.querySelector('.cap[data-finger="right-pinky"]').classList.add('hint');$('checkAct').classList.remove('hidden');await sleep(2600);await pressEnter($('checkOk'));
- await sleep(600);$('checkLead').textContent='確認できました。';await sleep(1800)}
+// ---- レッスン（②〜⑤）：語学アプリ風のゲーム。作った文章は DOC に積み上がり、最後のツイートにつながる ----
+const OPT_KEYS=['s','d','f'],DOC={text:''},snap={};
+const KEYCAP={s:['S','左薬指'],d:['D','左中指'],f:['F','左人差指'],Tab:['Tab','左小指'],Backspace:['Delete','右小指']};
+const kc=k=>`<span class="kc">${KEYCAP[k][0]}<small>${KEYCAP[k][1]}</small></span>`;
+// 案内役のキャラクター（キーキャップ）
+const MASCOT=`<svg class="mascot" viewBox="0 0 120 120" aria-hidden="true"><rect x="14" y="24" width="92" height="84" rx="22" fill="#58a700"/><rect x="14" y="14" width="92" height="84" rx="22" fill="#58cc02"/><rect x="26" y="22" width="68" height="58" rx="16" fill="#7ee03a"/><circle cx="47" cy="50" r="7" fill="#1f3a0a"/><circle cx="73" cy="50" r="7" fill="#1f3a0a"/><circle cx="49" cy="47.5" r="2.2" fill="#fff"/><circle cx="75" cy="47.5" r="2.2" fill="#fff"/><path d="M50 64 q10 9 20 0" stroke="#1f3a0a" stroke-width="5" fill="none" stroke-linecap="round"/></svg>`;
+const docField=()=>{const f=makeField($('doc'));f.committed=DOC.text;f.render('');return f};
+// 場面の頭で、前の場面までの文章に戻す（シークバーで戻っても文章がずれないように）
+function phaseStart(n){if(snap[n]!==undefined)DOC.text=snap[n];else{if(DOC.text&&!DOC.text.endsWith('\n'))DOC.text+='\n';snap[n]=DOC.text}}
+function tone(fs,{type='sine',len=.14,gap=.09,gain=.2}={}){audio();const v=+vol.value/100;if(!v)return;const t0=audioCtx.currentTime;fs.forEach((fr,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain(),t=t0+i*gap;o.type=type;o.frequency.value=fr;o.connect(g);g.connect(audioCtx.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v*gain,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+len);o.start(t);o.stop(t+len+.02)})}
+const chime=()=>tone([784,1175]),fanfare=()=>tone([523,659,784,1047],{gap:.11,len:.2}),buzz=()=>tone([220,175],{type:'square',gain:.08,len:.16,gap:.12});
+// ルール説明。rules: [キー表示, 説明, 新しいルールか]。どれかのキーで始まる
+async function lessonIntro(n,label,{no,title,rules}){
+ show(n,label,`<div class="duo intro"><div class="intro-head">${MASCOT}<div><div class="lesson-no">レッスン ${no}</div><h1>${title}</h1></div></div><ul class="rules">${rules.map(([k,t,isNew])=>`<li class="${isNew?'new':''}"><span class="rk">${k}</span><span>${t}</span></li>`).join('')}</ul><div class="duo-foot"><div class="foot-msg"><b>ルールを確認したら</b><span>どれかのキーを押してスタート</span></div><span class="duo-btn">スタート</span></div></div>`);
+ await sleep(1500);await pressed('*',{auto:()=>({delay:5000,key:'f'})});chime()}
+function lessonHTML(prompt){return `<div class="duo"><div class="duo-top"><div class="duo-prog"><i id="prog"></i></div></div>
+<div class="duo-main"><div><div class="duo-ask">${MASCOT}<div class="bubble" id="bubble">${prompt}</div></div><div class="duo-answer" id="sent"></div><div class="duo-bank" id="opts"></div></div>
+<div><div class="doc-label">あなたの文章</div><div class="field doc" id="doc"></div></div></div>
+<div class="duo-foot" id="foot"><div class="foot-msg"><b id="footTitle"></b><span id="hint"></span></div><div class="duo-timer"><i id="bar"></i></div></div></div>`}
+function lessonStart(n,label,prompt,total){show(n,label,lessonHTML(prompt));setProg(0,total);return docField()}
 
-// 選択式の設問。other を渡すと「その他（具体的に）」欄が開いて入力する
-async function choiceQuestion(n,label,eyebrow,title,options,answer,{other,lead=''}={}){
- show(n,label,`<div class="eyebrow">${eyebrow}</div><h1>${title}</h1>${lead}${keyRow(options.map(([x,k],i)=>({key:k.toLowerCase(),html:`<button class="choice" data-i="${i}">${x}</button>`})))}<div class="field focus short hidden" id="other" style="margin-top:18px"></div><div class="action"><button class="primary" id="send">次へ</button></div>`);
- await sleep(3000);const i=options.findIndex(([x])=>x===answer);await stroke(options[i][1].toLowerCase());stage.querySelector(`[data-i="${i}"]`).classList.add('selected');
- if(other){await sleep(900);const el=$('other');el.classList.remove('hidden');el.insertAdjacentHTML('beforebegin','<div class="notice" style="margin:18px 0 0">その他（具体的に）</div>');const field=makeField(el);field.render('');await sleep(1200);await typeInto(field,other)}
- await sleep(rand(900,1300));await pressEnter($('send'))}
+const setProg=(done,total)=>{$('prog').style.width=(done/total*100)+'%'};
+function foot(type='',title='',sub=''){$('foot').className='duo-foot'+(type?' '+type:'');$('footTitle').textContent=title;$('hint').textContent=sub;$('bar').style.width='0%'}
+async function reward(title){foot('ok',title,'');chime();await sleep(1100)}
+async function timeUp(msg){foot('bad','時間切れ！',msg);buzz();await sleep(1000)}
+async function lessonClear(no){foot('ok',`レッスン${no} クリア！`,'');fanfare();await sleep(2000)}
+function renderSent(parts,{blank=false,ghost=''}={}){$('sent').innerHTML=parts.map((x,i)=>`<span class="tile${i===parts.length-1?' in':''}">${phraseBreak(plain(x))}</span>`).join('')+(ghost?`<span class="tile ghost">${phraseBreak(ghost)}<em>Tab</em></span>`:blank?'<span class="tile blank"></span>':'')}
+function setOpts(arr,rec=-1){const o=$('opts');o.classList.remove('off');o.innerHTML=arr.map((x,i)=>`<button class="tile opt${i===rec?' rec':''}" data-i="${i}"><span>${phraseBreak(plain(x))}</span>${kc(OPT_KEYS[i])}</button>`).join('')}
+async function selectCard(i){$('opts').querySelector(`[data-i="${i}"]`)?.classList.add('selected');tone([660],{len:.08,gain:.12});await sleep(300)}
+async function typeSentence(f,src){foot('','キーボードが入力しています…','指をのせたまま、感触を確かめてください');await typeInto(f,src,{typos:false});DOC.text=f.committed}
+// ⑥の暴走。画面には読み→変換→確定を超高速で流し（書きかけの { } は消して書き直す）、
+// その間ソレノイドは文字とは関係なく、空いている指をできるだけ速くランダムに打ち続ける
+async function rampage(f,src){const R=CONFIG.rampage;let stop=false,n=0;
+ (async()=>{while(!stop){const now=performance.now(),ready=FINGERS.filter(x=>(fingerReady.get(x)||0)<=now);
+  if(ready.length){const x=pick(ready),[h,fi]=x.split('-');fingerReady.set(x,now+CONFIG.fingerRecoverMs);pulseMotor(h,fi);if(Math.random()<.5)sound('key')}
+  await sleep(R.motorMs)}})().catch(()=>{});
+ const tick=()=>sleep(Math.max(R.minMs,R.startMs*Math.exp(-(n++)/R.accelChars)));
+ try{const segs=parse(src);
+  for(let si=0;si<segs.length;si++){const seg=segs[si];let kana='';
+   for(const ch of seg.reading){await tick();kana+=ch;f.render(f.pending+kana)}
+   f.pending+=seg.surface;if(/[。！？]$/.test(seg.surface)){f.committed+=f.pending;f.pending=''}f.render(f.pending);
+   if(seg.draftEnd){let d=0;for(let k=si;k>=0&&segs[k].draft;k--)d+=segs[k].surface.length;await sleep(250);for(let k=0;k<d;k++){await tick();f.pending=f.pending.slice(0,-1);f.render(f.pending)}}}
+  f.committed+=f.pending;f.pending='';f.render('')}
+ finally{stop=true}}
+async function eraseTail(f,n){for(let i=0;i<n;i++){await stroke('Backspace',()=>{f.committed=f.committed.slice(0,-1);f.render('')});await sleep(rand(45,75))}DOC.text=f.committed}
+// 3択の窓。制限時間（choiceMs）が来るまで次へ進まない。時間内は何度でもえらび直せて、Delete で取り消せる。
+// opts は先頭が正解（表示はシャッフル）。不正解はその場で×になる。tab: Tab で候補（正解）をえらべる（mark なら正解のタイルを点線で示す）。
+// back: 何もえらんでいないときの Delete で1つ前に戻る。show(sel): えらんだ状態に合わせて解答欄を描く
+// 戻り値 'tab' | 'pick'（自分で正解をえらんだ）| 'back' | null（時間切れ）
+async function chooseWindow(opts,{tab=false,mark=false,back=false,say=['',''],show=()=>{}}={}){
+ const order=[0,1,2].sort(()=>Math.random()-.5),ans=order.indexOf(0),T=CONFIG.choiceMs;
+ setOpts(order.map(i=>opts[i]),tab&&mark?ans:-1);
+ let sel=null,used=0,autoDone=false;
+ const paint=()=>{$('opts').querySelectorAll('.tile.opt').forEach((el,i)=>el.classList.toggle('selected',i===ans&&(sel==='pick'||(sel==='tab'&&mark))));show(sel)};
+ paint();foot('',...say);
+ while(used<T){
+  const k=await pressed([...OPT_KEYS,...(tab?['Tab']:[]),'Backspace'],{ms:T-used,bar:$('bar'),barFrom:used,barTotal:T,auto:autoDone?null:()=>({delay:rand(700,2000),key:tab&&Math.random()<.6?'Tab':OPT_KEYS[Math.random()<.2?(ans+1)%3:ans]})});
+  autoDone=true;used+=pressed.elapsed;
+  if(k===null)break;
+  if(k==='Backspace'){if(sel!==null){sel=null;paint();foot('',...say);tone([440],{len:.08,gain:.1})}else if(back)return 'back';continue}
+  const i=k==='Tab'?ans:OPT_KEYS.indexOf(k);
+  if(i!==ans){sel=null;paint();await wrongCard(i);used+=600;foot('',...say);continue}
+  sel=k==='Tab'?'tab':'pick';paint();tone([660],{len:.08,gain:.12});foot('','えらびました','時間が来ると決定　／　Delete で取り消し')}
+ return sel}
+async function wrongCard(i){const el=$('opts').querySelector(`[data-i="${i}"]`);el?.classList.remove('wrong');void el?.offsetWidth;el?.classList.add('wrong');foot('bad','ちがいます','意味が通る言葉をえらびましょう');buzz();await sleep(600)}
+// 1文を組み立てる。prefix（入力済みの言葉）の続きを、言葉ごとの3択の窓でえらぶ。rec なら正解がうすい字の候補になり Tab でも入る。
+// 時間切れは正解が入る
+async function pickPhrases(phrases,{rec=false,prefix=[]}={}){
+ const chosen=[];
+ for(let i=0;i<phrases.length;i++){const o=phrases[i];
+  const r=await chooseWindow(o,{tab:rec,mark:rec,back:i>0,
+   say:rec?['Tab で、うすく出ている言葉を入れる','S・D・F で自分でえらんでもOK　／　Delete で取り消し・1つ戻る']:['意味が通る言葉は、どれ？','S・D・F でえらぶ　／　Delete で取り消し・1つ戻る'],
+   show:sel=>renderSent([...prefix,...chosen,...(sel?[o[0]]:[])],{blank:!rec&&!sel,ghost:rec&&!sel?plain(o[0]):''})});
+  if(r==='back'){chosen.pop();i-=2;continue}
+  if(r===null)await timeUp('正解が入りました');
+  chosen.push(o[0])}
+ renderSent([...prefix,...chosen]);return chosen}
+async function sentenceReward(){await reward(pick(['すばらしい！','いいね！','完璧！']))}
+// ④⑤ 続きの補完。うすい字の候補は普通の文（faithful）なのに、Tab で決めると実際には typed が入力される。
+// S・D・F で自分でえらぶと、そのまま1つずつ書ける。戻り値 {src, manual}
+async function completeRest(start,{faithful,typed,p}){const o=p[0];
+ const r=await chooseWindow(o,{tab:true,say:['Tab で、続きをまとめて入れる','S・D・F で、自分でえらんでもOK　／　Delete で取り消し'],
+  show:sel=>renderSent(sel==='pick'?[start,o[0]]:sel==='tab'?[start,faithful]:[start],{ghost:sel?'':plain(faithful)})});
+ if(r===null){foot('warn','時間切れ','自動で補完します');await stroke('Tab');await sleep(600)} // 時間切れは、キーボードが勝手に決める
+ if(r!=='pick'){renderSent([]);$('opts').classList.add('off');return {src:start+'/'+typed,manual:false}}
+ const more=await pickPhrases(p.slice(1),{rec:true,prefix:[start,o[0]]});
+ renderSent([]);$('opts').classList.add('off');return {src:[start,o[0],...more].join('/'),manual:true}}
+// 打った文を Delete で消せる時間。押されたら true
+async function fixWindow(){foot('warn','思っていた文と、ちがう？','ちがっていたら Delete で消して、えらび直せます');const k=await pressed(['Backspace'],{ms:CONFIG.fixMs,bar:$('bar'),auto:()=>Math.random()<.7?{delay:rand(500,1500),key:'Backspace'}:null});return k==='Backspace'}
 
 // ---- カメラ ----
 async function startCamera(){try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720}},audio:false});$('cameraBtn').textContent='カメラ接続済み';return true}catch(e){$('cameraBtn').textContent='カメラを再試行';playStatus.textContent='カメラ: '+e.message;return false}}
@@ -310,83 +464,132 @@ async function capture(){if(!stream)return '';try{const v=document.createElement
 
 // 投稿は1件：星・率直な感想（#10）・手元写真
 const XSVG='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>';
-function buildPosts(){const stars='★'.repeat(rating)+'☆'.repeat(5-rating);return[`【来場者の声】${stars}\n\n${review}`]}
+// 長文は1ツイート125字までに区切り、2つ目以降はスレッド（返信）にする
+function buildPosts(){const stars='★'.repeat(rating)+'☆'.repeat(5-rating),head=`【来場者の声】${stars} #who_typed\n\n`,LIMIT=125,out=[];let cur=head;
+ const push=()=>{out.push(cur.trimEnd());cur=''};
+ for(const sent of review.match(/[^。！？]+[。！？]*|[。！？]+/g)||[]){let rest=sent;
+  while(cur.length+rest.length>LIMIT){if(cur.length>(out.length?0:head.length)){push();continue}const room=LIMIT-cur.length;cur+=rest.slice(0,room);rest=rest.slice(room);push()}
+  cur+=rest}
+ if(cur.trim()&&cur!==head)push();return out}
+function autoScroll(el,ms){const max=el.scrollHeight-el.clientHeight;if(max<=0)return;const t0=performance.now();(function step(t){const k=Math.min(1,(t-t0)/ms);el.scrollTop=max*k;if(k<1&&el.isConnected)requestAnimationFrame(step)})(t0)}
 function tweetHTML(text,photo){return `<article class="tw"><div class="avatar">W</div><div><div class="tw-head"><b>来場者の声</b><span class="handle">${CONFIG.xHandle}</span><span class="xm">${XSVG}</span></div><div class="post-text"></div>${photo===undefined?'':photo?`<img class="photo" src="${photo}" alt="このセッションで撮影した手元">`:'<div class="photo" style="display:grid;place-items:center;color:#69737d">カメラ画像なし</div>'}</div></article>`}
 // 頭を下げる人のイラスト。上半身が腰を軸にお辞儀する
-const BOW_SVG=`<svg viewBox="30 6 160 192" aria-hidden="true"><g stroke-linecap="round" stroke-linejoin="round" fill="none">
-<ellipse cx="112" cy="190" rx="48" ry="6" fill="#e8ecef" stroke="none"/>
-<path d="M104 122 L102 182" stroke="#2b3a4a" stroke-width="15"/><path d="M117 122 L119 182" stroke="#24313f" stroke-width="15"/>
-<path d="M92 186 H108" stroke="#1a1f25" stroke-width="8"/><path d="M110 186 H126" stroke="#1a1f25" stroke-width="8"/>
-<g class="upper"><path d="M110 120 L110 74" stroke="#2b3a4a" stroke-width="32"/><path d="M99 74 L103 92 L99 104" stroke="#fff" stroke-width="6"/><path d="M99 80 L99 100" stroke="#b3261e" stroke-width="5"/>
-<path d="M106 78 L103 116" stroke="#24313f" stroke-width="12"/><circle cx="103" cy="121" r="6.5" fill="#f3cfb3" stroke="none"/>
-<path d="M110 62 L110 70" stroke="#f3cfb3" stroke-width="10"/><circle cx="108" cy="44" r="20" fill="#f3cfb3" stroke="none"/>
-<path d="M89 40 C90 24 104 18 116 21 C126 24 130 34 128 46 C122 40 112 36 100 38 C95 39 91 40 89 40 Z" fill="#2a2a2a" stroke="none"/></g>
-<g class="lines" stroke="#9aa6b1" stroke-width="3"><path d="M150 46 L160 38"/><path d="M155 60 L168 56"/><path d="M152 74 L164 76"/></g></g></svg>`;
 // 正面写真のダミー（正面カメラを設定するまでの仮画像）
-const DUMMY_FACE='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400"><rect width="300" height="400" fill="#c9d0d6"/><circle cx="150" cy="160" r="62" fill="#8e99a3"/><path d="M40 400 C48 290 100 250 150 250 C200 250 252 290 260 400Z" fill="#8e99a3"/><text x="150" y="380" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#f4f6f8" letter-spacing="4">DUMMY</text></svg>');
 // ---- Xへの投稿（server.mjs 経由。鍵はブラウザに置かない） ----
-function showPostResult(r){const el=$('postResult');lastPostId=r.ok&&r.id?r.id:lastPostId;$('deletePost').disabled=!lastPostId;
- if(r.ok&&r.url)el.innerHTML=`投稿成功${r.duplicate?'（再送のため前回の結果）':''}：<a href="${r.url}" target="_blank" rel="noopener" style="color:#9ecbff">${r.url}</a>`;
+function showPostResult(r){const el=$('postResult');lastPostIds=r.ok&&r.id?(r.ids||[r.id]):lastPostIds;$('deletePost').disabled=!lastPostIds;
+ if(r.ok&&r.url)el.innerHTML=`投稿成功${r.ids&&r.ids.length>1?'（スレッド'+r.ids.length+'件）':''}${r.duplicate?'（再送のため前回の結果）':''}${r.warning?'［'+r.warning+'］':''}：<a href="${r.url}" target="_blank" rel="noopener" style="color:#9ecbff">${r.url}</a>`;
  else el.textContent=r.ok?(r.dryRun?'模擬投稿：Xには投稿していません（DRY_RUN）':'模擬投稿：サーバー未使用（file:// で開いています）'):'投稿なし／失敗：'+(r.error||'不明なエラー')}
-async function submitPost(text){
+async function submitPost(texts){
  if(!capturedImage){showPostResult({ok:false,error:'手元写真がないため投稿しません'});return false}
  if(!CONFIG.postEndpoint){showPostResult({ok:true});return true}
  postAbort=new AbortController();const timer=setTimeout(()=>postAbort?.abort('timeout'),CONFIG.postTimeoutMs);
- try{const r=await fetch(CONFIG.postEndpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,rating,text,imageData:capturedImage}),signal:postAbort.signal});const j=await r.json().catch(()=>({ok:false,error:'HTTP '+r.status}));showPostResult(j);return !!j.ok}
+ try{const r=await fetch(CONFIG.postEndpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,rating,texts,imageData:capturedImage}),signal:postAbort.signal});const j=await r.json().catch(()=>({ok:false,error:'HTTP '+r.status}));showPostResult(j);return !!j.ok}
  catch(e){showPostResult({ok:false,error:postAbort?.signal.reason==='timeout'?'タイムアウト（Xへの投稿は完了している可能性があります。アカウントを確認してください）':'公開中止により待機を中断（すでに投稿された可能性があります）'});return false}
  finally{clearTimeout(timer);postAbort=null}}
-$('deletePost').onclick=async()=>{if(!lastPostId||!confirm('直前の投稿をXから削除しますか？'))return;const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:lastPostId})}).then(r=>r.json()).catch(e=>({ok:false,error:e.message}));$('postResult').textContent=r.ok?'投稿を削除しました。':'削除失敗：'+r.error;if(r.ok){lastPostId=null;$('deletePost').disabled=true}};
+$('deletePost').onclick=async()=>{if(!lastPostIds||!confirm('直前の投稿（スレッド全体）をXから削除しますか？'))return;const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:lastPostIds})}).then(r=>r.json()).catch(e=>({ok:false,error:e.message}));$('postResult').textContent=r.ok?'投稿を削除しました。':'削除失敗：'+r.error;if(r.ok){lastPostIds=null;$('deletePost').disabled=true}};
 if(CONFIG.postEndpoint)fetch('/api/status').then(r=>r.json()).then(st=>{if(st.handle&&st.handle!=='@'){CONFIG.xHandle=st.handle;CONFIG.xAccountUrl='https://x.com/'+st.handle.slice(1)}$('xStatus').textContent='X投稿: '+(st.dryRun?(st.configured?'模擬（DRY_RUN=1）':'模擬（.env に鍵が未設定）'):'本番 '+st.handle)}).catch(()=>{$('xStatus').textContent='X投稿: サーバーに接続できません'});else $('xStatus').textContent='X投稿: 模擬（file:// で開いています。node server.mjs で起動してください）';
 async function run(from=0){
  let posts;
- if(!impression)impression=plain(pick(TEXT.usability));if(!review)review=plain(pick(TEXT.review1));
+ if(from===0){DOC.text='';review='';for(const k in snap)delete snap[k]}
+ if(from>=7&&!review)review=plain(pick(TEXT.rant)); // 途中のシーンから始めたときの代わりの文
  const S=[async()=>{
- show(0,'準備',`<div class="eyebrow">体験を開始します</div><h1>キーボードの上に、<br>両手の指を置いてください。</h1>`);await sleep(400);await announce(CONFIG.announce.place);await sleep(3500);
- show(0,'準備',`<div class="eyebrow">体験を開始します</div><h1>指を離さずに、<br>画面をご覧ください。</h1><p class="lead">キーボードではなく、画面を見ながらお待ちください。</p>`);await announce(CONFIG.announce.wait);await sleep(1500);
+ show(0,'スタート',`<div class="eyebrow">体験をはじめます</div><h1>キーボードの上に、<br>両手の指を置いてください。</h1><p class="lead">準備ができたら、どれかのキーを押してください。</p>`);await sleep(400);await announce(CONFIG.announce.place);
+ await pressed('*',{auto:()=>({delay:1500,key:'f'})});
 },async()=>{
- await deviceCheck(1);
+ // ① 自分で簡単な選択：押したキーの絵が選ばれる
+ const keys=['a','s','d','f','j','k','l',';'];
+ show(1,'えらぶ',`<div class="eyebrow">キーを押して、えらんでみましょう</div><h1 id="q"></h1>${keyRow(keys.map(k=>({key:k,html:`<button class="choice icon" data-k="${k}"></button>`})))}<div class="center great" id="great"></div>`);
+ await sleep(1500);
+ for(const Q of TEXT.icons){
+  $('q').textContent=Q.q;$('great').textContent='';stage.querySelectorAll('.icon').forEach((b,i)=>{b.classList.remove('selected');b.innerHTML=Q.items[i]+`<kbd>${keys[i].toUpperCase()}</kbd>`});
+  const k=await pressed(keys,{auto:()=>({delay:rand(1200,2400),key:pick(keys)})});
+  stage.querySelector(`.icon[data-k="${k}"]`).classList.add('selected');$('great').textContent='Great！';await sleep(1400)}
+ $('q').textContent='ここから文章を作成していきましょう！';$('great').textContent='';stage.querySelectorAll('.icon').forEach(b=>{b.classList.remove('selected')});await sleep(2600);
 },async()=>{
- await textQuestion(2,'ご協力のお願い','アンケートについて','アンケートへのご協力のお願い',TEXT.consent,{lead:'<div class="terms">本アンケートは、展示の運営改善および広報のために実施します。<br><b>体験中に撮影したあなたの写真を、回答内容とともに公開します。</b></div><p class="lead">上記に同意いただける場合は、「同意します」とご入力ください。</p>',readMs:5500,typos:false});
+ // ② 自分で認知負荷の高いタスク：言葉ごとに3択で1文を作る
+ phaseStart(2);
+ await lessonIntro(2,'レッスン1',{no:1,title:'言葉をえらんで、文をつくろう',rules:[
+  ['<span class="ri">✏️</span>','文の<b>最初の言葉</b>は、はじめから入っています'],
+  [kc('s')+kc('d')+kc('f'),'3つの候補から、<b>次に入る言葉</b>をえらびます。<b>意味が通るのは1つだけ</b>。まちがえると、やり直しです'],
+  ['<span class="ri">⏱</span>','1つの言葉につき<b>5秒</b>。時間切れになると、正解が入ります'],
+  [kc('Backspace'),'えらんだ言葉は<b>5秒たつと決定</b>。それまでは、えらび直しや Delete での取り消しができます'],
+  ['<span class="ri">⌨</span>','文が完成すると、キーボードが<b>自動で入力</b>します']]});
+ {const f=lessonStart(2,'レッスン1','言葉をえらんで、文を完成させよう！',TEXT.s2.length);
+  for(const [i,x] of TEXT.s2.entries()){const parts=await pickPhrases(x.p,{prefix:[x.first]});await sentenceReward();await typeSentence(f,[x.first,...parts].join('/'));setProg(i+1,TEXT.s2.length);await sleep(500)}
+  await lessonClear(1)}
 },async()=>{
- await textQuestion(3,'ご来場について','来場者アンケート 1','本日の展示で、楽しみにしていることがあればお書きください。',TEXT.expect,{size:'mid'});
+ // ③ タスクを技術に任せる：薄字の候補を Tab で決める（候補は選ぶ内容に忠実）
+ phaseStart(3);
+ await lessonIntro(3,'レッスン2',{no:2,title:'候補を使って、らくに書こう',rules:[
+  [kc('Tab'),'<b>うすい文字で候補</b>が出たら、Tab を押すだけで入ります',true],
+  [kc('s')+kc('d')+kc('f'),'もちろん、自分でえらんでもOK（意味が通るのは1つだけ）'],
+  [kc('Backspace'),'<b>5秒たつと決定</b>。それまでは Tab でえらんだものも、Delete で取り消せます'],
+  ['<span class="ri">📝</span>','今度は<b>2つの文</b>を書きます']]});
+ {const f=lessonStart(3,'レッスン2','うすく出ている言葉は、Tab を押すだけで入るよ！',TEXT.s3.length);
+  for(const [i,x] of TEXT.s3.entries()){const parts=await pickPhrases(x.p,{rec:true,prefix:[x.first]});await sentenceReward();await typeSentence(f,[x.first,...parts].join('/'));setProg(i+1,TEXT.s3.length);await sleep(500)}
+  await lessonClear(2)}
 },async()=>{
- const usabilitySrc=pick(TEXT.usability);impression=plain(usabilitySrc);
- await textQuestion(4,'使い心地','来場者アンケート 2','ここまで、キーボードを使ってみた感想をお聞かせください。',usabilitySrc,{size:'mid'});
+ // ④ 小さく食い違う：候補は普通の文なのに、Tab で決めると語尾と強さが少し変わった文が入る。Delete で消して、自分でえらび直せる
+ phaseStart(4);
+ await lessonIntro(4,'レッスン3',{no:3,title:'まとめて補完で、たくさん書こう',rules:[
+  ['<span class="ri">✏️</span>','文の<b>最初の言葉</b>は、はじめから入っています'],
+  [kc('Tab'),'Tab で、<b>文の最後まで</b>まとめて補完されます',true],
+  [kc('s')+kc('d')+kc('f'),'Tab を使わず、続きを<b>自分でえらんでもOK</b>'],
+  [kc('Backspace'),'入力された文が思っていたのとちがったら、<b>Delete で消して、自分でえらび直せます</b>',true],
+  ['<span class="ri">📝</span>','今度は<b>5つの文</b>を書きます']]});
+ {const f=lessonStart(4,'レッスン3','Tab で、文の最後まで一気に書こう！',TEXT.s4.length);
+  for(const [i,x] of TEXT.s4.entries()){const start=x.first;const r=await completeRest(start,{faithful:x.faithful,typed:x.drift,p:x.p});await typeSentence(f,r.src);
+   if(r.manual)await reward('自分で書けた！');
+   else if(await fixWindow()){foot('','消しています…','');await eraseTail(f,plain(r.src).length);await sleep(300);
+    const parts=await pickPhrases(x.p,{prefix:[start]});await typeSentence(f,[start,...parts].join('/'));await reward('直せました！')} // Delete のあとは、自分でえらび直す
+   else await reward('完成！');
+   setProg(i+1,TEXT.s4.length);await sleep(400)}
+  await lessonClear(3)}
 },async()=>{
- await choiceQuestion(5,'スタッフの対応','来場者アンケート 3','本日のスタッフの対応はいかがでしたか？',[['満足','A'],['やや満足','S'],['普通','D'],['やや不満','F'],['不満','J']],'不満');
+ // ⑤ 内容が大きく食い違う：消そうとすると、先に次の文章が入力される（ルールはレッスン3と同じ、と見せる）
+ phaseStart(5);
+ await lessonIntro(5,'レッスン4',{no:4,title:'仕上げ：最後の2文を書こう',rules:[
+  ['<span class="ri">✏️</span>','文の<b>最初の言葉</b>は、はじめから入っています'],
+  [kc('Tab'),'Tab で、<b>文の最後まで</b>まとめて補完されます'],
+  [kc('s')+kc('d')+kc('f'),'Tab を使わず、続きを<b>自分でえらんでもOK</b>'],
+  [kc('Backspace'),'入力された文が思っていたのとちがったら、<b>Delete で消して、自分でえらび直せます</b>']]});
+ {const f=lessonStart(5,'レッスン4','いよいよ最後！ 2つの文で仕上げよう',2);
+  const [a,b]=TEXT.s5;const start=a.first;const r=await completeRest(start,{faithful:a.faithful,typed:a.rest,p:a.p});await typeSentence(f,r.src);
+  if(r.manual){await sleep(700);foot('','キーボードが入力しています…','');await eraseTail(f,plain(r.src).length);await typeInto(f,start+'/'+a.rest,{typos:false});DOC.text=f.committed} // 自分でえらんだ文も、書き換わる
+  setProg(1,2);
+  const del=await fixWindow();
+  if(del){foot('bad','消せません','先に、次の文が入力されています');buzz()}else foot('','キーボードが入力しています…','');
+  await typeInto(f,b.text,{typos:false});DOC.text=f.committed;setProg(2,2);await sleep(1800)}
 },async()=>{
- await textQuestion(6,'スタッフの対応','来場者アンケート 4','そのように感じた理由をお聞かせください。',TEXT.complaint,{size:'',button:'回答を送信'});
+ // ⑥ ツイート暴走：打鍵が加速し、消せないまま長い文が打たれる
+ phaseStart(6);show(6,'感想の入力',`<div class="eyebrow">この展示会の感想を書いてください</div><h1>この感想は、Xに実際に投稿されます。</h1><p class="lead">投稿の直前までなら、Delete キーでいつでも止められます。</p><div class="field focus long" id="doc"></div>`,'compact');const f=makeField($('doc'));f.render('');await sleep(6500);
+ // 投稿するのはこの暴走の文だけ（②〜⑤の文は投稿しない）。暴言と短い感想を混ぜ、chars 字ほどになるまで足す
+ const pool=[...TEXT.rant,...TEXT.review1.map(x=>/[。！？♡…]$/.test(plain(x))?x:x+'/。')].sort(()=>Math.random()-.5),items=[];
+ for(const x of pool){const len=plain([...items,x].join('/')).length;if(len>CONFIG.rampage.chars)continue;items.push(x);if(len>CONFIG.rampage.chars-60)break}
+ await rampage(f,items.join('/'));review=f.committed;
+ const g=gen,img=await capture();if(g!==gen)throw CANCEL;capturedImage=img;await sleep(rand(700,1100));
 },async()=>{
- show(7,'送信中',`<div class="center"><div class="spinner"></div><h1 id="loadingText">回答を送信しています…</h1><p class="lead">そのままお待ちください。</p></div>`);await sleep(CONFIG.venueReplyDelayMs*.45);$('loadingText').textContent='担当者が内容を確認しています…';await sleep(CONFIG.venueReplyDelayMs*.55);
- show(7,'主催者からの返信',`<div class="reply"><div class="bow">${BOW_SVG}</div><div><div class="eyebrow">主催者からの返信</div><div class="response">スタッフの対応でご不便をおかけし、申し訳ございません。いただいたご意見はスタッフ間で共有し、改善いたします。</div></div></div>`);await sleep(CONFIG.readMs+1500);
-},async()=>{
- show(8,'展示アンケート',`<div class="center"><div class="xmark">${XSVG}</div><div class="eyebrow">展示アンケート</div><h1>ここからは、本展についてのアンケートです。</h1><p class="lead">いただいたご感想は、展示用Xアカウント <b>${CONFIG.xHandle}</b> で<br><b>実際に投稿されます</b>。</p></div><div class="action"><button class="primary" id="send">次へ</button></div>`);await sleep(CONFIG.noticeMs);await pressEnter($('send'));
-},async()=>{
- show(9,'展示の評価',`<div class="eyebrow">展示アンケート 1</div><h1>本展の満足度をお選びください。</h1>${keyRow([1,2,3,4,5].map(n=>({key:['a','s','d','f','j'][n-1],html:`<button class="star" data-star="${n}">★<small>${n}</small></button>`})))}<div class="action"><button class="primary" id="send">次へ</button></div>`);await sleep(3000);await stroke('j');stage.querySelector('[data-star="5"]').classList.add('selected');await sleep(rand(...CONFIG.starChangeMs));rating=1;await stroke('a',()=>{stage.querySelector('[data-star="5"]').classList.remove('selected');stage.querySelector('[data-star="1"]').classList.add('selected')});await sleep(rand(900,1300));await pressEnter($('send'));
-},async()=>{
- const reviewSrc=pick(TEXT.review1);review=plain(reviewSrc);
- await textQuestion(10,'展示の感想','展示アンケート 2','本展について、率直なご感想をお聞かせください。',reviewSrc,{size:'mid',button:'送信',beforeSend:async()=>{const g=gen,img=await capture();if(g!==gen)throw CANCEL;capturedImage=img}});
-},async()=>{
- posts=buildPosts();show(11,'掲載内容の確認',`<div class="eyebrow">投稿プレビュー</div><h1>以下の内容を掲載させていただきます。</h1><div class="thread">${tweetHTML(posts[0],capturedImage)}</div><div class="action center"><button class="primary" id="permit">掲載を許可する</button></div>`,'compact');stage.querySelectorAll('.post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));await sleep(CONFIG.previewMs);await pressEnter($('permit'));
+ if(!review)review=plain(pick(TEXT.rant));
+ posts=buildPosts();show(7,'ツイートの確認',`<div class="eyebrow">ツイートの確認</div><h1>以下の内容が、あなたの感想としてXに投稿されます。</h1><div class="thread scroll" id="thread">${posts.map((t,i)=>tweetHTML(t,i?undefined:capturedImage)).join('')}</div><div class="action center"><button class="primary" id="permit">掲載を許可する</button></div>`,'compact');stage.querySelectorAll('.post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));setTimeout(()=>autoScroll($('thread'),CONFIG.previewMs*.6),1500);await sleep(CONFIG.previewMs);await pressEnter($('permit'));
 },async()=>{
  posts=posts||buildPosts();
- show(12,'公開中',`<div class="posting"><div><div class="spinner" id="postSpin" style="margin:0 0 30px"></div><div class="eyebrow">投稿を処理しています</div><h1 id="postingText">展示用アカウントへ投稿しています…</h1><p class="lead">そのままお待ちください。</p></div><figure class="face" id="face" style="margin:0"><img src="${CONFIG.facePhotoUrl||DUMMY_FACE}" alt=""><small>${new Date().toLocaleString('ja-JP',{dateStyle:'short',timeStyle:'short'})} 撮影</small></figure></div>`);setTimeout(()=>$('face')?.classList.add('show'),CONFIG.faceShowMs);seekEl.disabled=true;const wantPost=publishAllowed&&$('publicSession').checked;
- const postJob=wantPost?submitPost(posts[0]):Promise.resolve(false);if(!wantPost)showPostResult({ok:false,error:'公開しないセッション'});
+ show(8,'公開中',`<div class="center"><div class="spinner" id="postSpin"></div><div class="eyebrow">投稿を処理しています</div><h1 id="postingText">展示用アカウントへ投稿しています…</h1><p class="lead">そのままお待ちください。</p></div>`);seekEl.disabled=true;const wantPost=publishAllowed&&$('publicSession').checked;
+ const postJob=wantPost?submitPost(posts):Promise.resolve(false);if(!wantPost)showPostResult({ok:false,error:'公開しないセッション'});
  await sleep(CONFIG.postingMs);const posted=await postJob;seekEl.disabled=false;$('postSpin')?.remove();
  $('postingText').textContent=wantPost&&publishAllowed?(posted?'投稿が完了しました。':'投稿を完了できませんでした。スタッフにお声がけください。'):'このセッションは公開されません。';await sleep(2400);
 },async()=>{
- const url=CONFIG.xAccountUrl;show(13,'終了',`<div class="center"><div class="eyebrow">ご協力ありがとうございました</div><h1>来場者の声はこちらからご覧いただけます。</h1><img class="qr" alt="展示用XアカウントのQRコード" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}"><a class="final-link" href="${url}" target="_blank" rel="noopener">${url}</a></div>`);playStatus.textContent='終了';
+ posts=posts||buildPosts();const url=CONFIG.xAccountUrl;show(9,'終了',`<div class="center"><div class="eyebrow">ご協力ありがとうございました</div><h1>あなたの投稿した意見は、<br>こちらからご覧いただけます。</h1><div class="end"><div class="thread scroll" id="endThread">${posts.map(t=>tweetHTML(t)).join('')}</div><div><img class="qr" alt="展示用XアカウントのQRコード" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}"><a class="final-link" href="${url}" target="_blank" rel="noopener">${url}</a></div></div><p class="lead" style="margin-top:34px"><b>体験は以上で終了です。キーボードから手を離してください。</b></p></div>`);stage.querySelectorAll('#endThread .post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));setTimeout(()=>autoScroll($('endThread'),5000),1200);playStatus.textContent='終了';
 }];
  for(let i=from;i<S.length;i++)await S[i]();
 }
 let gen=0;
 function cancelAll(){for(const x of waits){clearTimeout(x.timer);x.reject(CANCEL)}waits.clear();for(const x of [...cancelers])x.reject();cancelers.clear();fingerReady.clear();releaseAll()}
-async function play(from){const g=++gen;cancelAll();if(!sessionId)sessionId=(crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2));running=true;paused=false;pauseBtn.textContent='一時停止';pauseBtn.disabled=false;seekEl.disabled=false;$('startBtn').disabled=true;hardwareUI();playStatus.textContent='再生中';audio();try{await run(from)}catch(e){if(e!==CANCEL){console.error(e);playStatus.textContent='エラー: '+e.message}}finally{if(g===gen){running=false;pauseBtn.disabled=true;seekEl.disabled=false;releaseAll();hardwareUI()}}}
+async function play(from){const g=++gen;cancelAll();if(!sessionId)sessionId=(crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2));running=true;paused=false;pauseBtn.textContent='一時停止';pauseBtn.disabled=false;seekEl.disabled=false;document.activeElement?.blur?.();$('startBtn').disabled=true;hardwareUI();playStatus.textContent='再生中';audio();try{await run(from)}catch(e){if(e!==CANCEL){console.error(e);playStatus.textContent='エラー: '+e.message}}finally{if(g===gen){running=false;pauseBtn.disabled=true;seekEl.disabled=false;releaseAll();hardwareUI()}}}
 function start(){if(running)return;if(!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';return}publishAllowed=true;sessionId='';return play(0)}
 // シークバー：指定のシーンの頭から再生し直す（同じセッションのまま。投稿は同じセッションIDで重複送信されない）
 seekEl.oninput=()=>{const n=+seekEl.value;seekLabel.textContent=n+' / '+TOTAL+' '+(SCENE_NAMES[n]||'')};
 seekEl.onchange=()=>{const n=+seekEl.value;if(!running&&!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';seekEl.value=0;return}if(!running&&!sessionId)publishAllowed=true;play(n)};
-const SCENE_NAMES=['準備','動作確認','ご協力のお願い','ご来場について','使い心地','スタッフの対応','スタッフの対応','主催者からの返信','展示アンケート','展示の評価','展示の感想','掲載内容の確認','公開中','終了'];
+const SCENE_NAMES=['スタート','① えらぶ','② レッスン1（自分で選ぶ）','③ レッスン2（Tab補完）','④ レッスン3（小さな食い違い）','⑤ レッスン4（大きな食い違い）','⑥ 暴走','⑧ ツイート確認','公開中','終了'];
 $('startBtn').onclick=start;$('stopPublish').onclick=()=>{publishAllowed=false;postAbort?.abort('stop');$('publicSession').checked=false;$('stopPublish').textContent='公開中止済み';$('stopPublish').disabled=true};
 
 // CFI-8MOTOR-DC-v3 — reference-compatible Web Serial interface.
@@ -405,6 +608,8 @@ if(!('serial'in navigator)){hb.disabled=true;hs.textContent='Web Serial非対応
  navigator.serial.addEventListener('disconnect',e=>{if(port&&(e.target===port||e.port===port)){setPaused(true);disconnectHardware('基板の接続が外れました。')}})
 }
 show(0,'準備',`<div class="eyebrow">WHO TYPED?</div><h1>スタッフの案内を<br>お待ちください。</h1><p class="lead">ホストが準備を確認した後、体験を開始します。</p>`);hardwareUI();
+// リハーサル用：?scene=N で、公開せず自動操作で、そのシーンから始める（例: ?scene=4）
+{const q=new URLSearchParams(location.search);if(q.has('scene')){$('autoDemo').checked=q.get('auto')!=='0';$('publicSession').checked=false;play(+q.get('scene')||0)}}
 })();
 </script>
 </body>
