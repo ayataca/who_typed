@@ -384,10 +384,11 @@ body{background:#f3f3f1}
 .rules .kc,.aux-key .kc{zoom:1.3}.rules li,.rules li.new{grid-template-columns:420px 1fr}.rk .kc small{white-space:nowrap}
 .aux-key .kc{border:1px solid #68727d;box-shadow:0 4px 4px rgba(0,0,0,.15)}
 .keyrow .icon.inert{background:#e3e6ea!important;border-color:#a9b0b8!important;box-shadow:0 4px 4px rgba(0,0,0,.15)!important}
-.tile.opt.tabsel,.tile.opt.tabsel.selected{border:3px solid #ff9600!important;outline:0!important;animation:tabBlink .28s ease-in-out infinite alternate}
-.tile.opt.tabsel .kc{border-color:#ff9600;color:#ff9600}
+.tile.opt.tabsel,.tile.opt.tabsel.selected{border:3px solid #ff9600!important;outline:0!important;animation:tabBlink .6s ease-in-out infinite alternate}
+@media (prefers-reduced-motion:reduce){.tile.opt.tabsel{animation:none;background:#fff1dc}}
+.tile.opt.tabsel .kc{border-color:#ff9600;color:#a85200}
 @keyframes tabBlink{from{background:#fff;box-shadow:0 0 0 0 #ff960000}to{background:#fff1dc;box-shadow:0 0 0 6px #ff960066}}
-.duo-foot.ok b{font-size:44px;font-weight:900;letter-spacing:.04em;line-height:1.3;animation:okPop .35s ease-out}
+.duo-foot.ok.big b{font-size:44px;font-weight:900;letter-spacing:.04em;line-height:1.3;animation:okPop .35s ease-out}
 @keyframes okPop{from{transform:scale(.8);opacity:.4}to{transform:none;opacity:1}}
 .keyrow .icon.selected{background:#ffc800!important;border:0!important;box-shadow:inset 0 -5px 0 #e0a800,0 4px 4px rgba(0,0,0,.15)!important;color:#5a4300}
 .keyrow .icon.selected kbd{color:#5a4300!important}
@@ -682,8 +683,8 @@ function foot(type='',title='',sub=''){$('foot').className='duo-foot'+(type?' '+
  // 選ぶ画面と、入力を見る画面を分ける（入力中・消せない間は入力欄だけを見せる）
  const duo=document.querySelector('.duo[data-mode]');
  if(duo){if(/入力しています|消せません|手を置いて/.test(title)){duo.dataset.mode='type';progress.textContent=`STEP ${curScene-1} ・ 入力中`}else if(!type){duo.dataset.mode='pick';progress.textContent=countText}}}
-async function reward(title){foot('ok',title,'');chime();await sleep(1100)}
-async function lessonClear(no){foot('ok',`レッスン${no} クリア！`,'');fanfare();await sleep(2000)}
+async function reward(title,big=true){foot('ok',title,'');if(big)$('foot').classList.add('big');chime();await sleep(1100)}
+async function lessonClear(no){foot('ok',`レッスン${no} クリア！`,'');$('foot').classList.add('big');fanfare();await sleep(2000)}
 function renderSent(parts,{blank=false,ghost=''}={}){$('sent').innerHTML=parts.map((x,i)=>`<span class="tile${i===parts.length-1?' in':''}">${phraseBreak(plain(x))}</span>`).join('')+(ghost?`<span class="tile ghost">${phraseBreak(ghost)}<em>Tab</em></span>`:blank?'<span class="tile blank"></span>':'')}
 // 文の枠を最後の言葉まで並べる。fixed: 決まった言葉、cur: 今えらんでいる枠 {word（えらび中の言葉）, ghost（うすい字の候補）}、future: その後に残る枠の数
 function renderSlots(fixed,cur,future){$('sent').innerHTML=fixed.map(x=>`<span class="tile">${phraseBreak(plain(x))}</span>`).join('')
@@ -743,7 +744,7 @@ async function pickPhrases(phrases,{rec=false,prefix=[]}={}){
    show:(sel,ix)=>renderSlots([...prefix,...chosen],{word:sel?o[ix]:null,ghost:rec?plain(o[0]):''},phrases.length-i-1)});
   chosen.push(o[r.idx])}
  renderSent([...prefix,...chosen]);return chosen}
-async function sentenceReward(){await reward(pick(['すばらしい！','いいね！','完璧！']))}
+async function sentenceReward(){await reward(pick(['すばらしい！','いいね！','完璧！']),false)}
 // ④⑤ 続きの補完。うすい字の候補は普通の文（faithful）なのに、Tab を押すと解答欄には違う文（typed）が入る。
 // 4択（faithful と wrong）のどれをえらんでも、Tab を押しても、入力されるのは typed（食い違う文）。戻り値 {src, manual}（manual は、キーでえらんだとき true）
 async function completeRest(start,{faithful,typed,wrong}){
