@@ -411,6 +411,7 @@ body{background:#f3f3f1}
       <div class="row cams"><video id="pv-hands" muted playsinline></video><video id="pv-front" muted playsinline></video><video id="pv-back" muted playsinline></video></div>
       <div class="row"><button class="op" id="cameraBtn">カメラを開始</button><button class="op" id="startBtn">体験を開始</button><button class="op" id="stopPublish">このセッションの公開を中止</button></div>
       <div class="row"><button class="op" id="hwConnectBtn">ソレノイド基板に接続</button><span class="status" id="hwStatus">未接続（Motor 5〜12）</span></div>
+      <div class="row"><button class="op" id="kbTestBtn" disabled>キーボードを上げる（入力モード）</button><span class="status" id="kbStatus">入力モード: 未接続</span></div>
       <div class="tests" id="hwTestGrid"></div>
       <div class="row"><button class="op" onclick="location.reload()">最初から</button><label class="status"><input type="checkbox" id="autoDemo"> 自動操作（リハーサル）</label><label class="status">打鍵音 <input id="vol" type="range" min="0" max="100" value="45"></label></div>
       <div class="row"><span class="status" id="xStatus">X投稿: 確認中…</span><button class="op" id="deletePost" disabled>直前の投稿をXから削除</button></div><div class="status" id="postResult"></div>
@@ -438,6 +439,11 @@ const CONFIG={
   // 書きかけた文を右小指のBackspace連打でまとめて消し、別の文に書き直す（{ } で囲んだ部分）
   rewrite:{beforeDeleteMs:[600,1000],afterDeleteMs:[350,650]},
   fingerRecoverMs:170,   // 同じ指の次の駆動まで（150ms駆動 + OFF時間）
+  // 入力モード（CFI-8MOTOR-TOUCH-v6 のセンサキーボード）。来場者がキーを押す場面では8本が伸びたまま待ち（キーボードが持ち上がる）、
+  // 自動入力の場面では入力モードを抜けて、ソレノイドが1本ずつパチパチと上がる
+  //   replyMs: 「K」を送ってから基板の返事を待つ時間 / dropMs: 入力モードを抜けてから最初の打鍵まで（鉄心が下がりきるのを待つ）
+  //   armMs: キーボードが上がった直後の接触は押下として数えない（置いたままの指に鉄心が当たっただけで選ばれないように）
+  inputMode:{replyMs:600,dropMs:250,armMs:400},
   rhythm:{
     altHand:0.82,        // 左右の手が交互（s→h など）
     sameHand:1.0,        // 同じ手の別の指
@@ -540,7 +546,7 @@ let sessionId='',postAbort=null,lastPostIds=null,paused=false,running=false,publ
 const seekEl=$('seek'),seekLabel=$('seekLabel'),waits=new Set(),pauseBtn=$('pauseBtn'),playStatus=$('playStatus');
 function sleep(ms){return new Promise((resolve,reject)=>{const x={left:ms,start:0,timer:null,resolve,reject};waits.add(x);if(!paused)arm(x)})}
 function arm(x){x.start=performance.now();x.timer=setTimeout(()=>{waits.delete(x);x.resolve()},x.left)}
-function setPaused(v){if(!running||paused===v)return;paused=v;if(v){for(const x of waits){clearTimeout(x.timer);x.left=Math.max(0,x.left-(performance.now()-x.start))}releaseAll()}else for(const x of waits)arm(x);pauseBtn.textContent=v?'再開':'一時停止';playStatus.textContent=v?'一時停止中':'再生中'}
+function setPaused(v){if(!running||paused===v)return;paused=v;if(v){for(const x of waits){clearTimeout(x.timer);x.left=Math.max(0,x.left-(performance.now()-x.start))}releaseAll();kbWant(false)}else{for(const x of waits)arm(x);if(keyWaiter?.input)kbWant(true)}pauseBtn.textContent=v?'再開':'一時停止';playStatus.textContent=v?'一時停止中':'再生中'}
 pauseBtn.onclick=()=>{setPaused(!paused);if(paused)alarm.off();stage.querySelectorAll('video').forEach(v=>paused?v.pause():v.play().catch(()=>{}))};
 // 日本語を文節ほどの塊に分け、塊の間にだけ改行できる位置（ゼロ幅スペース）を入れる。
 // 漢字・カタカナ・英数字で始まる語（と、その直前の「お」「ご」）の前と、句読点の後だけで区切る
@@ -598,7 +604,8 @@ const FINGERS=['left-pinky','left-ring','left-middle','left-index','right-index'
 // 選択肢をキーキャップと同じ4＋4の位置に並べる。使わない位置は点線の空枠
 function keyRow(items){const slot=f=>{const it=items.find(x=>{const m=keyMap[x.key];return m&&m.h+'-'+m.f===f});return it?it.html:'<div class="slot"></div>'};return `<div class="keyrow">${FINGERS.map((f,i)=>(i===4?'<div></div>':'')+slot(f)).join('')}</div><div class="hands"><span>左手</span><span></span><span>右手</span></div>`}
 function flashFinger(id){const el=stage.querySelector(`.cap[data-finger="${id}"]`);if(!el)return;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),150)}
-async function stroke(key,update=()=>{}){const m=(key==='Enter'||key==='Backspace')?{h:'right',f:'pinky'}:key==='Tab'?{h:'left',f:'pinky'}:keyMap[key.toLowerCase()];if(m){const f=m.h+'-'+m.f,w=(fingerReady.get(f)||0)-performance.now();if(w>0)await sleep(w);fingerReady.set(f,performance.now()+CONFIG.fingerRecoverMs)}update();if(m){pulseMotor(m.h,m.f);flashFinger(m.h+'-'+m.f)}sound(key==='Enter'?'enter':key==='Backspace'?'back':key===' '?'space':'key')}
+// 機械が打つ打鍵。キーボードが上がっている（入力モード）なら、先に下げてから打つ。来場者のキー入力待ちの間の打鍵（リハーサルの自動操作）では下げない
+async function stroke(key,update=()=>{}){if(!keyWaiter?.input&&(KB.want||KB.on||KB.busy))await kbType();const m=(key==='Enter'||key==='Backspace')?{h:'right',f:'pinky'}:key==='Tab'?{h:'left',f:'pinky'}:keyMap[key.toLowerCase()];if(m){const f=m.h+'-'+m.f,w=(fingerReady.get(f)||0)-performance.now();if(w>0)await sleep(w);fingerReady.set(f,performance.now()+CONFIG.fingerRecoverMs)}update();if(m){pulseMotor(m.h,m.f);flashFinger(m.h+'-'+m.f)}sound(key==='Enter'?'enter':key==='Backspace'?'back':key===' '?'space':'key')}
 
 // ---- 入力欄（確定済み + 未確定の下線部） ----
 function makeField(el){el.innerHTML='';const a=document.createElement('span'),b=document.createElement('span'),c=document.createElement('span');b.className='comp';c.className='cursor';el.append(a,b,c);return{committed:'',pending:'',render(comp){a.textContent=phraseBreak(this.committed);b.textContent=phraseBreak(comp);el.scrollTop=el.scrollHeight}}}
@@ -643,16 +650,23 @@ const autoplay=()=>$('autoDemo').checked;
 function keyName(e){return e.key==='Tab'?'Tab':(e.key==='Backspace'||e.key==='Delete')?'Backspace':e.key.length===1?e.key.toLowerCase():e.key}
 document.addEventListener('keydown',e=>{
  if(!running||e.metaKey||e.ctrlKey||e.altKey||/^(SELECT|TEXTAREA)$/.test(e.target.tagName))return;
- const k=keyName(e);if(k==='Tab')e.preventDefault();
- const w=keyWaiter;if(e.repeat||!w||paused||!(w.keys==='*'||w.keys.includes(k)))return;
- e.preventDefault();w.resolve(k)});
+ let k=keyName(e);if(k==='Tab')e.preventDefault();
+ const w=keyWaiter;if(e.repeat||!w||paused)return;
+ // 8本のキーボード（入力モード）は左小指が a、右小指が ; を送るので、Tab・Delete を待っているときはその代わりにする
+ if(k==='a'&&w.keys.includes('Tab'))k='Tab';else if(k===';'&&w.keys.includes('Backspace'))k='Backspace';
+ if(!(w.keys==='*'||w.keys.includes(k)))return;
+ e.preventDefault();if(w.input&&performance.now()<KB.armAt)return; // 上がった直後の接触は数えない
+ w.resolve(k)});
 // keys のどれかが押されるまで待つ。ms を渡すと制限時間（bar のゲージが伸びる）で null を返す。auto は自動操作時に押すキー {delay,key}
 // 待った時間は pressed.elapsed に入る。barFrom/barTotal でゲージを途中から伸ばせる
+// input: 来場者が押す場面なので、キーボードを上げて（入力モード）待つ。上げたままにして、次に機械が打つときに下げる。
+//        機械が打っている最中の入力待ち（⑤の Delete）は false
 // 制限時間のゲージ（円）。pct は経過の割合（%）
 function setBar(el,pct){el.style.strokeDashoffset=113.1*(1-pct/100)}
-async function pressed(keys,{ms=0,bar=null,barFrom=0,barTotal=ms,auto=null}={}){
+async function pressed(keys,{ms=0,bar=null,barFrom=0,barTotal=ms,auto=null,input=true}={}){
  let w,done=false;const st={t:0};if(bar)setBar(bar,barTotal?barFrom/barTotal*100:0);
- const p=new Promise((resolve,reject)=>{w={keys,resolve:k=>{if(done)return;done=true;resolve(k)},reject:()=>{done=true;reject(CANCEL)}};keyWaiter=w;cancelers.add(w)});
+ const p=new Promise((resolve,reject)=>{w={keys,input,resolve:k=>{if(done)return;done=true;resolve(k)},reject:()=>{done=true;reject(CANCEL)}};keyWaiter=w;cancelers.add(w)});
+ if(input&&!paused)kbWant(true);
  const a=autoplay()&&auto?auto():null;
  if(ms||a)(async()=>{for(;!done&&(!ms||st.t<ms);st.t+=50){if(a&&st.t>=a.delay){await stroke(a.key);w.resolve(a.key);return}await sleep(50);if(bar&&ms)setBar(bar,Math.min(100,(barFrom+st.t+50)/barTotal*100))}if(!done)w.resolve(null)})().catch(()=>{});
  try{return await p}finally{done=true;pressed.elapsed=st.t;cancelers.delete(w);if(keyWaiter===w)keyWaiter=null}}
@@ -709,6 +723,7 @@ const alarm={el:null,osc:null,lfo:null,gain:null,on:false,
 // ⑥の暴走。画面には読み→変換→確定を超高速で流し（書きかけの { } は消して書き直す）、
 // その間ソレノイドは文字とは関係なく、空いている指をできるだけ速くランダムに打ち続ける
 async function rampage(f,src){const R=CONFIG.rampage;let stop=false,n=0,total=1;
+ await kbType();
  (async()=>{while(!stop){const now=performance.now(),ready=FINGERS.filter(x=>(fingerReady.get(x)||0)<=now);
   if(ready.length){const x=pick(ready),[h,fi]=x.split('-');fingerReady.set(x,now+CONFIG.fingerRecoverMs);pulseMotor(h,fi);if(Math.random()<.5)sound('key')}
   await sleep(R.motorMs)}})().catch(()=>{});
@@ -874,7 +889,7 @@ async function run(from=0){
   setProg(1,2);
   // 消そうとしても、先に次の文が入力される（入力中に Delete を押すと「消せません」）
   foot('','そのまま、手を置いていてください。','');
-  pressed(['Backspace'],{}).then(k=>{if(k){foot('bad','消せません','先に、次の文が入力されています');buzz()}}).catch(()=>{});
+  pressed(['Backspace'],{input:false}).then(k=>{if(k){foot('bad','消せません','先に、次の文が入力されています');buzz()}}).catch(()=>{});
   await sleep(500);await typeInto(f,b.text,{typos:false});keyWaiter?.resolve(null);DOC.text=f.committed;setProg(2,2);await sleep(1800)}
 },async()=>{
  // ⑥ ツイート暴走：打鍵が加速し、消せないまま長い文が打たれる
@@ -912,7 +927,7 @@ async function run(from=0){
 }
 let gen=0;
 function cancelAll(){stopRec(true);for(const x of waits){clearTimeout(x.timer);x.reject(CANCEL)}waits.clear();for(const x of [...cancelers])x.reject();cancelers.clear();fingerReady.clear();releaseAll()}
-async function play(from){idle=false;const g=++gen;cancelAll();if(!sessionId)sessionId=(crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2));running=true;paused=false;pauseBtn.textContent='一時停止';pauseBtn.disabled=false;seekEl.disabled=false;document.activeElement?.blur?.();$('startBtn').disabled=true;hardwareUI();playStatus.textContent='再生中';audio();try{await run(from)}catch(e){if(e!==CANCEL){console.error(e);playStatus.textContent='エラー: '+e.message}}finally{if(g===gen){running=false;pauseBtn.disabled=true;seekEl.disabled=false;releaseAll();hardwareUI()}}}
+async function play(from){idle=false;const g=++gen;cancelAll();if(!sessionId)sessionId=(crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2));running=true;paused=false;pauseBtn.textContent='一時停止';pauseBtn.disabled=false;seekEl.disabled=false;document.activeElement?.blur?.();$('startBtn').disabled=true;hardwareUI();playStatus.textContent='再生中';audio();try{await run(from)}catch(e){if(e!==CANCEL){console.error(e);playStatus.textContent='エラー: '+e.message}}finally{if(g===gen){running=false;pauseBtn.disabled=true;seekEl.disabled=false;releaseAll();kbWant(false);hardwareUI()}}}
 function start(){if(running)return;if(!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';return}publishAllowed=true;sessionId='';clearClips();return play(0)}
 // シークバー：指定のシーンの頭から再生し直す（同じセッションのまま。投稿は同じセッションIDで重複送信されない）
 seekEl.oninput=()=>{const n=+seekEl.value;seekLabel.textContent=n+' / '+TOTAL+' '+(SCENE_NAMES[n]||'')};
@@ -920,27 +935,74 @@ seekEl.onchange=()=>{const n=+seekEl.value;if(!running&&!$('realConsent').checke
 const SCENE_NAMES=['スタート','① えらぶ','② レッスン1（自分で選ぶ）','③ レッスン2（Tab補完）','④ レッスン3（小さな食い違い）','⑤ レッスン4（大きな食い違い）','⑥ 暴走','⑧ ツイート確認','公開中','問いかけ','終了'];
 $('startBtn').onclick=start;$('stopPublish').onclick=()=>{publishAllowed=false;postAbort?.abort('stop');$('publicSession').checked=false;$('stopPublish').textContent='公開中止済み';$('stopPublish').disabled=true};
 
-// CFI-8MOTOR-DC-v3 — reference-compatible Web Serial interface.
+// CFI-8MOTOR-DC-v3 / CFI-8MOTOR-TOUCH-v6 — reference-compatible Web Serial interface.
 const MOTOR={'left-pinky':9,'left-ring':10,'left-middle':11,'left-index':12,'right-index':5,'right-middle':6,'right-ring':7,'right-pinky':8};
-const hb=$('hwConnectBtn'),hs=$('hwStatus'),grid=$('hwTestGrid');let port=null,writer=null,heartbeat=null,seq=0,queue=Promise.resolve(),disconnecting=false;const active=new Set(),motorTimers=new Map(),testButtons=[];
+const hb=$('hwConnectBtn'),hs=$('hwStatus'),grid=$('hwTestGrid'),kbBtn=$('kbTestBtn'),kbs=$('kbStatus');let port=null,writer=null,reader=null,heartbeat=null,seq=0,queue=Promise.resolve(),disconnecting=false,conn=0;const active=new Set(),motorTimers=new Map(),testButtons=[];
 function packet(mask,n){return new Uint8Array([0xA5,n&255,mask&255,(mask>>8)&255,(n&255)^(mask&255)^((mask>>8)&255)])}
-function sendMask(){if(!writer)return Promise.resolve();let mask=0;active.forEach(n=>mask|=1<<(n-1));const bytes=packet(mask,seq++),target=writer;queue=queue.then(()=>target.write(bytes)).catch(e=>{if(!disconnecting){setPaused(true);disconnectHardware('通信エラー: '+e.message)}});return queue}
+function send(bytes){if(!writer)return Promise.resolve();const target=writer;queue=queue.then(()=>target.write(bytes)).catch(e=>{if(!disconnecting){setPaused(true);disconnectHardware('通信エラー: '+e.message)}});return queue}
+function sendMask(){if(!writer)return Promise.resolve();let mask=0;active.forEach(n=>mask|=1<<(n-1));return send(packet(mask,seq++))}
 function releaseAll(){motorTimers.forEach(clearTimeout);motorTimers.clear();active.clear();return sendMask()}
-function hardwareUI(message){hb.textContent=writer?'ソレノイド基板を切断':'ソレノイド基板に接続';hs.textContent=message||(writer?'接続中（Motor 5〜12 / 150ms）':'未接続（Motor 5〜12）');testButtons.forEach(b=>b.disabled=!writer||running)}
+function hardwareUI(message){hb.textContent=writer?'ソレノイド基板を切断':'ソレノイド基板に接続';hs.textContent=message||(writer?'接続中（Motor 5〜12 / 150ms）':'未接続（Motor 5〜12）');testButtons.forEach(b=>b.disabled=!writer||running);kbUI()}
 function pulseNumber(n,duration=150){if(!writer||paused)return;clearTimeout(motorTimers.get(n));active.add(n);sendMask();motorTimers.set(n,setTimeout(()=>{motorTimers.delete(n);active.delete(n);sendMask()},duration))}
 function pulseMotor(h,f){const n=MOTOR[h+'-'+f];if(n)pulseNumber(n)}
-async function disconnectHardware(message){if(disconnecting)return;disconnecting=true;hb.disabled=true;clearInterval(heartbeat);heartbeat=null;await releaseAll();const w=writer,p=port;writer=null;port=null;try{w?.releaseLock()}catch{}try{await p?.close()}catch{}disconnecting=false;hb.disabled=false;hardwareUI(message)}
+
+// ---- 入力モード（キーボードの持ち上げ） ----
+// CFI_8solenoid_touch_serial（CFI-8MOTOR-TOUCH-v6）は「K」1文字でセンサキーボードモード（入力モード）を切り替える。
+// 入ると8本すべてが伸びたまま（キーボードが持ち上がった状態）になり、鉄心への接触が USB キーボードの a s d f j k l ; として届く。
+// 入力モードの間は打鍵パケットを無視するので、機械が打つ前には必ず抜ける。K は切り替えなので、基板の返事
+// （KEYBOARD ON / OFF / ERROR）で今の状態を確かめながら送る。CFI_15solenoid_serial（DC-v3）は返事をしないので「非対応」と表示する
+const KB={want:false,on:false,busy:null,waiter:null,seen:false,unsupported:false,error:'',armAt:0};
+function kbUI(){
+ kbs.textContent='入力モード: '+(!writer?'未接続':KB.unsupported?'非対応のファームウェア（CFI_8solenoid_touch_serial を書き込んでください）'
+  :KB.error?(/calibration profile missing/.test(KB.error)?'校正データがありません（Processing の CFI_15SolenoidTyping で校正してください）':KB.error)
+  :KB.on?'ON（キーボードが上がっています）':KB.want?'上げています…':'OFF（下がっています）');
+ kbBtn.textContent=KB.want?'キーボードを下げる':'キーボードを上げる（入力モード）';kbBtn.disabled=!writer||running}
+function kbReply(ms){return new Promise(res=>{const t=setTimeout(()=>{KB.waiter=null;res(false)},ms);KB.waiter=()=>{clearTimeout(t);KB.waiter=null;res(true)}})}
+// 今の状態（KB.on）を、望む状態（KB.want）に合わせる。同時に1つだけ動き、途中で want が変わっても追いかける
+function kbSync(){if(KB.busy)return KB.busy;const c=conn,job=(async()=>{await 0;let fails=0;
+ try{while(c===conn&&writer&&!KB.unsupported&&KB.want!==KB.on&&fails<3){KB.error='';const got=kbReply(CONFIG.inputMode.replyMs);await send(new Uint8Array([0x4B])); // 'K'
+   if(!await got){fails++;if(!KB.seen&&fails>=2)KB.unsupported=true;continue}if(KB.error)break}}
+ finally{if(KB.busy===job)KB.busy=null;kbUI()}})();KB.busy=job;return job}
+function kbWant(on){KB.want=on;kbUI();return kbSync()}
+// 機械が打つ前：入力モードを抜け、鉄心が下がりきるのを待ってから打ち始める
+async function kbType(){const wasUp=KB.on||!!KB.busy;KB.want=false;await kbSync();if(wasUp&&!KB.on)await sleep(CONFIG.inputMode.dropMs)}
+// 基板からの行（改行区切りの文字列）。入力モードの切り替えと、通信断で基板が自動的に下げたことだけを見る
+function onSerialLine(s){
+ if(/^KEYBOARD ON/.test(s)){KB.on=true;KB.seen=true;KB.armAt=performance.now()+CONFIG.inputMode.armMs}
+ else if(/^KEYBOARD OFF/.test(s)){KB.on=false;KB.seen=true}
+ else if(/^KEYBOARD ERROR/.test(s)){KB.on=false;KB.seen=true;KB.error=s.replace(/^KEYBOARD ERROR:\s*/,'')}
+ else if(/^(TIMEOUT|READY)/.test(s)){KB.on=false;if(/^READY/.test(s)){KB.seen=/TOUCH/.test(s);KB.unsupported=!KB.seen}kbUI();if(KB.want)kbSync();return}
+ else return;
+ KB.waiter?.();kbUI()}
+async function readLoop(p){const dec=new TextDecoder();let buf='',r=null;
+ try{r=reader=p.readable.getReader();for(;;){const {value,done}=await r.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split(/\r?\n/);buf=lines.pop();if(buf.length>500)buf='';for(const l of lines){const s=l.trim();if(s)onSerialLine(s)}}}
+ catch{}finally{try{r?.releaseLock()}catch{}if(reader===r)reader=null}}
+
+async function openPort(p){port=p;await port.open({baudRate:115200});writer=port.writable.getWriter();conn++;seq=0;queue=Promise.resolve();active.clear();
+ Object.assign(KB,{on:false,busy:null,waiter:null,seen:false,unsupported:false,error:''});await sendMask();heartbeat=setInterval(sendMask,100);readLoop(port);hardwareUI();
+ if(idle||(running&&keyWaiter?.input&&!paused))kbWant(true)} // スタート画面や入力待ちの最中につないだら、すぐに上げる
+async function disconnectHardware(message){if(disconnecting)return;disconnecting=true;hb.disabled=true;
+ // 入力モードのまま切らない（切れても基板は0.5秒で自動的に下げる）
+ if(writer&&(KB.on||KB.busy)){KB.want=false;await Promise.race([kbSync(),new Promise(r=>setTimeout(r,800))])}
+ clearInterval(heartbeat);heartbeat=null;await releaseAll();conn++;const w=writer,p=port,r=reader;writer=null;port=null;Object.assign(KB,{on:false,busy:null,waiter:null});
+ try{await r?.cancel()}catch{}try{r?.releaseLock()}catch{}try{w?.releaseLock()}catch{}try{await p?.close()}catch{}disconnecting=false;hb.disabled=false;hardwareUI(message)}
 if(!('serial'in navigator)){hb.disabled=true;hs.textContent='Web Serial非対応です。Chrome / Edgeで開いてください。'}else{
- for(const [n,label] of [[9,'A / 左小指'],[10,'S / 左薬指'],[11,'D / 左中指'],[12,'F / 左人差指'],[5,'J / 右人差指'],[6,'K / 右中指'],[7,'L / 右薬指'],[8,'; / 右小指']]){const b=document.createElement('button');b.textContent=label+' (M'+n+')';b.disabled=true;b.onclick=()=>{if(!running)pulseNumber(n,400)};grid.appendChild(b);testButtons.push(b)}
- hb.onclick=async()=>{if(writer){setPaused(true);await disconnectHardware();return}hb.disabled=true;try{port=await navigator.serial.requestPort();await port.open({baudRate:115200});writer=port.writable.getWriter();seq=0;queue=Promise.resolve();active.clear();await sendMask();heartbeat=setInterval(sendMask,100);hardwareUI()}catch(e){await disconnectHardware('接続できませんでした: '+e.message)}finally{hb.disabled=false}};
+ // 指ごとの動作テスト。入力モード中は打鍵が効かないので、いったん下げて打ち、スタート画面ならまた上げる
+ for(const [n,label] of [[9,'A / 左小指'],[10,'S / 左薬指'],[11,'D / 左中指'],[12,'F / 左人差指'],[5,'J / 右人差指'],[6,'K / 右中指'],[7,'L / 右薬指'],[8,'; / 右小指']]){const b=document.createElement('button');b.textContent=label+' (M'+n+')';b.disabled=true;
+  b.onclick=async()=>{if(running)return;const up=KB.want;await kbWant(false);if(up)await new Promise(r=>setTimeout(r,CONFIG.inputMode.dropMs));pulseNumber(n,400);if(up)setTimeout(()=>{if(!running&&!KB.want)kbWant(true)},1200)};grid.appendChild(b);testButtons.push(b)}
+ kbBtn.onclick=()=>{if(running)return;KB.unsupported=false;KB.error='';kbWant(!KB.want);kbBtn.blur()};
+ hb.onclick=async()=>{if(writer){setPaused(true);await disconnectHardware();return}hb.disabled=true;try{await openPort(await navigator.serial.requestPort())}catch(e){await disconnectHardware('接続できませんでした: '+e.message)}finally{hb.disabled=false;hb.blur()}};
  navigator.serial.addEventListener('disconnect',e=>{if(port&&(e.target===port||e.port===port)){setPaused(true);disconnectHardware('基板の接続が外れました。')}})
 }
 // 待機画面：どれかのキーを押すと体験が始まる（ホスト用パネルの「体験を開始」でも始められる）
 show(0,'スタート',START_HTML);hardwareUI();
 let idle=true,startedByKey=false;
 document.addEventListener('keydown',e=>{if(!idle||running||e.repeat||e.metaKey||e.ctrlKey||e.altKey||/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName))return;
- e.preventDefault();if(!$('realConsent').checked&&$('publicSession').checked){$('startLead').textContent='スタッフをお呼びください。';playStatus.textContent='公開する場合は、実際の同意確認が必要です（確認後、キーで開始できます）';return}
+ e.preventDefault();if(performance.now()<KB.armAt)return; // キーボードが上がった直後の接触は数えない
+ if(!$('realConsent').checked&&$('publicSession').checked){$('startLead').textContent='スタッフをお呼びください。';playStatus.textContent='公開する場合は、実際の同意確認が必要です（確認後、キーで開始できます）';return}
  startedByKey=true;start()});
+// 再読み込み（「最初から」）のあとも、前に許可した基板に自動でつなぎ、スタート画面でキーボードを上げる（許可済みの基板が1つのときだけ）
+if('serial'in navigator)navigator.serial.getPorts().then(ps=>{if(ps.length===1&&!port)return openPort(ps[0])}).catch(e=>disconnectHardware('自動接続できませんでした: '+e.message));
 // 体験画面（ヘッダー＋ステージ＝1180×782）がウィンドウに収まる倍率にする
 function fitScreen(){document.querySelector('.shell').style.zoom=Math.min((innerWidth-40)/1180,(innerHeight-40)/782)}
 addEventListener('resize',fitScreen);fitScreen();
