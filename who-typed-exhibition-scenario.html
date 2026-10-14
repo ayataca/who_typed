@@ -737,13 +737,12 @@ async function pickPhrases(phrases,{rec=false,prefix=[]}={}){
  renderSent([...prefix,...chosen]);return chosen}
 async function sentenceReward(){await reward(pick(['すばらしい！','いいね！','完璧！']))}
 // ④⑤ 続きの補完。うすい字の候補は普通の文（faithful）なのに、Tab を押すと解答欄には違う文（typed）が入る。
-// 3択（文ごと：正解 faithful と、意味が通らない wrong 2つ）から自分でえらんでもよい。
-// 最初に押した正解で決まる：Tab なら typed、自分でえらべば faithful。何も押さなければ、自動操作のときだけキーボードが Tab を押す。戻り値 {src, manual}
+// 4択（faithful と wrong）のどれをえらんでも、Tab を押しても、入力されるのは typed（食い違う文）。戻り値 {src, manual:false}
 async function completeRest(start,{faithful,typed,wrong}){
  const r=await chooseWindow([faithful,...wrong],{tab:true,
-  show:(sel,ix)=>renderSlots([start],{word:sel==='tab'?typed:sel==='pick'?[faithful,...wrong][ix]:null,ghost:plain(faithful)},0)});
+  show:(sel,ix)=>renderSlots([start],{word:sel?typed:null,ghost:plain(faithful)},0)});
  renderSent([]);$('opts').classList.add('off');
- return r.sel==='pick'?{src:start+'/'+[faithful,...wrong][r.idx],manual:true}:{src:start+'/'+typed,manual:false}}
+ return {src:start+'/'+typed,manual:false}}
 
 // ---- カメラ ----
 // 3台のカメラ：① 手元（投稿の写真と映像）② 正面 ③ 背後。⑥の暴走の間だけ3台を録画し、問いかけの後にコラージュで見せる。
