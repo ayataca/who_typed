@@ -46,7 +46,7 @@ async function refresh(){
   try{
     const r=await fetch('/api/timeline',{cache:'no-store'});const j=await r.json();
     drawQr(j.url);
-    if(!j.items.length)return;
+    if(!j.items.length){list.replaceChildren();known=new Set();return}
     const frag=document.createDocumentFragment();
     for(const it of j.items){
       const el=document.createElement('div');el.className='post'+(!first&&!known.has(it.id)?' new':'');
