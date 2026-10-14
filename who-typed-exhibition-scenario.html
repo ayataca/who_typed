@@ -862,7 +862,6 @@ async function run(from=0){
   [kc('Tab'),'<b>文の最後まで</b>まとめて入る']]});
  {const f=lessonStart(5,'レッスン4','いよいよ最後！',2);
   const [a,b]=TEXT.s5;const start=a.first;const r=await completeRest(start,{faithful:a.faithful,typed:a.rest,wrong:a.wrong});await typeSentence(f,r.src);
-  if(r.manual){await sleep(700);foot('','そのまま、手を置いていてください。','');await eraseTail(f,plain(r.src).length);await typeInto(f,start+'/'+a.rest,{typos:false});DOC.text=f.committed} // 自分でえらんだ文も、書き換わる
   setProg(1,2);
   // 消そうとしても、先に次の文が入力される（入力中に Delete を押すと「消せません」）
   foot('','そのまま、手を置いていてください。','');
