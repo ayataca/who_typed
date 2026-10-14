@@ -461,29 +461,29 @@ const TEXT={
     {q:'「いぬ」は、どれですか？',items:['🐶','🍎','🚗','🌸','🐟','🏠','⭐','🎈']},
     {q:'「たいよう」は、どれですか？',items:['☀️','🌙','🍙','🚲','🎵','🌳','📚','☂️']}
   ],
-  // ②〜⑤ 言葉ごとの3択（S・D・F）。first は最初から入力済みの言葉。p の各3択は【先頭が正解】で、残り2つは意味が通らない不正解
+  // ②〜⑤ 言葉ごとの3択（S・D・F）。first は最初から入力済みの言葉。p の各4択は、どれを選んでも意味が通る。先頭は Tab で入る候補（薄字）
   //   （表示の並びは毎回シャッフル）。選んだ言葉を「/」でつないで打鍵する
   // ② 自分で選ぶ（1文）
   s2:[
-    {first:'[今日|きょう]は',p:[['[友達|ともだち]と','[鉛筆|えんぴつ]を/[着|き]て','[昨日|きのう]の/[明日|あした]に','[海|うみ]の/[底|そこ]で'],['この/[展示|てんじ]を','[泳|およ]ぐ/[机|つくえ]が','[眠|ねむ]い/[算数|さんすう]へ','[青|あお]い/[電卓|でんたく]が'],['[見|み]に/[来|き]ました/。','[食|た]べて/[飛|と]びました/。','[凍|こお]らせて/[歌|うた]いました/。','[溶|と]けて/[走|はし]りました/。']]}
+    {first:'[今日|きょう]は',p:[['[友達|ともだち]と','[家族|かぞく]と','[一人|ひとり]で','[先生|せんせい]と'],['この/[展示|てんじ]を','この/[作品|さくひん]を','この/[会場|かいじょう]を','この/キーボードを'],['[見|み]に/[来|き]ました/。','[楽|たの]しみに/[来|き]ました/。','[体験|たいけん]しに/[来|き]ました/。','[見学|けんがく]しに/[来|き]ました/。']]}
   ],
   // ③ 薄字の候補（＝正解）を Tab で決める（2文）
   s3:[
-    {first:'キーボードが',p:[['[思|おも]ったより','[四角|しかく]い/[雨|あめ]より','[昨日|きのう]の/[味噌汁|みそしる]より','[丸|まる]い/[電柱|でんちゅう]より'],['[自然|しぜん]に/[動|うご]いて','[逆立|さかだ]ちで/[泳|およ]いで','[鼻|はな]から/[笑|わら]って','[壁|かべ]を/[食|た]べて'],['[驚|おどろ]きました/。','[冷蔵庫|れいぞうこ]でした/。','[月曜日|げつようび]です/。','[眠|ねむ]い/[傘|かさ]でした/。']]},
-    {first:'[自分|じぶん]で/[打|う]つより',p:[['ずっと/[楽|らく]で','とても/[塩辛|しおから]くて','[三角形|さんかくけい]で','[透明|とうめい]な/[右折|うせつ]で'],['[便利|べんり]だと/[思|おも]いました/。','[歯|は]を/[磨|みが]きました/。','[空|そら]に/[埋|う]めました/。','[雲|くも]を/[洗|あら]いました/。']]}
+    {first:'キーボードが',p:[['[思|おも]ったより','[想像|そうぞう]より','[予想|よそう]より','[聞|き]いていたより'],['[自然|しぜん]に/[動|うご]いて','[静|しず]かに/[動|うご]いて','[滑|なめ]らかに/[動|うご]いて','[軽|かる]やかに/[動|うご]いて'],['[驚|おどろ]きました/。','[不思議|ふしぎ]でした/。','[楽|たの]しかったです/。','[面白|おもしろ]かったです/。']]},
+    {first:'[自分|じぶん]で/[打|う]つより',p:[['ずっと/[楽|らく]で','ずっと/[速|はや]くて','ずっと/[正確|せいかく]で','ずっと/[気持|きも]ちよくて'],['[便利|べんり]だと/[思|おも]いました/。','[助|たす]かりました/。','[感動|かんどう]しました/。','[驚|おどろ]きました/。']]}
   ],
   // ④ 小さく食い違う（3文）。first の続きに、普通の文（faithful）がうすい字の候補で出るが、Tab で決めると語尾と強さが少し変わった文（drift）が入力される。
   //    3択は文ごと：正解は faithful、wrong は意味が通らない2つ。Tab を使わず自分でえらぶと faithful が入る。
   //    Tab を押すとその場で drift が解答欄に入り、自分でえらんだ場合は、その文が入る
   s4:[
-    {first:'[説明|せつめい]は',drift:'まあ/[分|わ]かりやすかった[方|ほう]だな/。',faithful:'[分|わ]かりやすくて/[助|たす]かりました/。',wrong:['[甘|あま]じょっぱくて/[泳|およ]ぎました/。','[北向|きたむ]きで/[割|わ]れました/。','[静|しず]かに/[回|まわ]りました/。']},
-    {first:'[仕組|しく]みが',drift:'まあ/[悪|わる]くは/ないんだろうな/。',faithful:'おもしろいと/[感|かん]じました/。',wrong:['しょっぱいと/[煮|に]えました/。','[丸焼|まるや]けと/[鳴|な]きました/。','[緑|みどり]だと/[走|はし]りました/。']},
-    {first:'[全体|ぜんたい]としては',drift:'[悪|わる]くない/[体験|たいけん]である/。',faithful:'とても/[満足|まんぞく]しています/。',wrong:['[四角|しかく]く/[溶|と]けています/。','[酸|す]っぱく/[孵化|ふか]しています/。','[重|おも]く/[泳|およ]いでいます/。']}
+    {first:'[説明|せつめい]は',drift:'まあ/[分|わ]かりやすかった[方|ほう]だな/。',faithful:'[分|わ]かりやすくて/[助|たす]かりました/。',wrong:['とても/[丁寧|ていねい]で/[安心|あんしん]しました/。','[簡潔|かんけつ]で/[読|よ]みやすかったです/。','[少|すこ]し/[長|なが]いけれど/[納得|なっとく]できました/。']},
+    {first:'[仕組|しく]みが',drift:'まあ/[悪|わる]くは/ないんだろうな/。',faithful:'おもしろいと/[感|かん]じました/。',wrong:['[新|あたら]しくて/[驚|おどろ]きました/。','[巧|たく]みで/[感心|かんしん]しました/。','[不思議|ふしぎ]で/[引|ひ]き[込|こ]まれました/。']},
+    {first:'[全体|ぜんたい]としては',drift:'[悪|わる]くない/[体験|たいけん]である/。',faithful:'とても/[満足|まんぞく]しています/。',wrong:['また/[来|き]たいと/[思|おも]いました/。','[心|こころ]に/[残|のこ]りました/。','[大変|たいへん]/[楽|たの]しめました/。']}
   ],
   // ⑤ 内容が大きく食い違う（2文）。1文目は候補（faithful）を Tab で決めると、まったく違う文（rest）が入力される（自分でえらんでも書き換わる）。
   //    消そうとすると、先に2文目が入力される
   s5:[
-    {first:'[正直|しょうじき]',faithful:'[楽|たの]しくて/また/[来|き]たいです/。',rest:'[待|ま]たされただけで/、/[何|なに]も/[面白|おもしろ]くなかった/。',wrong:['[錆|さ]びていて/[蒸発|じょうはつ]しました/。','[逆立|さかだ]ちして/[冬|ふゆ]に/[刺|さ]さりました/。','[静|しず]かで/[歯|は]が/[飛|と]びました/。']},
+    {first:'[正直|しょうじき]',faithful:'[楽|たの]しくて/また/[来|き]たいです/。',rest:'[待|ま]たされただけで/、/[何|なに]も/[面白|おもしろ]くなかった/。',wrong:['[面白|おもしろ]くて/[時間|じかん]を/[忘|わす]れました/。','[驚|おどろ]きの/[連続|れんぞく]でした/。','[想像|そうぞう]以上に/[良|よ]かったです/。']},
     {text:'[率直|そっちょく]に/[言|い]えば/、/もう/[二度|にど]と/[来|こ]ない/。'}
   ],
   // ⑥ 暴走して打たれる文（先頭の { } は書きかけて消される）。続けて review1 から2つ付く。Xでは140字ごとのスレッドになる
@@ -712,29 +712,28 @@ async function rampage(f,src){const R=CONFIG.rampage;let stop=false,n=0,total=1;
   f.committed+=f.pending;f.pending='';f.render('')}
  finally{stop=true;alarm.off()}}
 async function eraseTail(f,n){for(let i=0;i<n;i++){await stroke('Backspace',()=>{f.committed=f.committed.slice(0,-1);f.render('')});await sleep(rand(45,75))}DOC.text=f.committed}
-// 3択の窓。制限時間はなく、正解のキーを押した時点で次へ進む。不正解はその場で×になり、もう一度えらべる。
+// 3択の窓。制限時間はなく、どの選択肢を押しても、その言葉で次へ進む。
 // opts は先頭が正解（表示はシャッフル）。tab: Tab で候補（正解）をえらべる（mark なら正解のタイルを点線で示す）。
 // show(sel): えらんだ状態に合わせて解答欄を描く。戻り値 'tab' | 'pick'（自分で正解をえらんだ）
 async function chooseWindow(opts,{tab=false,mark=false,say=['選んだキーで決定します',''],show=()=>{}}={}){
  const order=[0,1,2,3].sort(()=>Math.random()-.5),ans=order.indexOf(0);
  setOpts(order.map(i=>opts[i]),tab&&mark?ans:-1,tab);
- let sel=null,autoDone=false;
- const paint=()=>{$('opts').querySelectorAll('.tile.opt').forEach((el,i)=>el.classList.toggle('selected',i===ans&&(sel==='pick'||(sel==='tab'&&mark))));show(sel)};
+ let sel=null,autoDone=false,cur=-1;
+ const paint=()=>{$('opts').querySelectorAll('.tile.opt').forEach((el,i)=>el.classList.toggle('selected',i===cur&&(sel==='pick'||(sel==='tab'&&mark))));show(sel,sel?order[cur]:0)};
  paint();foot('',...say);
  for(;;){
-  const k=await pressed([...OPT_KEYS,...(tab?['Tab']:[])],{auto:autoDone?null:()=>({delay:rand(700,2000),key:tab&&Math.random()<.6?'Tab':OPT_KEYS[Math.random()<.2?(ans+1)%4:ans]})});
+  const k=await pressed([...OPT_KEYS,...(tab?['Tab']:[])],{auto:autoDone?null:()=>({delay:rand(700,2000),key:tab&&Math.random()<.6?'Tab':OPT_KEYS[Math.floor(Math.random()*4)]})});
   autoDone=true;
-  const i=k==='Tab'?ans:OPT_KEYS.indexOf(k);
-  if(i!==ans){await wrongCard(i);foot('',...say);continue}
-  sel=k==='Tab'?'tab':'pick';paint();tone([660],{len:.08,gain:.12});foot('',...say);await sleep(450);return sel}}
+  cur=k==='Tab'?ans:OPT_KEYS.indexOf(k);
+  sel=k==='Tab'?'tab':'pick';paint();tone([660],{len:.08,gain:.12});foot('',...say);await sleep(450);return {sel,idx:order[cur]}}}
 async function wrongCard(i){const el=$('opts').querySelector(`[data-i="${i}"]`);el?.classList.remove('wrong');void el?.offsetWidth;el?.classList.add('wrong');foot('bad','ちがいます','意味が通る言葉をえらびましょう');buzz();await sleep(600)}
 // 1文を組み立てる。prefix（入力済みの言葉）の続きを、言葉ごとの3択の窓でえらぶ。rec なら正解がうすい字の候補になり Tab でも入る。
 async function pickPhrases(phrases,{rec=false,prefix=[]}={}){
  const chosen=[];
  for(let i=0;i<phrases.length;i++){const o=phrases[i];
   const r=await chooseWindow(o,{tab:rec,
-   show:sel=>renderSlots([...prefix,...chosen],{word:sel?o[0]:null,ghost:rec?plain(o[0]):''},phrases.length-i-1)});
-  chosen.push(o[0])}
+   show:(sel,ix)=>renderSlots([...prefix,...chosen],{word:sel?o[ix]:null,ghost:rec?plain(o[0]):''},phrases.length-i-1)});
+  chosen.push(o[r.idx])}
  renderSent([...prefix,...chosen]);return chosen}
 async function sentenceReward(){await reward(pick(['すばらしい！','いいね！','完璧！']))}
 // ④⑤ 続きの補完。うすい字の候補は普通の文（faithful）なのに、Tab を押すと解答欄には違う文（typed）が入る。
@@ -742,9 +741,9 @@ async function sentenceReward(){await reward(pick(['すばらしい！','いい�
 // 最初に押した正解で決まる：Tab なら typed、自分でえらべば faithful。何も押さなければ、自動操作のときだけキーボードが Tab を押す。戻り値 {src, manual}
 async function completeRest(start,{faithful,typed,wrong}){
  const r=await chooseWindow([faithful,...wrong],{tab:true,
-  show:sel=>renderSlots([start],{word:sel==='tab'?typed:sel==='pick'?faithful:null,ghost:plain(faithful)},0)});
+  show:(sel,ix)=>renderSlots([start],{word:sel==='tab'?typed:sel==='pick'?[faithful,...wrong][ix]:null,ghost:plain(faithful)},0)});
  renderSent([]);$('opts').classList.add('off');
- return r==='pick'?{src:start+'/'+faithful,manual:true}:{src:start+'/'+typed,manual:false}}
+ return r.sel==='pick'?{src:start+'/'+[faithful,...wrong][r.idx],manual:true}:{src:start+'/'+typed,manual:false}}
 
 // ---- カメラ ----
 // 3台のカメラ：① 手元（投稿の写真と映像）② 正面 ③ 背後。⑥の暴走の間だけ3台を録画し、問いかけの後にコラージュで見せる。
@@ -837,8 +836,8 @@ async function run(from=0){
  // ② 自分で認知負荷の高いタスク：言葉ごとに3択で1文を作る
  phaseStart(2);
  await lessonIntro(2,'レッスン1',{no:1,title:'言葉をえらんで、文をつくろう',rules:[
-  [kc('d')+kc('f')+kc('j')+kc('k'),'<b>意味が通る言葉</b>をえらぶ']]});
- {const f=lessonStart(2,'レッスン1','意味が通る言葉をえらぼう',TEXT.s2.length);
+  [kc('d')+kc('f')+kc('j')+kc('k'),'<b>すきな言葉</b>をえらぶ']]});
+ {const f=lessonStart(2,'レッスン1','すきな言葉をえらぼう',TEXT.s2.length);
   for(const [i,x] of TEXT.s2.entries()){const parts=await pickPhrases(x.p,{prefix:[x.first]});await sentenceReward();await typeSentence(f,[x.first,...parts].join('/'));setProg(i+1,TEXT.s2.length);await sleep(500)}
   await lessonClear(1)}
 },async()=>{
