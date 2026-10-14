@@ -445,7 +445,8 @@ const CONFIG={
   // 自動入力の場面では入力受付を抜けて、ソレノイドが1本ずつパチパチと上がる
   //   replyMs: 「K」を送ってから基板の返事を待つ時間 / dropMs: 入力受付を抜けてから最初の打鍵まで（鉄心が下がりきるのを待つ）
   //   armMs: キーボードが上がった直後の接触は押下として数えない（置いたままの指に鉄心が当たっただけで選ばれないように）
-  inputMode:{replyMs:600,dropMs:250,armMs:400},
+  //   raiseKeys: 入力受付で上げてよいキー。同時に上げるのは4本まで（真ん中の D F J K）。待っているキーがこの外なら上げない
+  inputMode:{replyMs:600,dropMs:250,armMs:400,raiseKeys:'dfjk'},
   rhythm:{
     altHand:0.82,        // 左右の手が交互（s→h など）
     sameHand:1.0,        // 同じ手の別の指
@@ -958,21 +959,23 @@ function pulseMotor(h,f){const n=MOTOR[h+'-'+f];if(n)pulseNumber(n)}
 // 鉄心への接触が USB キーボードの a s d f j k l ; として届く。入力受付の間は打鍵パケットを無視するので、機械が打つ前には必ず抜ける。
 // v7（CFI_8solenoid_touch_serial_v7）は 0xC7 パケットで浮かせるキーを選べるので、その場面で押せるキーだけを上げる。v6 は8本すべてが上がる。
 // K は切り替えなので、基板の返事（KEYBOARD ON / OFF / ERROR、INPUT MASK、VERSION）で今の状態を確かめながら送る。DC-v3 は返事をしないので「非対応」
-const ALL_KEYS=0x0FF0,CAL_ORDER=[9,10,11,12,5,6,7,8],CAL_INPUT=[9,11,12,5,6],KEY_MOTOR={a:9,s:10,d:11,f:12,j:5,k:6,l:7,';':8,Tab:9,Backspace:8};
+const ALL_KEYS=0x0FF0,CAL_ORDER=[9,10,11,12,5,6,7,8],KEY_MOTOR={a:9,s:10,d:11,f:12,j:5,k:6,l:7,';':8,Tab:9,Backspace:8};
 const MOTOR_KEY={9:'A',10:'S',11:'D',12:'F',5:'J',6:'K',7:'L',8:';'},MOTOR_FINGER={9:'左小指',10:'左薬指',11:'左中指',12:'左人差指',5:'右人差指',6:'右中指',7:'右薬指',8:'右小指'};
 const keyLabel=n=>`${MOTOR_KEY[n]||n}（${MOTOR_FINGER[n]||''}）`,maskKeys=m=>CAL_ORDER.filter(n=>m&(1<<(n-1))).map(n=>MOTOR_KEY[n]).join(' ')||'なし';
 // 待っているキー → 浮かせるソレノイド。'*'（どれかのキー）は8本すべて。Tab は左小指、Delete は右小指
 // キャリブレーションで「使わない」にしたキーは上げない（押しても入力されないので）
-function keysMask(keys){let m=0;if(keys==='*')m=ALL_KEYS;else for(const k of keys){const n=KEY_MOTOR[k];if(n)m|=1<<(n-1)}m=m||ALL_KEYS;return (m&~KB.disabled)||m}
-const KB={want:false,on:false,mask:ALL_KEYS,maskOn:null,ver:null,v7:false,busy:null,waiter:null,seen:false,unsupported:false,error:'',armAt:0,touch:'',disabled:0,timeouts:0,reboots:0};
+// 上げてよいキー（CONFIG.inputMode.raiseKeys）に絞る。'*'（どれかのキー）はその全部
+const RAISE_OK=[...CONFIG.inputMode.raiseKeys].reduce((m,k)=>KEY_MOTOR[k]?m|1<<(KEY_MOTOR[k]-1):m,0)||ALL_KEYS;
+function keysMask(keys){let m=0;if(keys==='*')m=RAISE_OK;else for(const k of keys){const n=KEY_MOTOR[k];if(n)m|=1<<(n-1)}m=(m&RAISE_OK)||RAISE_OK;return (m&~KB.disabled)||m}
+const KB={want:false,on:false,mask:RAISE_OK,maskOn:null,ver:null,v7:false,busy:null,waiter:null,seen:false,unsupported:false,error:'',armAt:0,touch:'',disabled:0,timeouts:0,reboots:0};
 const CAL={active:false,press:0,timer:null,data:{},watch:null};
 const calBtn=$('calBtn'),calCap=$('calCapture'),calSkip=$('calSkip'),calStop=$('calCancel'),senseBtn=$('senseBtn'),calSt=$('calStatus'),calRes=$('calResult');
 function kbUI(){
  kbs.textContent='入力受付: '+(!writer?'未接続':KB.unsupported?'非対応のファームウェア（CFI_8solenoid_touch_serial_v7 を書き込んでください）'
   :CAL.active?'キャリブレーション中'
   :KB.error?(/calibration profile missing/.test(KB.error)?'校正データがありません（「入力のキャリブレーション」を行ってください）':KB.error)
-  :KB.on?`ON（${KB.v7?maskKeys(KB.maskOn??ALL_KEYS):'8本すべて'} が上がっています）`:KB.want?'上げています…':'OFF（下がっています）')
-  +(writer&&KB.ver==='old'&&!KB.unsupported?' ※v6 のため押せないキーも上がります（v7 を書き込むと押せるキーだけ上がります）':'')+(KB.touch?' ／ '+KB.touch:'')
+  :KB.on?`ON（${KB.v7?maskKeys(KB.maskOn??KB.mask):'8本すべて'} が上がっています）`:KB.want?'上げています…':'OFF（下がっています）')
+  +(writer&&KB.ver==='old'&&!KB.unsupported?` ※v6 のため8本すべてが上がります（v7 を書き込むと ${maskKeys(RAISE_OK)} だけ）`:'')+(KB.touch?' ／ '+KB.touch:'')
   +(KB.timeouts||KB.reboots?` ／ 通信断 ${KB.timeouts} 回・基板の再起動 ${KB.reboots} 回`:'')+(writer&&document.hidden?' ／ このタブが見えていません（展示中は前面に出しておいてください）':'');
  kbBtn.textContent=KB.want?'キーボードを下げる':'キーボードを上げる（入力受付）';kbBtn.disabled=!writer||running||CAL.active;calUI()}
 function kbReply(ms){return new Promise(res=>{const t=setTimeout(()=>{KB.waiter=null;res(false)},ms);KB.waiter=()=>{clearTimeout(t);KB.waiter=null;res(true)}})}
@@ -999,8 +1002,8 @@ function onSerialLine(s){let m;
  else if(/^VERSION/.test(s)){KB.ver=s.slice(8);KB.v7=/TOUCH-v([7-9]|\d\d)/.test(s);if(KB.v7){KB.disabled=0;send(new Uint8Array([0x50]))}} // 'P'：保存済みの校正データ（しきい値と、使わないキー）
  else if((m=s.match(/^TOUCH (\d+)/))){KB.touch='接触 '+keyLabel(+m[1]);kbUI();return}
  else if(/^(CAL|SENSE)/.test(s)){onCalLine(s);return}
- else if(/^(TIMEOUT|READY)/.test(s)){KB.on=false;KB.maskOn=KB.v7?ALL_KEYS:null;if(/^TIMEOUT/.test(s))KB.timeouts++;else KB.reboots++; // 通信断・再起動で、基板は下げて8本すべてに戻している
-  if(/^READY/.test(s)){KB.seen=/TOUCH/.test(s);KB.unsupported=!KB.seen;KB.v7=/TOUCH-v([7-9]|\d\d)/.test(s);KB.ver=KB.seen?s:null;KB.maskOn=ALL_KEYS;if(CAL.active)calEnd('基板が再起動しました。もう一度やり直してください')}
+ else if(/^(TIMEOUT|READY)/.test(s)){KB.on=false;KB.maskOn=null;if(/^TIMEOUT/.test(s))KB.timeouts++;else KB.reboots++; // 通信断・再起動で、基板は下げて初期のキーに戻している（次に上げるとき送り直す）
+  if(/^READY/.test(s)){KB.seen=/TOUCH/.test(s);KB.unsupported=!KB.seen;KB.v7=/TOUCH-v([7-9]|\d\d)/.test(s);KB.ver=KB.seen?s:null;if(CAL.active)calEnd('基板が再起動しました。もう一度やり直してください')}
   kbUI();if(KB.want)kbSync();return}
  else return;
  KB.waiter?.();kbUI()}
@@ -1020,14 +1023,14 @@ function onCalLine(s){let m;const step=n=>`（${CAL_ORDER.indexOf(n)+1}/8）`;
  else if((m=s.match(/^CAL PRESS (\d+)/))){CAL.press=+m[1];if(!/差が小さすぎます/.test(calSt.textContent))calSay(`${keyLabel(+m[1])} の鉄心を指で押したまま、「押したまま取り込む」を押してください${step(+m[1])}`)}
  else if((m=s.match(/^CAL RETRY (\d+) FLOAT_HIGH (\d+) CONTACT_LOW (\d+)/))){const n=+m[1],dead=+m[3]<=+m[2];
   calSay(`${keyLabel(n)}：押したときと離したときの差が小さすぎます（離 ${m[2]} / 押 ${m[3]} µs）。`+(dead?'押しても値が上がっていないので、この鉄心は接触を拾えていません（配線・1MΩのプルアップを確認）。':'もっとしっかり押したまま、もう一度取り込んでください。')
-   +(KB.v7?(CAL_INPUT.includes(n)?'このキーは体験で使うので、直してから取り込んでください':'体験では使わないキーなので、「このキーを使わない」で飛ばせます'):''))}
+   +(KB.v7?((RAISE_OK&(1<<(n-1)))?'このキーは体験で使うので、直してから取り込んでください':'体験では使わないキーなので、「このキーを使わない」で飛ばせます'):''))}
  else if((m=s.match(/^CAL CONTACT (\d+) .*THRESHOLD (\d+)/))){CAL.press=0;calSay(`${keyLabel(+m[1])} を取り込みました。指を離してください${step(+m[1])}`)}
  else if((m=s.match(/^CAL SKIP (\d+)/))){CAL.press=0;calSay(`${keyLabel(+m[1])} は入力に使わないことにしました${step(+m[1])}`)}
  else if(/^CAL SAVED/.test(s)){KB.error='';CAL.data={};KB.disabled=0;calEnd('キャリブレーションを保存しました。入力受付に使えます')}
  else if((m=s.match(/^CAL DATA (\d+) (\d+) (\d+) (\d+) (\d+)( SKIPPED)?/))){const n=+m[1],skip=!!m[6];CAL.data[n]={f:+m[3],c:+m[4],t:+m[5],skip};
   if(skip){KB.disabled|=1<<(n-1);if(KB.want&&(KB.mask&KB.disabled)&&(KB.mask&~KB.disabled)){KB.mask&=~KB.disabled;kbSync()}} // 使わないキーは、今上がっていても下げる
   calRes.textContent='校正データ（伸ばして離した値 / 押した値 → しきい値 µs）　'+CAL_ORDER.filter(n=>CAL.data[n]).map(n=>{const d=CAL.data[n];return d.skip?`${MOTOR_KEY[n]} 使わない`:`${MOTOR_KEY[n]} ${d.f}/${d.c}→${d.t}`}).join('　')
-   +(CAL_INPUT.some(n=>CAL.data[n]?.skip)?'　※体験で使うキー（A D F J K）が「使わない」になっています':'');return}
+   +(CAL_ORDER.some(n=>(RAISE_OK&(1<<(n-1)))&&CAL.data[n]?.skip)?`　※体験で使うキー（${maskKeys(RAISE_OK)}）が「使わない」になっています`:'');return}
  else if(/^CAL TIMEOUT/.test(s)){calEnd('30秒操作がなかったので、基板が中止しました。もう一度やり直してください')}
  else if(/^CAL CANCELLED/.test(s)){calEnd('キャリブレーションを中止しました（前の校正データのままです）')}
  else if(/^CAL BUSY/.test(s)){calSay('すでにキャリブレーション中です')}
@@ -1050,7 +1053,7 @@ senseBtn.onclick=()=>{if(writer&&!CAL.active)senseWatch(!CAL.watch)}; // '?'
 
 async function openPort(p){port=p;await port.open({baudRate:115200});writer=port.writable.getWriter();conn++;seq=0;queue=Promise.resolve();active.clear();
  Object.assign(KB,{on:false,busy:null,waiter:null,seen:false,unsupported:false,error:'',ver:null,v7:false,maskOn:null,touch:'',disabled:0,timeouts:0,reboots:0});CAL.data={};await sendMask();startHeartbeat();readLoop(port);hardwareUI();
- if(idle)kbWant(true,ALL_KEYS);else if(running&&keyWaiter?.input&&!paused)kbWant(true,keysMask(keyWaiter.keys))} // スタート画面や入力待ちの最中につないだら、すぐに上げる
+ if(idle)kbWant(true,keysMask('*'));else if(running&&keyWaiter?.input&&!paused)kbWant(true,keysMask(keyWaiter.keys))} // スタート画面や入力待ちの最中につないだら、すぐに上げる
 async function disconnectHardware(message){if(disconnecting)return;disconnecting=true;hb.disabled=true;
  // 入力受付のまま切らない（切れても基板は0.5秒で自動的に下げる）
  if(writer&&(KB.on||KB.busy)){KB.want=false;await Promise.race([kbSync(),new Promise(r=>setTimeout(r,800))])}
@@ -1059,8 +1062,8 @@ async function disconnectHardware(message){if(disconnecting)return;disconnecting
 if(!('serial'in navigator)){hb.disabled=true;hs.textContent='Web Serial非対応です。Chrome / Edgeで開いてください。'}else{
  // 指ごとの動作テスト。入力受付中は打鍵が効かないので、いったん下げて打ち、スタート画面ならまた上げる
  for(const [n,label] of [[9,'A / 左小指'],[10,'S / 左薬指'],[11,'D / 左中指'],[12,'F / 左人差指'],[5,'J / 右人差指'],[6,'K / 右中指'],[7,'L / 右薬指'],[8,'; / 右小指']]){const b=document.createElement('button');b.textContent=label+' (M'+n+')';b.disabled=true;
-  b.onclick=async()=>{if(running)return;const up=KB.want;await kbWant(false);if(up)await new Promise(r=>setTimeout(r,CONFIG.inputMode.dropMs));pulseNumber(n,400);if(up)setTimeout(()=>{if(!running&&!KB.want&&!CAL.active)kbWant(true,ALL_KEYS)},1200)};grid.appendChild(b);testButtons.push(b)}
- kbBtn.onclick=()=>{if(running||CAL.active)return;KB.unsupported=false;KB.error='';kbWant(!KB.want,ALL_KEYS);kbBtn.blur()};
+  b.onclick=async()=>{if(running)return;const up=KB.want;await kbWant(false);if(up)await new Promise(r=>setTimeout(r,CONFIG.inputMode.dropMs));pulseNumber(n,400);if(up)setTimeout(()=>{if(!running&&!KB.want&&!CAL.active)kbWant(true,keysMask('*'))},1200)};grid.appendChild(b);testButtons.push(b)}
+ kbBtn.onclick=()=>{if(running||CAL.active)return;KB.unsupported=false;KB.error='';kbWant(!KB.want,keysMask('*'));kbBtn.blur()};
  hb.onclick=async()=>{if(writer){setPaused(true);await disconnectHardware();return}hb.disabled=true;try{await openPort(await navigator.serial.requestPort())}catch(e){await disconnectHardware('接続できませんでした: '+e.message)}finally{hb.disabled=false;hb.blur()}};
  navigator.serial.addEventListener('disconnect',e=>{if(port&&(e.target===port||e.port===port)){setPaused(true);disconnectHardware('基板の接続が外れました。')}})
 }
