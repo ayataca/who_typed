@@ -6,6 +6,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -31,6 +32,7 @@ const KEYS = {
 const configured = Object.values(KEYS).every(Boolean);
 // 鍵が揃っていても DRY_RUN=1 の間は実際には投稿しない
 const dryRun = env.DRY_RUN !== '0' || !configured;
+const VIEW_PORT = Number(env.VIEW_PORT || 8788);
 const handle = (env.X_HANDLE || '').replace(/^@?/, '@');
 
 // ---- OAuth 1.0a (HMAC-SHA1) ----
@@ -148,6 +150,39 @@ async function handleDelete({ id, ids }) {
   }
 }
 
+// ---- 感想タイムライン（待ち時間の縦型ディスプレイ／スマホ向け） ----
+function lanUrl() {
+  if (env.PUBLIC_URL) return env.PUBLIC_URL.replace(/\/$/, '');
+  for (const list of Object.values(os.networkInterfaces()))
+    for (const i of list || []) if (i.family === 'IPv4' && !i.internal) return `http://${i.address}:${VIEW_PORT}`;
+  return `http://localhost:${VIEW_PORT}`;
+}
+function timeline(limit = 50) {
+  if (!fs.existsSync(LOG)) return [];
+  const rows = []; const removed = new Set();
+  for (const line of fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean)) {
+    try {
+      const e = JSON.parse(line);
+      if (e.deleted) e.deleted.forEach(x => removed.add(x));
+      else if (e.ok && Array.isArray(e.texts)) rows.push(e);
+    } catch {}
+  }
+  const seen = new Set();
+  return rows.filter(e => !(e.ids || [e.id]).some(x => x && removed.has(x)) && !seen.has(e.sessionId) && seen.add(e.sessionId))
+    .slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join('') }));
+}
+// 公開用（LANに出す）サーバー：感想の一覧だけを返し、投稿などのAPIは持たない
+const VIEW_FILES = { '/timeline': ['timeline.html', 'text/html; charset=utf-8'], '/qrcode.js': ['qrcode.js', 'text/javascript'] };
+function serveView(req, res) {
+  const url = new URL(req.url, 'http://localhost');
+  if (req.method !== 'GET') return send(res, 405, { ok: false });
+  if (url.pathname === '/api/timeline') return send(res, 200, { url: lanUrl() + '/timeline', items: timeline() });
+  const f = VIEW_FILES[url.pathname === '/' ? '/timeline' : url.pathname];
+  if (!f) { res.writeHead(404); return res.end('not found'); }
+  res.writeHead(200, { 'Content-Type': f[1], 'Cache-Control': 'no-cache' });
+  fs.createReadStream(path.join(ROOT, f[0])).pipe(res);
+}
+
 // ---- HTTP ----
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const PUBLIC = new Set(['.html', '.wav', '.mp3', '.m4a', '.png', '.jpg', '.svg', '.css', '.js']);
@@ -168,6 +203,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/status' && req.method === 'GET') return send(res, 200, { configured, dryRun, handle });
     if (url.pathname === '/api/post' && req.method === 'POST') { const r = await handlePost(await readJson(req)); return send(res, r.status, r.body); }
     if (url.pathname === '/api/delete' && req.method === 'POST') { const r = await handleDelete(await readJson(req, 4096)); return send(res, r.status, r.body); }
+    if (url.pathname === '/api/timeline' || url.pathname === '/timeline') return serveView(req, res);
     if (req.method !== 'GET') return send(res, 405, { ok: false });
     // 静的ファイル（.env や posts/ は配信しない）
     const rel = decodeURIComponent(url.pathname === '/' ? '/who-typed-exhibition-scenario.html' : url.pathname);
@@ -192,6 +228,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     throw e;
   });
   // このPCからだけ接続できるようにする
+  const viewServer = http.createServer((req, res) => { try { serveView(req, res); } catch (e) { send(res, 500, { ok: false }); } });
+  viewServer.on('error', e => console.error(`感想タイムライン用ポート ${VIEW_PORT} を開けません: ${e.message}`));
+  viewServer.listen(VIEW_PORT, '0.0.0.0', () => console.log(`感想タイムライン（QRの行き先）: ${lanUrl()}/timeline`));
   server.listen(PORT, '127.0.0.1', () => {
     console.log(`Who Typed? サーバー: http://localhost:${PORT}`);
     console.log(configured ? (dryRun ? '投稿モード: 模擬（DRY_RUN=1。Xには投稿しません）' : `投稿モード: 本番（${handle} に投稿します）`) : '投稿モード: 模擬（.env に X の鍵が未設定）');
