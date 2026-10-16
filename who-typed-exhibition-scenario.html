@@ -413,7 +413,7 @@ header.top{display:none!important}
   <details class="operator" open>
     <summary>host / hardware</summary>
     <div class="ops">
-      <div class="row"><label><input type="checkbox" id="realConsent" checked> 撮影・公開について本人の実際の同意を確認済み</label><label><input type="checkbox" id="publicSession" checked> 公開セッション</label></div>
+      <div class="row"><label><input type="checkbox" id="realConsent"> 撮影・公開について本人の実際の同意を確認済み</label><label><input type="checkbox" id="publicSession" checked> 公開セッション</label></div>
       <div class="row cams"><label class="status">① 手元 <select id="cam-hands"></select></label><label class="status">② 正面 <select id="cam-front"></select></label><label class="status">③ 背後 <select id="cam-back"></select></label></div>
       <div class="row cams"><video id="pv-hands" muted playsinline></video><video id="pv-front" muted playsinline></video><video id="pv-back" muted playsinline></video></div>
       <div class="row"><button class="op" id="cameraBtn">カメラを開始</button><button class="op" id="startBtn">体験を開始</button><button class="op" id="stopPublish">このセッションの公開を中止</button></div>
@@ -810,7 +810,7 @@ async function submitPost(texts){
 $('deletePost').onclick=async()=>{if(!lastPostIds||!confirm('直前の投稿（スレッド全体）をXから削除しますか？'))return;const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:lastPostIds})}).then(r=>r.json()).catch(e=>({ok:false,error:e.message}));$('postResult').textContent=r.ok?'投稿を削除しました。':'削除失敗：'+r.error;if(r.ok){lastPostIds=null;$('deletePost').disabled=true}};
 if(CONFIG.postEndpoint)fetch('/api/status').then(r=>r.json()).then(st=>{if(st.handle&&st.handle!=='@'){CONFIG.xHandle=st.handle;CONFIG.xAccountUrl='https://x.com/'+st.handle.slice(1)}$('xStatus').textContent='X投稿: '+(st.dryRun?(st.configured?'模擬（DRY_RUN=1）':'模擬（.env に鍵が未設定）'):'本番 '+st.handle)}).catch(()=>{$('xStatus').textContent='X投稿: サーバーに接続できません'});else $('xStatus').textContent='X投稿: 模擬（file:// で開いています。node server.mjs で起動してください）';
 // スタート画面：ホームポジション（a s d f ／ j k l ;）を白いキーキャップで見せ、指先の目印を出す。f と j には突起
-const START_HTML=`<div class="start"><img class="start-bg" src="top.png" alt="キーボードに両手を置いてください"><p class="lead" id="startLead"></p></div>`;// 最後に打たれる作品名のキー [文字, x, y, 角度]。リサーチパネルのように、ゆるく散らばった2列
+const START_HTML=`<div class="start"><img class="start-bg" src="top.png" alt="キーボードに両手を置いてください。いずれかのキーを押して開始"><p class="lead" id="startLead"></p></div>`;// 最後に打たれる作品名のキー [文字, x, y, 角度]。リサーチパネルのように、ゆるく散らばった2列
 const TITLE_KEYS=[['w',6,14,-14],['h',92,44,9],['o',178,20,-5],['t',30,160,12],['y',116,192,-9],['p',202,166,6],['e',288,204,-15],['d',374,172,10],['?',462,214,-20]];
 // コラージュ：3台の映像が左右からスライドインして集まる（③ 背後は左上へ左から、② 正面は右へ右から、① 手元は下へ左から）。
 // 映像は⑥で打たされていたときの録画。少し傾けて、写真を机に並べたように置く
