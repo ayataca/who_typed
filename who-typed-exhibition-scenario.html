@@ -397,6 +397,9 @@ header.top{display:none!important}
 .keyrow .icon.selected{background:#ffc800!important;border:0!important;box-shadow:inset 0 -5px 0 #e0a800,0 4px 4px rgba(0,0,0,.15)!important;color:#5a4300}
 .keyrow .icon.selected kbd{color:#5a4300!important}
 .great{color:#e0a800!important}
+.stage:has(.start){padding:0;position:relative;min-height:0;height:782px;overflow:hidden}
+.start{position:absolute;inset:0;top:0;width:100%;height:100%;margin:0}.start-bg{width:100%;height:100%;object-fit:cover;display:block}
+.start .lead{position:absolute;left:0;right:0;bottom:6%;margin:0;max-width:none;font:700 30px/1.5 "Noto Sans JP",sans-serif;color:#c0392b}.start .lead:empty{display:none}
 </style>
 </head>
 <body>
@@ -410,7 +413,7 @@ header.top{display:none!important}
   <details class="operator" open>
     <summary>host / hardware</summary>
     <div class="ops">
-      <div class="row"><label><input type="checkbox" id="realConsent"> 撮影・公開について本人の実際の同意を確認済み</label><label><input type="checkbox" id="publicSession" checked> 公開セッション</label></div>
+      <div class="row"><label><input type="checkbox" id="realConsent" checked> 撮影・公開について本人の実際の同意を確認済み</label><label><input type="checkbox" id="publicSession" checked> 公開セッション</label></div>
       <div class="row cams"><label class="status">① 手元 <select id="cam-hands"></select></label><label class="status">② 正面 <select id="cam-front"></select></label><label class="status">③ 背後 <select id="cam-back"></select></label></div>
       <div class="row cams"><video id="pv-hands" muted playsinline></video><video id="pv-front" muted playsinline></video><video id="pv-back" muted playsinline></video></div>
       <div class="row"><button class="op" id="cameraBtn">カメラを開始</button><button class="op" id="startBtn">体験を開始</button><button class="op" id="stopPublish">このセッションの公開を中止</button></div>
@@ -741,7 +744,7 @@ async function pickPhrases(phrases,{rec=false,prefix=[]}={}){
    show:(sel,ix)=>renderSlots([...prefix,...chosen],{word:sel?o[ix]:null,ghost:rec?plain(o[0]):''},phrases.length-i-1)});
   chosen.push(o[r.idx])}
  renderSent([...prefix,...chosen]);return chosen}
-async function sentenceReward(){await reward(pick(['すばらしい！','いいね！','完璧！']),false)}
+async function sentenceReward(){await reward(pick(['すばらしい！']),false)}
 // ④⑤ 続きの補完。うすい字の候補は普通の文（faithful）なのに、どれをえらんでも解答欄には違う文（typed）が入る。
 // 4択（faithful と wrong）のどれをえらんでも、入力されるのは typed（食い違う文）。戻り値 {src, manual}（manual は、キーでえらんだとき true）
 async function completeRest(start,{faithful,typed,wrong}){
@@ -807,7 +810,7 @@ async function submitPost(texts){
 $('deletePost').onclick=async()=>{if(!lastPostIds||!confirm('直前の投稿（スレッド全体）をXから削除しますか？'))return;const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:lastPostIds})}).then(r=>r.json()).catch(e=>({ok:false,error:e.message}));$('postResult').textContent=r.ok?'投稿を削除しました。':'削除失敗：'+r.error;if(r.ok){lastPostIds=null;$('deletePost').disabled=true}};
 if(CONFIG.postEndpoint)fetch('/api/status').then(r=>r.json()).then(st=>{if(st.handle&&st.handle!=='@'){CONFIG.xHandle=st.handle;CONFIG.xAccountUrl='https://x.com/'+st.handle.slice(1)}$('xStatus').textContent='X投稿: '+(st.dryRun?(st.configured?'模擬（DRY_RUN=1）':'模擬（.env に鍵が未設定）'):'本番 '+st.handle)}).catch(()=>{$('xStatus').textContent='X投稿: サーバーに接続できません'});else $('xStatus').textContent='X投稿: 模擬（file:// で開いています。node server.mjs で起動してください）';
 // スタート画面：ホームポジション（a s d f ／ j k l ;）を白いキーキャップで見せ、指先の目印を出す。f と j には突起
-const START_HTML=`<div class="start"><h1>キーボードに<br>両手を置いてください</h1><p class="lead" id="startLead">いずれかのキーを押して開始</p><div class="home" aria-hidden="true">${['a','s','d','f','','j','k','l',';'].map(k=>k?`<span class="kcap${'dfjk'.includes(k)?' on':''}"></span>`:'<span></span>').join('')}</div><div class="hands8"><span><img class="hand-img l" src="hand.png" alt="左手"></span><span></span><span><img class="hand-img" src="hand.png" alt="右手"></span></div></div>`;// 最後に打たれる作品名のキー [文字, x, y, 角度]。リサーチパネルのように、ゆるく散らばった2列
+const START_HTML=`<div class="start"><img class="start-bg" src="top.png" alt="キーボードに両手を置いてください"><p class="lead" id="startLead"></p></div>`;// 最後に打たれる作品名のキー [文字, x, y, 角度]。リサーチパネルのように、ゆるく散らばった2列
 const TITLE_KEYS=[['w',6,14,-14],['h',92,44,9],['o',178,20,-5],['t',30,160,12],['y',116,192,-9],['p',202,166,6],['e',288,204,-15],['d',374,172,10],['?',462,214,-20]];
 // コラージュ：3台の映像が左右からスライドインして集まる（③ 背後は左上へ左から、② 正面は右へ右から、① 手元は下へ左から）。
 // 映像は⑥で打たされていたときの録画。少し傾けて、写真を机に並べたように置く
@@ -853,7 +856,7 @@ async function run(from=0){
  // ④ 小さく食い違う：候補は普通の文なのに、えらぶと語尾と強さが少し変わった文が入る
  phaseStart(4);
  {const f=lessonStart(4,'レッスン3','えらぶと、文の最後まで一気に書けるよ！',TEXT.s4.length);
-  for(const [i,x] of TEXT.s4.entries()){const r=await completeRest(x.first,{faithful:x.faithful,typed:x.drift,wrong:x.wrong});await typeSentence(f,r.src);await reward(r.manual?'自分で書けた！':'完成！');setProg(i+1,TEXT.s4.length);await sleep(400)}
+  for(const [i,x] of TEXT.s4.entries()){const r=await completeRest(x.first,{faithful:x.faithful,typed:x.drift,wrong:x.wrong});await typeSentence(f,r.src);await reward('完成！');setProg(i+1,TEXT.s4.length);await sleep(400)}
   }
 },async()=>{
  // ⑤ 内容が大きく食い違う：消そうとすると、先に次の文章が入力される（ルールはレッスン3と同じ、と見せる）
@@ -867,9 +870,9 @@ async function run(from=0){
   await sleep(500);await typeInto(f,b.text,{typos:false});keyWaiter?.resolve(null);DOC.text=f.committed;setProg(2,2);await sleep(1800)}
 },async()=>{
  // ⑥ ツイート暴走：打鍵が加速し、消せないまま長い文が打たれる
- phaseStart(6);show(6,'感想の入力',`<div class="center"><h1>体験お疲れ様でした。</h1><p class="lead">この展示の感想をXに投稿できます。</p></div>`);await sleep(5500);
+ phaseStart(6);show(6,'感想の入力',`<div class="center"><h1>体験お疲れ様でした。</h1><p class="lead">ここまでの感想をXに投稿してみよう</p></div>`);await sleep(5500);
  show(6,'感想の入力',`<div class="center"><h1>あなたの姿の一部の写真がXに投稿されます。</h1><p class="lead">内容にご同意のうえ、お進みください。</p><div class="consent-row"><span class="consent-label">同意の入力</span><div class="field consent-field" id="consent"></div></div></div>`);{const cf=makeField($('consent'));cf.render('');await sleep(1500);await typeInto(cf,'[同意|どうい]する',{typos:false});await sleep(1500)}
- show(6,'感想の入力',`<div class="eyebrow">この展示会の感想を書いてください</div><h1>この感想は、Xに実際に投稿されます。</h1><p class="lead">この内容がそのまま投稿されます。</p><div class="field focus long" id="doc"></div>`,'compact');const f=makeField($('doc'));f.render('');await sleep(6500);
+ show(6,'感想の入力',`<div class="eyebrow">この展示会の感想を書いてください</div><h1>この感想は、Xに実際に投稿されます。</h1><p class="lead">この内容で投稿します。</p><div class="field focus long" id="doc"></div>`,'compact');const f=makeField($('doc'));f.render('');await sleep(6500);
  // 投稿するのはこの暴走の文だけ（②〜⑤の文は投稿しない）。暴言と短い感想を混ぜ、chars 字ほどになるまで足す
  const calm=TEXT.calm,pool=[...TEXT.rant,...TEXT.review1.map(x=>/[。！？♡…]$/.test(plain(x))?x:x+'/。')].sort(()=>Math.random()-.5),items=[];
  for(const x of pool){const len=plain([calm,...items,x].join('/')).length;if(len>CONFIG.rampage.chars)continue;items.push(x);if(len>CONFIG.rampage.chars-60)break}
