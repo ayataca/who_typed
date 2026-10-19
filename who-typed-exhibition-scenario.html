@@ -983,13 +983,13 @@ function calEnd(msg){clearTimeout(CAL.timer);CAL.active=false;CAL.press=0;calSay
 function onCalLine(s){let m;const step=n=>`（${CAL_ORDER.indexOf(n)+1}/8）`;
  if(/^CAL MODE START/.test(s)){clearTimeout(CAL.timer);CAL.active=true;CAL.press=0;CAL.nocur=0;CAL.skipped=0;calSay(KB.current?'測定中：キーが1本ずつ小さく動きます。どのキーにも触れないでください':'測定中：どの鉄心にも触れないでください')}
  else if(/^AUTO START/.test(s)){clearTimeout(CAL.timer);CAL.active=true;CAL.press=0;CAL.skipped=0;calSay(KB.current?'オートキャリブレーション中：キーが1本ずつ自分で上下します。どのキーにも触れないでください（約15秒）':'オートキャリブレーション中：キーが1本ずつ自分で上下します。どの鉄心にも触れないでください（約10秒）')}
- else if((m=s.match(/^AUTO KEY (\d+) OFF (\d+) \d+ \d+ FLOAT (\d+) \d+ \d+ THRESHOLD (\d+) (UP|DOWN)/))){calSay(`${keyLabel(+m[1])}：下げたとき ${m[2]} / 上げたとき ${m[3]} µs → しきい値 ${m[4]}（押すと値が${m[5]==='UP'?'上がる':'下がる'}）${step(+m[1])}`)}
- else if((m=s.match(/^AUTO SKIP (\d+) OFF (\d+) \d+ \d+ FLOAT (\d+) \d+ \d+(?: (\w+))?/))){CAL.skipped|=1<<(+m[1]-1);const why=m[4]==='NOSENSE'?'電流を測る配線（ADC）がない':m[4]==='NOCURRENT'?'上げても電流が流れていない（配線・電源を確認）':`上げても下げても値が変わらない（${m[2]} / ${m[3]} µs）`;calSay(`${keyLabel(+m[1])}：${why}ので、使わないことにしました${step(+m[1])}`)}
+ else if((m=s.match(/^AUTO KEY (\d+) OFF (\d+) \d+ \d+ FLOAT (\d+) \d+ \d+ THRESHOLD (\d+) (UP|DOWN)/))){calSay(`${keyLabel(+m[1])}：下げたとき ${m[2]} / 上げたとき ${m[3]} µs → しきい値 ${m[4]}（押すと値が${m[5]==='UP'?'上がる':'下がる'}${/GUESS/.test(s)?'。下げたときの値がはっきりしないので、押すと下がる前提で決めました':''}）${step(+m[1])}`)}
+ else if((m=s.match(/^AUTO SKIP (\d+) OFF (\d+) \d+ \d+ FLOAT (\d+) \d+ \d+(?: (\w+))?/))){CAL.skipped|=1<<(+m[1]-1);const why=m[4]==='NOSENSE'?'電流を測る配線（ADC）がない':m[4]==='NOCURRENT'?'上げても電流が流れていない（配線・電源を確認）':m[4]==='NOISY'?`上げたときの値のばらつきが大きすぎる（${m[3]} µs 前後）`:`上げても下げても値が変わらない（${m[2]} / ${m[3]} µs）`;calSay(`${keyLabel(+m[1])}：${why}ので、使わないことにしました${step(+m[1])}`)}
  else if((m=s.match(/^CAL EXTEND (\d+)/))){CAL.press=0;calSay(`${keyLabel(+m[1])} が上がります。まだ触れないでください${step(+m[1])}`)}
  else if((m=s.match(/^CAL FLOAT (\d+) .*NOCURRENT/))){CAL.nocur=+m[1]}
  else if((m=s.match(/^CAL PRESS (\d+)/))){CAL.press=+m[1];if(!/差が小さすぎます/.test(calSt.textContent))calSay(CAL.nocur===+m[1]?`${keyLabel(+m[1])}：上げても電流が流れていません（配線と電源を確認）。直せないときは「このキーを使わない」で飛ばしてください${step(+m[1])}`:KB.current?`${keyLabel(+m[1])} を指で底まで押し込んだまま、「押したまま取り込む」を押してください${step(+m[1])}`:`${keyLabel(+m[1])} の鉄心を指で押したまま、「押したまま取り込む」を押してください${step(+m[1])}`)}
- else if((m=s.match(/^CAL RETRY (\d+) FLOAT_HIGH (\d+) CONTACT_LOW (\d+)/))){const n=+m[1],dead=+m[3]<=+m[2];
-  calSay(`${keyLabel(n)}：押したときと離したときの差が小さすぎます（離 ${m[2]} / 押 ${m[3]} µs）。`+(KB.current?'押し込んでも時定数がほとんど変わりません。底まで押し込んだまま、もう一度取り込んでください。':dead?'押しても値が上がっていないので、この鉄心は接触を拾えていません（配線・1MΩのプルアップを確認）。':'もっとしっかり押したまま、もう一度取り込んでください。')
+ else if((m=s.match(/^CAL RETRY (\d+) FLOAT_HIGH (\d+) CONTACT_LOW (\d+)(?: NEED (\d+))?/))){const n=+m[1],dead=+m[3]<=+m[2];
+  calSay(`${keyLabel(n)}：押したときと離したときの差が小さすぎます（離 ${m[2]} / 押 ${m[3]} µs${m[4]?`、必要な差 ${m[4]}`:''}）。`+(KB.current?'押し込んでも時定数がほとんど変わりません。底まで押し込んだまま、もう一度取り込んでください。':dead?'押しても値が上がっていないので、この鉄心は接触を拾えていません（配線・1MΩのプルアップを確認）。':'もっとしっかり押したまま、もう一度取り込んでください。')
    +(KB.v7?((RAISE_OK&(1<<(n-1)))?'このキーは体験で使うので、直してから取り込んでください':'体験では使わないキーなので、「このキーを使わない」で飛ばせます'):''))}
  else if((m=s.match(/^CAL CONTACT (\d+) .*THRESHOLD (\d+)/))){CAL.press=0;calSay(`${keyLabel(+m[1])} を取り込みました。指を離してください${step(+m[1])}`)}
  else if((m=s.match(/^CAL SKIP (\d+)( NOSENSE)?/))){CAL.press=0;CAL.skipped|=1<<(+m[1]-1);calSay(`${keyLabel(+m[1])} は${m[2]?'電流を測る配線がないので、':''}入力に使わないことにしました${step(+m[1])}`)}
