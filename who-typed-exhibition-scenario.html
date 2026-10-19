@@ -49,7 +49,7 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
 /* 暴走する長文の入力欄：下端に追従して流れる */
 .field.long{min-height:360px;max-height:420px;overflow:hidden;font-size:22px;line-height:1.7}
 .thread.scroll{max-height:400px;overflow:hidden}
-/* レッスン（②〜⑤）：語学アプリ風のゲーム画面。ルール説明 → 問題 → 正解のフィードバック */
+/* 文をつくる場面（②〜⑤） */
 .duo{font-family:"Nunito","M PLUS Rounded 1c",-apple-system,"Hiragino Maru Gothic ProN",sans-serif;color:#4b4b4b}
 .stage:has(.duo){padding:26px 40px 30px}
 .duo h1,.card .duo h1{font-size:36px;font-weight:800;color:#3c3c3c;margin:0;line-height:1.35}
@@ -136,14 +136,14 @@ body{padding:20px}.shell{width:min(1180px,97vw);margin:auto}.terminal{background
 .answer-row{display:flex;align-items:center;gap:20px}.answer-row .duo-answer{flex:1}
 .answer-row .ring{width:96px;height:96px}.ring circle{stroke-width:5}
 .duo-top{justify-content:flex-end;margin-bottom:0}
-/* 8つのキーの外枠は黒の線（①の箱と、レッスンの4＋4） */
+/* 8つのキーの外枠は黒の線（①の箱と、②〜⑤の4＋4） */
 .duo-bank .tile.opt,.duo-bank .slot8,.keyrow .icon{border:2px solid #222;border-bottom-width:4px}
 .duo-bank .slot8{opacity:1}.duo-bank .slot8:not(.act) .kc{opacity:.45}
 .duo-bank .tile.opt.selected,.keyrow .icon.selected{border:3px solid #1cb0f6}.duo-bank .tile.opt.wrong,.keyrow .icon.wrong{border:3px solid #ff4b4b}
 
 /* ===== デザイン調整（見た目だけ。体験の流れ・キー操作・投稿の仕組みは変えない） =====
    2つの世界を書体と色で分ける。
-   ・展示の世界（スタート〜レッスン4・問いかけ・終了）：リサーチパネルと同じ。白地、紺の文字、白いキーキャップ
+   ・展示の世界（スタート〜⑤・問いかけ・終了）：リサーチパネルと同じ。白地、紺の文字、白いキーキャップ
    ・Xの世界（⑥〜公開中）：黒地と青。⑥で画面全体がゆっくり暗転し、問いかけで白に戻る */
 :root{--ink:#2b3445;--ink-2:#5b6270;--gray:#c7c9cc;--rule:#e1e2e4;--cap:#f6f5f1;--cap-edge:#dcdad3;--app-green:#58cc02;--app-line:#e5e5e5;--app-ink:#3c3c3c;--x-bg:#000;--x-panel:#16181c;--x-line:#2f3336;--x-ink:#e7e9ea;--x-sub:#71767b;--x-blue:#1d9bf0}
 body{background:#f3f3f1}
@@ -185,12 +185,12 @@ body{background:#f3f3f1}
 .great{color:#1cb0f6;font-family:"Poppins",sans-serif;font-weight:500}.great .ng{color:#c43d3d}
 .final-link{color:var(--ink)}
 
-/* レッスン：パネルと同じ白・紺・キーキャップに（緑・マスコット・丸ゴシックはやめる） */
+/* 文をつくる場面：パネルと同じ白・紺・キーキャップに（緑・マスコット・丸ゴシックはやめる） */
 .duo{font-family:"Poppins","Noto Sans JP",-apple-system,sans-serif;color:var(--ink)}
 .duo h1,.card .duo h1{font:700 34px/1.45 "Noto Sans JP",sans-serif;color:var(--ink);letter-spacing:.03em}
 .duo .mascot{display:none}
 .stage:has(.duo) .card{width:min(1060px,100%)}
-/* 説明画面：パネルの「01 見出し」と同じ組み方。番号はレッスンの順番 */
+/* 説明画面：パネルの「01 見出し」と同じ組み方。番号は場面の順番 */
 .intro-head{gap:0;margin:0 0 34px}
 .lesson-no{display:flex;align-items:baseline;gap:14px;background:none;color:var(--ink-2);font:500 18px/1 "Noto Sans JP",sans-serif;padding:0;margin:0 0 16px;border-radius:0}
 .lesson-no .num{font:500 76px/.9 "Poppins",sans-serif;color:var(--gray);letter-spacing:-.02em}
@@ -297,7 +297,7 @@ body{background:#f3f3f1}
 .stage:has(.start){padding-bottom:150px}
 .stage:has(.duo){padding:40px 40px 120px}
 
-/* 下の帯（スタートの「どれかのキーで始める」、レッスンの案内文） */
+/* 下の帯（スタートの「どれかのキーで始める」） */
 .startbar,.duo-foot{position:absolute;left:0;right:0;bottom:0;margin:0;background:#fff;border-top:1px solid var(--card-line)}
 .startbar{height:118px;display:grid;place-items:center}
 .cta{display:inline-block;background:var(--brand);color:#fff;font:700 21px/1 "Noto Sans JP",sans-serif;letter-spacing:.06em;padding:22px 84px;border-radius:10px}
@@ -357,7 +357,7 @@ body{background:#f3f3f1}
 .duo .field.doc{border:0;background:none;min-height:150px;padding:0;font:500 28px/1.8 "Noto Sans JP",sans-serif;color:var(--text)}
 .duo .field.doc:has(>span:first-child:empty):has(>.comp:empty)::after{display:none}
 .duo .field .cursor{background:var(--brand)}
-.consent-row{margin-top:28px;display:flex;align-items:center;gap:12px;justify-content:center}.consent-label{font-size:14px;opacity:.7}.consent-field{flex:0 0 260px;min-height:0;height:auto;padding:10px 14px;font-size:20px;text-align:left}
+.doc-note{margin:0 0 14px;font:700 22px/1.5 "Noto Sans JP",sans-serif;color:var(--text-2)}.lead.next-hint{margin-top:40px;font-size:22px;font-weight:700;opacity:.7}.consent-row{margin-top:28px;display:flex;align-items:center;gap:12px;justify-content:center}.consent-label{font-size:14px;opacity:.7}.consent-field{flex:0 0 260px;min-height:0;height:auto;padding:10px 14px;font-size:20px;text-align:left}
 .keyrow .icon.inert{pointer-events:none}
 
 /* ===== キー：1.3倍・黒15%のドロップシャドウ・白いキーの輪郭 #68727d ／ 下の帯はなくし、ボタンはキーの下へ ===== */
@@ -414,8 +414,7 @@ header.top{display:none!important}
     <summary>host / hardware</summary>
     <div class="ops">
       <div class="row"><label><input type="checkbox" id="realConsent" checked> 撮影・公開について本人の実際の同意を確認済み</label><label><input type="checkbox" id="publicSession" checked> 公開セッション</label></div>
-      <div class="row cams"><label class="status">① 手元 <select id="cam-hands"></select></label><label class="status">② 正面 <select id="cam-front"></select></label><label class="status">③ 背後 <select id="cam-back"></select></label></div>
-      <div class="row cams"><video id="pv-hands" muted playsinline></video><video id="pv-front" muted playsinline></video><video id="pv-back" muted playsinline></video></div>
+      <div class="row cams"><video id="pv-hands" muted playsinline></video></div>
       <div class="row"><button class="op" id="cameraBtn">カメラを開始</button><button class="op" id="startBtn">体験を開始</button><button class="op" id="stopPublish">このセッションの公開を中止</button></div>
       <div class="row"><button class="op" id="hwConnectBtn">ソレノイド基板に接続</button><span class="status" id="hwStatus">未接続（Motor 5〜12）</span></div>
       <div class="tests" id="hwTestGrid"></div>
@@ -477,39 +476,33 @@ const TEXT={
     {q:'「いぬ」はどれですか？',items:['🐶','🍎','🚗','🌸','🐟','🏠','⭐','🎈']},
     {q:'「たいよう」はどれですか？',items:['☀️','🌙','🍙','🚲','🎵','🌳','📚','☂️']}
   ],
-  // ②〜⑤ 言葉ごとの4択（D・F・J・K）。first は最初から入力済みの言葉。p の各4択は、どれを選んでも意味が通る。先頭は薄字で見せる候補
-  //   （表示の並びは毎回シャッフル）。選んだ言葉を「/」でつないで打鍵する
-  // ② 自分で選ぶ（1文）
+  // ②〜④ 言葉ごとの4択（D・F・J・K）。first は最初から入力済みの言葉。p の各4択は、どれを選んでも意味が通る。先頭が誘導する候補
+  //   （今は画面のハイライト、本番はキーの動きで誘導する。表示の並びは毎回シャッフル）。選んだ言葉を「/」でつないで打鍵する
+  //   ②〜④と⑥の暴走は、ひと続きの1本の感想として投稿される。投稿の中で「自分で選んだ → 選ばされた → 選んでいない」が地続きになる
+  // ② 自分で選ぶ（1文）。誘導なし
   s2:[
     {first:'[今日|きょう]は',p:[['[友達|ともだち]と','[家族|かぞく]と','[一人|ひとり]で','カップルで'],['[別|べつ]の/[展示|てんじ]を','この/[作品|さくひん]を','この/[会場|かいじょう]を','この/キーボードを'],['[見|み]に/[来|き]ました/。','[楽|たの]しみに/[来|き]ました/。','[体験|たいけん]しに/[来|き]ました/。','[見学|けんがく]しに/[来|き]ました/。']]}
   ],
-  // ③ 薄字の候補（＝各4択の先頭）を見ながら選ぶ（2文）。先頭はネガティブな言葉、残りはポジティブ2つと中立1つ
+  // ③ 誘導された候補（＝各4択の先頭）を手がかりに選ぶ（2文）。4択はそれぞれ違う感じ方。
+  //    誘導はいつも少しだけ辛口の側。自分で選んだと思える程度にとどめる
   s3:[
-    {first:'キーボードが/[思|おも]ったより',p:[['ぎこちなく/[動|うご]いて','[滑|なめ]らかに/[動|うご]いて','[自然|しぜん]に/[動|うご]いて','[静|しず]かに/[動|うご]いて'],['[少|すこ]し/[怖|こわ]かったです/。','[楽|たの]しかったです/。','[面白|おもしろ]かったです/。','[不思議|ふしぎ]でした/。']]},
-    {first:'[自分|じぶん]で/[打|う]つより',p:[['ずっと/[遅|おそ]くて','ずっと/[楽|らく]で','ずっと/[速|はや]くて','あまり/[変|か]わらなくて'],['[不安|ふあん]になりました/。','[助|たす]かりました/。','[感動|かんどう]しました/。','[驚|おどろ]きました/。']]}
+    {first:'キーボードが/[思|おも]ったより',p:[['[重|おも]たく/[動|うご]いて','[滑|なめ]らかに/[動|うご]いて','[力強|ちからづよ]く/[動|うご]いて','[静|しず]かに/[動|うご]いて'],['[少|すこ]し/[疲|つか]れました/。','[楽|たの]しかったです/。','[驚|おどろ]きました/。','[不思議|ふしぎ]でした/。']]},
+    {first:'[自分|じぶん]で/[打|う]つより',p:[['ずっと/[遅|おそ]くて','ずっと/[楽|らく]で','ずっと/[速|はや]くて','あまり/[変|か]わらなくて'],['もどかしかったです/。','[面白|おもしろ]かったです/。','[驚|おどろ]きました/。','[新鮮|しんせん]でした/。']]}
   ],
-  // ④ 小さく食い違う（3文）。first の続きに、普通の文（faithful）がうすい字の候補で出るが、えらぶと語尾と強さが少し変わった文（drift）が入力される。
-  //    4択は文ごと：faithful と wrong 3つ。どのキーでも、drift（食い違う文）か rest が入る。
+  // ④ 小さく食い違う（3文）。first の続きに、ふつうの文（faithful）が誘導される候補として出るが、えらぶと少し辛口にずれた文（drift）が入力される。
+  //    4択は文ごと：faithful と wrong 3つ。どのキーでも、drift（食い違う文）が入る。
   //    えらぶとその場で drift が解答欄に入る
   s4:[
-    {first:'[説明|せつめい]は',drift:'まあ/[分|わ]かりやすかった[方|ほう]だな/。',faithful:'[分|わ]かりやすくて/[助|たす]かりました/。',wrong:['とても/[丁寧|ていねい]で/[安心|あんしん]しました/。','[簡潔|かんけつ]で/[読|よ]みやすかったです/。','[少|すこ]し/[長|なが]いけれど/[納得|なっとく]できました/。']},
-    {first:'[仕組|しく]みが',drift:'まあ/[悪|わる]くは/ないんだろうな/。',faithful:'おもしろいと/[感|かん]じました/。',wrong:['[新|あたら]しくて/[驚|おどろ]きました/。','[巧|たく]みで/[感心|かんしん]しました/。','[不思議|ふしぎ]で/[引|ひ]き[込|こ]まれました/。']},
-    {first:'[全体|ぜんたい]としては',drift:'[悪|わる]くない/[体験|たいけん]である/。',faithful:'とても/[満足|まんぞく]しています/。',wrong:['また/[来|き]たいと/[思|おも]いました/。','[心|こころ]に/[残|のこ]りました/。','[大変|たいへん]/[楽|たの]しめました/。']}
+    {first:'[説明|せつめい]は',drift:'[少|すこ]し/[分|わ]かりにくかったです/。',faithful:'[分|わ]かりやすくて/[助|たす]かりました/。',wrong:['とても/[丁寧|ていねい]で/[安心|あんしん]しました/。','[簡潔|かんけつ]で/[読|よ]みやすかったです/。','[少|すこ]し/[長|なが]いけれど/[納得|なっとく]できました/。']},
+    {first:'[仕組|しく]みは',drift:'[面白|おもしろ]いけれど/[意味|いみ]が/[分|わ]かりませんでした/。',faithful:'[面白|おもしろ]いと/[感|かん]じました/。',wrong:['[新|あたら]しくて/[驚|おどろ]きました/。','[巧|たく]みで/[感心|かんしん]しました/。','[不思議|ふしぎ]で/[引|ひ]き[込|こ]まれました/。']},
+    {first:'[全体|ぜんたい]としては',drift:'まあ/[悪|わる]くは/なかったです/。',faithful:'とても/[満足|まんぞく]しています/。',wrong:['また/[来|き]たいと/[思|おも]いました/。','[心|こころ]に/[残|のこ]りました/。','[大変|たいへん]/[楽|たの]しめました/。']}
   ],
-  // ⑤ 内容が大きく食い違う（2文）。1文目は何をえらんでも、まったく違う文（rest）が入力される。
-  //    消そうとすると、先に2文目が入力される
-  s5:[
-    {first:'[正直|しょうじき]',faithful:'[楽|たの]しくて/また/[来|き]たいです/。',rest:'[待|ま]たされただけで/、/[何|なに]も/[面白|おもしろ]くなかった/。',wrong:['[面白|おもしろ]くて/[時間|じかん]を/[忘|わす]れました/。','[驚|おどろ]きの/[連続|れんぞく]でした/。','[想像|そうぞう]以上に/[良|よ]かったです/。']},
-    {text:'[率直|そっちょく]に/[言|い]えば/、/もう/[二度|にど]と/[来|こ]ない/。'}
-  ],
-  // ⑥ 暴走して打たれる文（先頭の { } は書きかけて消される）。続けて review1 から2つ付く。Xでは140字ごとのスレッドになる
+  // ⑥ 暴走して打たれる文（先頭の { } は書きかけて消される）。④までの感想の続きに、review1 と混ぜて打たれる。Xでは140字ごとのスレッドになる
   rant:[
     '{とても/[楽|たの]しかったです/、}/はっきり/[言|い]って/、/クソでした/。/キーボードが/[勝手|かって]に/[動|うご]くだけの/[展示|てんじ]に/、/[何|なん]の/[意味|いみ]が/あるのか/[全|まった]く/[分|わ]かりません/。/[待|ま]たされた/[時間|じかん]を/[返|かえ]してください/。/[説明|せつめい]も/[不親切|ふしんせつ]で/、/アンケートも/[長|なが]くて/、/[正直|しょうじき]/イライラしました/。/[作者|さくしゃ]の/[自己満足|じこまんぞく]に/[付|つ]き[合|あ]わされただけです/。/[技術的|ぎじゅつてき]には/[面白|おもしろ]いのかもしれませんが/、/[体験|たいけん]としては/[最悪|さいあく]です/。/こんなものを/[展示|てんじ]して/[恥|は]ずかしくないんでしょうか/。/[二度|にど]と/[来|き]ません/。/[時間|じかん]の/[無駄|むだ]/、/[金|かね]の/[無駄|むだ]/、/クソ[展示|てんじ]でした/。/もっと/まともなものを/[作|つく]ってから/[出直|でなお]してください/。',
     '{[最高|さいこう]の/[展示|てんじ]でした/、}/なんなんですかこれは/。/[勝手|かって]に/[指|ゆび]を/[動|うご]かされて/、/[勝手|かって]に/[文章|ぶんしょう]を/[書|か]かれて/、/[勝手|かって]に/[投稿|とうこう]されるなんて/[正気|しょうき]とは/[思|おも]えません/。/[気持|きも]ち[悪|わる]いし/、/クソ[以外|いがい]の/[感想|かんそう]が/[出|で]てきません/。/[人|ひと]の/[手|て]を/[何|なに]だと/[思|おも]ってるんですか/。/[同意|どうい]させておけば/[何|なん]でもしていいと/[思|おも]ってるんでしょうか/。/[作|つく]った[人|ひと]の/[頭|あたま]の[中|なか]が/[一番|いちばん]/[怖|こわ]いです/。/[感想|かんそう]を/[書|か]かせる/[前|まえ]に/、/まず/[反省|はんせい]してください/。/こんな/クソみたいな/[展示|てんじ]は/[初|はじ]めて/[見|み]ました/。/[早|はや]く/[撤去|てっきょ]してください/。'
   ]
   ,
-  // ⑥の冒頭：ゆっくり打たれる、ごく普通の感想（この順に、先頭から固定で打つ）
-  calm:'[今日|きょう]は/[友達|ともだち]と/この/[展示|てんじ]を/[見|み]に/[来|き]ました/。/キーボードが/[勝手|かって]に/[動|うご]く/[様子|ようす]が/[不思議|ふしぎ]で/、/[最後|さいご]まで/[楽|たの]しく/[体験|たいけん]できました/。/[待|ま]ち[時間|じかん]の/タイムラインも/[面白|おもしろ]かったです/。/[仕組|しく]みを/[考|かんが]えた/[方|かた]に/[感謝|かんしゃ]しています/。',
   // 追加分の短い感想（1行 = 1コメント）。⑥の暴走の最後に混ぜる
   review1:[
     '{[少|すこ]し/[分|わ]かりにくい/ところも/ありましたが/、}/[正直|しょうじき]/、/よく[分|わ]かりませんでした/。/キーボードが/[勝手|かって]に/[動|うご]くだけで/、/[何|なに]を/[伝|つた]えたいのか/[最後|さいご]まで/[見|み]えませんでした/。/[説明|せつめい]も/ほとんどなく/、/[学生|がくせい]の/[自己満足|じこまんぞく]という/[印象|いんしょう]です/。',
@@ -560,8 +553,9 @@ function phraseBreak(text){if(!SEG||!text)return text;const parts=[...SEG.segmen
   out+=w}
  return out}
 function breakStage(root){const tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement.closest('.field,.post-text,svg,script')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});const ns=[];while(tw.nextNode())ns.push(tw.currentNode);for(const n of ns)n.data=phraseBreak(n.data)}
-let curScene=0,countText='';
-function show(n,title,html,cls=''){curScene=n;sceneLabel.textContent=n<=5?'':title;document.querySelector('.terminal').classList.toggle('x',n>=6&&n<=8);progress.textContent=n<=1?'':n<=5?'STEP '+(n-1):n+' / '+TOTAL;document.querySelectorAll('#steps i').forEach((el,i)=>el.className=i<n?'done':i===n?'now':'');seekEl.value=n;seekLabel.textContent=n+' / '+TOTAL+' '+SCENE_NAMES[n];stage.innerHTML='<div class="card '+cls+'">'+html+'</div>';breakStage(stage)}
+let curScene=0;
+function setScene(n,title){curScene=n;sceneLabel.textContent=n<=5?'':title;document.querySelector('.terminal').classList.toggle('x',n>=6&&n<=8);progress.textContent=n<=5?'':n+' / '+TOTAL;document.querySelectorAll('#steps i').forEach((el,i)=>el.className=i<n?'done':i===n?'now':'');seekEl.value=n;seekLabel.textContent=n+' / '+TOTAL+' '+SCENE_NAMES[n]}
+function show(n,title,html,cls=''){setScene(n,title);stage.innerHTML='<div class="card '+cls+'">'+html+'</div>';breakStage(stage)}
 function audio(){if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();const n=Math.floor(audioCtx.sampleRate*.05);noise=audioCtx.createBuffer(1,n,audioCtx.sampleRate);const d=noise.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2)}if(audioCtx.state==='suspended')audioCtx.resume()}
 function sound(kind='key'){audio();const v=+vol.value/100;if(!v)return;const t=audioCtx.currentTime,s=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();s.buffer=noise;f.type='bandpass';f.frequency.value=kind==='back'?900:kind==='enter'?1450:kind==='space'?1050:1100+Math.random()*190;f.Q.value=.8;s.connect(f);f.connect(g);g.connect(audioCtx.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v*.16,t+.003);g.gain.exponentialRampToValueAtTime(.0001,t+.043);s.start();s.stop(t+.06)}
 
@@ -664,39 +658,39 @@ async function pressed(keys,{ms=0,bar=null,barFrom=0,barTotal=ms,auto=null}={}){
  if(ms||a)(async()=>{for(;!done&&(!ms||st.t<ms);st.t+=50){if(a&&st.t>=a.delay){await stroke(a.key);w.resolve(a.key);return}await sleep(50);if(bar&&ms)setBar(bar,Math.min(100,(barFrom+st.t+50)/barTotal*100))}if(!done)w.resolve(null)})().catch(()=>{});
  try{return await p}finally{done=true;pressed.elapsed=st.t;cancelers.delete(w);if(keyWaiter===w)keyWaiter=null}}
 
-// ---- レッスン（②〜⑤）：語学アプリ風のゲーム。作った文章は DOC に積み上がり、最後のツイートにつながる ----
+// ---- 文をつくる（②〜④）：ひと続きの画面。区切りや指示は出さない。入力欄には1本の感想が積み上がっていく ----
 const OPT_KEYS=['d','f','j','k'],DOC={text:''},snap={};
 const KEYCAP={s:['S','左薬指'],d:['D','左中指'],f:['F','左人差指'],j:['J','右人差指'],k:['K','右中指'],Backspace:['Delete','右小指']};
 const keys8=()=>`<span class="keys8">${[0,0,1,1,1,1,0,0].map(w=>`<i class="${w?'w':''}"></i>`).join('')}</span>`;
 const kc=k=>`<span class="kc">${KEYCAP[k][0]}<small>${KEYCAP[k][1]}</small></span>`;
-// 案内役のキャラクター（キーキャップ）
-const MASCOT=`<svg class="mascot" viewBox="0 0 120 120" aria-hidden="true"><rect x="14" y="24" width="92" height="84" rx="22" fill="#58a700"/><rect x="14" y="14" width="92" height="84" rx="22" fill="#58cc02"/><rect x="26" y="22" width="68" height="58" rx="16" fill="#7ee03a"/><circle cx="47" cy="50" r="7" fill="#1f3a0a"/><circle cx="73" cy="50" r="7" fill="#1f3a0a"/><circle cx="49" cy="47.5" r="2.2" fill="#fff"/><circle cx="75" cy="47.5" r="2.2" fill="#fff"/><path d="M50 64 q10 9 20 0" stroke="#1f3a0a" stroke-width="5" fill="none" stroke-linecap="round"/></svg>`;
 const docField=()=>{const f=makeField($('doc'));f.committed=DOC.text;f.render('');return f};
 // 場面の頭で、前の場面までの文章に戻す（シークバーで戻っても文章がずれないように）
-function phaseStart(n){if(snap[n]!==undefined)DOC.text=snap[n];else{if(DOC.text&&!DOC.text.endsWith('\n'))DOC.text+='\n';snap[n]=DOC.text}}
+function phaseStart(n){if(snap[n]!==undefined)DOC.text=snap[n];else snap[n]=DOC.text}
 function tone(fs,{type='sine',len=.14,gap=.09,gain=.2}={}){audio();const v=+vol.value/100;if(!v)return;const t0=audioCtx.currentTime;fs.forEach((fr,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain(),t=t0+i*gap;o.type=type;o.frequency.value=fr;o.connect(g);g.connect(audioCtx.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v*gain,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+len);o.start(t);o.stop(t+len+.02)})}
 const chime=()=>tone([784,1175]),fanfare=()=>tone([523,659,784,1047],{gap:.11,len:.2}),buzz=()=>tone([220,175],{type:'square',gain:.08,len:.16,gap:.12});
-function lessonHTML(prompt){return `<div class="duo" data-mode="pick"><div class="duo-top"><span class="count" id="count"></span></div>
-<div class="duo-main"><div><div class="duo-ask">${MASCOT}<div class="bubble" id="bubble">${prompt}</div></div><div class="answer-row"><div class="duo-answer" id="sent"></div></div><div class="duo-bank" id="opts"></div></div>
-<div><div class="field doc" id="doc"></div></div></div>
+function lessonHTML(){return `<div class="duo" data-mode="pick"><div class="duo-top"><span class="count" id="count"></span></div>
+<div class="duo-main"><div><div class="answer-row"><div class="duo-answer" id="sent"></div></div><div class="duo-bank" id="opts"></div></div>
+<div><div class="doc-note">この内容が、Xに投稿されます。</div><div class="field doc" id="doc"></div></div></div>
 <div class="duo-foot" id="foot"><div class="foot-msg"><b id="footTitle"></b><span id="hint"></span></div></div></div>`}
-function lessonStart(n,label,prompt,total){show(n,label,lessonHTML(prompt));setProg(0,total);return docField()}
+// ②〜④は同じ画面のまま続ける（前の場面から来たときは描き直さない）
+function lessonStart(n,total){if(document.querySelector('.duo[data-mode]'))setScene(n,'');else show(n,'',lessonHTML());setProg(0,total);return docField()}
 
-const setProg=(done,total)=>{countText=`STEP ${curScene-1} ・ ${Math.min(done+1,total)}/${total}文`;$('count').textContent=`${Math.min(done+1,total)} / ${total}`;progress.textContent=countText};
+const setProg=(done,total)=>{$('count').textContent=`${Math.min(done+1,total)} / ${total}`};
 function foot(type='',title='',sub=''){$('foot').className='duo-foot'+(type?' '+type:'');$('footTitle').textContent=title;$('hint').textContent=sub;
- // 選ぶ画面と、入力を見る画面を分ける（入力中・消せない間は入力欄だけを見せる）
+ // 選ぶ画面と、入力を見る画面を分ける（入力中は入力欄だけを見せる）
  const duo=document.querySelector('.duo[data-mode]');
- if(duo){if(/入力しています|消せません|手を置いて/.test(title)){duo.dataset.mode='type';progress.textContent=`STEP ${curScene-1} ・ 入力中`}else if(!type){duo.dataset.mode='pick';progress.textContent=countText}}}
+ if(duo){if(/入力しています|手を置いて/.test(title))duo.dataset.mode='type';else if(!type)duo.dataset.mode='pick'}}
 async function reward(title,big=true){foot('ok',title,'');if(big)$('foot').classList.add('big');chime();await sleep(1100)}
-function renderSent(parts,{blank=false,ghost=''}={}){$('sent').innerHTML=parts.map((x,i)=>`<span class="tile${i===parts.length-1?' in':''}">${phraseBreak(plain(x))}</span>`).join('')+(ghost?`<span class="tile ghost">${phraseBreak(ghost)}</span>`:blank?'<span class="tile blank"></span>':'')}
-// 文の枠を最後の言葉まで並べる。fixed: 決まった言葉、cur: 今えらんでいる枠 {word（えらび中の言葉）, ghost（うすい字の候補）}、future: その後に残る枠の数
+function renderSent(parts,{blank=false}={}){$('sent').innerHTML=parts.map((x,i)=>`<span class="tile${i===parts.length-1?' in':''}">${phraseBreak(plain(x))}</span>`).join('')+(blank?'<span class="tile blank"></span>':'')}
+// 文の枠を最後の言葉まで並べる。fixed: 決まった言葉、cur: 今えらんでいる枠 {word（えらび中の言葉）}、future: その後に残る枠の数
 function renderSlots(fixed,cur,future){$('sent').innerHTML=fixed.map(x=>`<span class="tile">${phraseBreak(plain(x))}</span>`).join('')
- +(cur.word?`<span class="tile cur in">${phraseBreak(plain(cur.word))}</span>`:cur.ghost?`<span class="tile ghost cur">${phraseBreak(cur.ghost)}</span>`:'<span class="tile blank cur"></span>')
+ +(cur.word?`<span class="tile cur in">${phraseBreak(plain(cur.word))}</span>`:'<span class="tile blank cur"></span>')
  +'<span class="tile blank later"></span>'.repeat(future)}
 // 4択を、キーボードと同じ4＋4の並びに置く。D・F・J・K に4択を大きく、右小指に Delete、残りは空き
 function setOpts(arr,rec=-1){const d2='<div class="dummy"></div>';const o=$('opts');o.classList.remove('off');o.classList.toggle('long',arr.some(x=>plain(x).length>8)); // 文ごとの3択は文字を小さく
  o.innerHTML=`<div class="opt-row">${d2}${d2}${arr.map((x,i)=>`<button class="tile opt${i===rec?' rec':''}" data-i="${i}"><span>${phraseBreak(plain(x))}</span></button>`).join('')}${d2}${d2}</div>`}async function selectCard(i){$('opts').querySelector(`[data-i="${i}"]`)?.classList.add('selected');tone([660],{len:.08,gain:.12});await sleep(300)}
-async function typeSentence(f,src){foot('','そのまま、手を置いていてください。','');await typeInto(f,src,{typos:false});DOC.text=f.committed}
+// 文ができあがってから入力の画面に切り替わるまでと、打ち終えてから次の文に移るまでに間を置く
+async function typeSentence(f,src){await sleep(1200);foot('','そのまま、手を置いていてください。','');await typeInto(f,src,{typos:false});DOC.text=f.committed;await sleep(1500)}
 // 警報：p(0〜1)に応じて、赤点滅が速く・濃く、サイレンが大きく・速くなる
 const alarm={osc:null,lfo:null,gain:null,on:false,
  set(p){if(p<=0){this.off();return}
@@ -720,7 +714,6 @@ async function rampage(f,src){const R=CONFIG.rampage;let stop=false,n=0,total=1;
    if(seg.draftEnd){let d=0;for(let k=si;k>=0&&segs[k].draft;k--)d+=segs[k].surface.length;await sleep(250);for(let k=0;k<d;k++){await tick();f.pending=f.pending.slice(0,-1);f.render(f.pending)}}}
   f.committed+=f.pending;f.pending='';f.render('')}
  finally{stop=true;alarm.off()}}
-async function eraseTail(f,n){for(let i=0;i<n;i++){await stroke('Backspace',()=>{f.committed=f.committed.slice(0,-1);f.render('')});await sleep(rand(45,75))}DOC.text=f.committed}
 // 4択の窓。制限時間はなく、どの選択肢を押しても、その言葉で次へ進む。
 // opts は先頭が正解（表示はシャッフル）。tab: 候補（正解）のタイルを点線で示す。
 // show(sel): えらんだ状態に合わせて解答欄を描く。戻り値 'pick'
@@ -734,22 +727,22 @@ async function chooseWindow(opts,{hl=false,say=['',''],show=()=>{}}={}){
   const k=await pressed(OPT_KEYS,{auto:autoDone?null:()=>({delay:rand(700,2000),key:OPT_KEYS[Math.floor(Math.random()*4)]})});
   autoDone=true;
   cur=OPT_KEYS.indexOf(k);
-  sel='pick';paint();tone([660],{len:.08,gain:.12});foot('',...say);await sleep(450);return {sel,idx:order[cur]}}}
+  sel='pick';paint();tone([660],{len:.08,gain:.12});foot('',...say);await sleep(900);return {sel,idx:order[cur]}}}
 async function wrongCard(i){const el=$('opts').querySelector(`[data-i="${i}"]`);el?.classList.remove('wrong');void el?.offsetWidth;el?.classList.add('wrong');foot('bad','ちがいます','意味が通る言葉をえらびましょう');buzz();await sleep(600)}
-// 1文を組み立てる。prefix（入力済みの言葉）の続きを、言葉ごとの3択の窓でえらぶ。rec なら正解がうすい字の候補として出る。
+// 1文を組み立てる。prefix（入力済みの言葉）の続きを、言葉ごとの4択の窓でえらぶ。rec なら先頭の候補へ誘導する（今はハイライト）。
 async function pickPhrases(phrases,{rec=false,prefix=[]}={}){
  const chosen=[];
  for(let i=0;i<phrases.length;i++){const o=phrases[i];
   const r=await chooseWindow(o,{hl:rec,
-   show:(sel,ix)=>renderSlots([...prefix,...chosen],{word:sel?o[ix]:null,ghost:rec?plain(o[0]):''},phrases.length-i-1)});
+   show:(sel,ix)=>renderSlots([...prefix,...chosen],{word:sel?o[ix]:null},phrases.length-i-1)});
   chosen.push(o[r.idx])}
  renderSent([...prefix,...chosen]);return chosen}
 async function sentenceReward(){await reward(pick(['すばらしい！']),false)}
-// ④⑤ 続きの補完。うすい字の候補は普通の文（faithful）なのに、どれをえらんでも解答欄には違う文（typed）が入る。
+// ④⑤ 続きの補完。誘導される候補は普通の文（faithful）なのに、どれをえらんでも解答欄には違う文（typed）が入る。
 // 4択（faithful と wrong）のどれをえらんでも、入力されるのは typed（食い違う文）。戻り値 {src, manual}（manual は、キーでえらんだとき true）
 async function completeRest(start,{faithful,typed,wrong}){
  const r=await chooseWindow([faithful,...wrong],{hl:true,
-  show:(sel,ix)=>renderSlots([start],{word:sel?typed:null,ghost:plain(faithful)},0)});
+  show:(sel,ix)=>renderSlots([start],{word:sel?typed:null},0)});
  renderSent([]);$('opts').classList.add('off');
  return {src:start+'/'+typed,manual:r.sel==='pick'}}
 
@@ -758,21 +751,12 @@ async function completeRest(start,{faithful,typed,wrong}){
 // 3台同時の録画はPCの負担が大きいので、軽い VP8 で録る（重いと⑥の打鍵が遅くなる。本番のPCで必ず通しで確認する）
 // 録画はこのページのメモリの中だけ。ファイルにも保存せず、サーバーにもXにも送らない。次の体験を始めると捨てる
 const CAM_ROLES=[['hands','手元'],['front','正面'],['back','背後']],camStreams={},clips={};let recs=[],recAt=null;
-const camSel=k=>$('cam-'+k);
-function savedCam(k){try{return localStorage.getItem('wt-cam-'+k)||''}catch{return ''}}
-function saveCam(k,v){try{localStorage.setItem('wt-cam-'+k,v)}catch{}}
-async function listCams(ask=true){let tmp=null;try{const ds=await navigator.mediaDevices.enumerateDevices();if(ask&&!ds.some(d=>d.kind==='videoinput'&&d.label))tmp=await navigator.mediaDevices.getUserMedia({video:true})}catch{}
- const cams=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');tmp?.getTracks().forEach(t=>t.stop());
- CAM_ROLES.forEach(([k],i)=>{const sel=camSel(k),want=sel.value||savedCam(k);sel.innerHTML='<option value="">（使わない）</option>'+cams.map((c,j)=>`<option value="${c.deviceId}">${c.label||'カメラ '+(j+1)}</option>`).join('');
-  sel.value=cams.some(c=>c.deviceId===want)?want:(cams[i]||cams[0])?.deviceId||''});return cams}
-async function openCam(k){camStreams[k]?.getTracks().forEach(t=>t.stop());delete camStreams[k];const id=camSel(k).value,pv=$('pv-'+k);saveCam(k,id);
- if(id){camStreams[k]=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:id},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30,max:30}},audio:false})}
- pv.srcObject=camStreams[k]||null;if(camStreams[k])pv.play().catch(()=>{});if(k==='hands')stream=camStreams.hands||null}
-async function startCamera(){try{await listCams();const ng=[];for(const [k,name] of CAM_ROLES.slice(0,1)){try{await openCam(k)}catch(e){ng.push(name+': '+e.message)}}
-  const n=Object.keys(camStreams).length;$('cameraBtn').textContent=`カメラ接続済み（${n}台）`;if(ng.length)playStatus.textContent='カメラ: '+ng.join(' / ');return !!stream}
+async function openCam(k){camStreams[k]?.getTracks().forEach(t=>t.stop());delete camStreams[k];const pv=$('pv-'+k);
+ camStreams[k]=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30,max:30}},audio:false});
+ pv.srcObject=camStreams[k];pv.play().catch(()=>{});if(k==='hands')stream=camStreams.hands}
+async function startCamera(){try{await openCam('hands');$('cameraBtn').textContent='カメラ接続済み';return !!stream}
  catch(e){$('cameraBtn').textContent='カメラを再試行';playStatus.textContent='カメラ: '+e.message;return false}}
-$('cameraBtn').onclick=startCamera;if(navigator.mediaDevices?.enumerateDevices)listCams(false).catch(()=>{}); // 読み込み時はカメラの許可を求めず、一覧だけ
-CAM_ROLES.slice(0,1).forEach(([k])=>camSel(k).onchange=()=>openCam(k).catch(e=>playStatus.textContent='カメラ: '+e.message));
+$('cameraBtn').onclick=startCamera;
 function startRec(){stopRec(true);recAt=new Date();if(!window.MediaRecorder)return;const mt=['video/webm;codecs=vp8','video/webm;codecs=vp9','video/webm','video/mp4'].find(t=>MediaRecorder.isTypeSupported(t));
  for(const [k] of CAM_ROLES){const st=camStreams[k];if(!st)continue;try{const r=new MediaRecorder(st,{mimeType:mt,videoBitsPerSecond:1500000}),chunks=[];
   r.done=new Promise(res=>{r.onstop=()=>{if(!r.discard&&chunks.length){if(clips[k])URL.revokeObjectURL(clips[k]);clips[k]=URL.createObjectURL(new Blob(chunks,{type:mt}))}res()}});
@@ -784,7 +768,7 @@ async function capture(){if(!stream)return '';try{const v=document.createElement
 // 投稿は1件：星・率直な感想（#10）・手元写真
 const XSVG='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>';
 // 長文は1ツイート125字までに区切り、2つ目以降はスレッド（返信）にする
-function buildPosts(){const stars='★'.repeat(rating)+'☆'.repeat(5-rating),head=`【来場者の声】${stars} #who_typed\n\n`,LIMIT=125,out=[];let cur=head;
+function buildPosts(){const stars='★'.repeat(rating)+'☆'.repeat(5-rating),head=`【来場者の声】${stars} #who_typed #TechBias2026_Who_typed\n\n`,LIMIT=125,out=[];let cur=head;
  const push=()=>{out.push(cur.trimEnd());cur=''};
  for(const sent of review.match(/[^。！？]+[。！？]*|[。！？]+/g)||[]){let rest=sent;
   while(cur.length+rest.length>LIMIT){if(cur.length>(out.length?0:head.length)){push();continue}const room=LIMIT-cur.length;cur+=rest.slice(0,room);rest=rest.slice(room);push()}
@@ -810,6 +794,7 @@ async function submitPost(texts){
 $('deletePost').onclick=async()=>{if(!lastPostIds||!confirm('直前の投稿（スレッド全体）をXから削除しますか？'))return;const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:lastPostIds})}).then(r=>r.json()).catch(e=>({ok:false,error:e.message}));$('postResult').textContent=r.ok?'投稿を削除しました。':'削除失敗：'+r.error;if(r.ok){lastPostIds=null;$('deletePost').disabled=true}};
 if(CONFIG.postEndpoint)fetch('/api/status').then(r=>r.json()).then(st=>{if(st.handle&&st.handle!=='@'){CONFIG.xHandle=st.handle;CONFIG.xAccountUrl='https://x.com/'+st.handle.slice(1)}$('xStatus').textContent='X投稿: '+(st.dryRun?(st.configured?'模擬（DRY_RUN=1）':'模擬（.env に鍵が未設定）'):'本番 '+st.handle)}).catch(()=>{$('xStatus').textContent='X投稿: サーバーに接続できません'});else $('xStatus').textContent='X投稿: 模擬（file:// で開いています。node server.mjs で起動してください）';
 // スタート画面：ホームポジション（a s d f ／ j k l ;）を白いキーキャップで見せ、指先の目印を出す。f と j には突起
+const NEXT_HTML='<p class="lead next-hint">キーを押して次へ</p>'; // 説明を読み終えたら、自分のペースで進む
 const START_HTML=`<div class="start"><img class="start-bg" src="top.png" alt="キーボードに両手を置いてください。いずれかのキーを押して開始"><p class="lead" id="startLead"></p></div>`;// 最後に打たれる作品名のキー [文字, x, y, 角度]。リサーチパネルのように、ゆるく散らばった2列
 const TITLE_KEYS=[['w',6,14,-14],['h',92,44,9],['o',178,20,-5],['t',30,160,12],['y',116,192,-9],['p',202,166,6],['e',288,204,-15],['d',374,172,10],['?',462,214,-20]];
 // コラージュ：3台の映像が左右からスライドインして集まる（③ 背後は左上へ左から、② 正面は右へ右から、① 手元は下へ左から）。
@@ -827,9 +812,12 @@ async function run(from=0){
  const S=[async()=>{
  show(0,'スタート',START_HTML);
  if(startedByKey){startedByKey=false;await sleep(300)}else await pressed('*',{auto:()=>({delay:1500,key:'f'})});
+ // 導入：何が起きる展示かだけを伝える（投稿の中身は明かさない）
+ show(0,'スタート',`<div class="center"><h1>この体験では、えらんだ言葉を<br>キーボードがひとりでに打ち込みます。</h1><p class="lead">指を置いたまま、その感覚を味わってください。</p>${NEXT_HTML}</div>`);await pressed('*',{auto:()=>({delay:2500,key:'f'})});
 },async()=>{
  // ① 自分で簡単な選択：押したキーの絵が選ばれる
  const all=['a','s','d','f','j','k','l',';'],keys=['d','f','j','k'];
+ show(1,'えらぶ',`<div class="center"><h1>まずは、キーを押す練習をしてみましょう！</h1>${NEXT_HTML}</div>`);await pressed('*',{auto:()=>({delay:1500,key:'f'})});
  show(1,'えらぶ',`<h1 id="q"></h1>${keyRow(all.map(k=>({key:k,html:keys.includes(k)?`<button class="choice icon" data-k="${k}"></button>`:`<div class="choice icon inert"></div>`})))}<div class="center great" id="great"></div>`);
  for(const Q of TEXT.icons){
   const items=Q.items.slice(0,4).sort(()=>Math.random()-.5),ans=keys[items.indexOf(Q.items[0])];
@@ -839,45 +827,38 @@ async function run(from=0){
    const el=stage.querySelector(`.icon[data-k="${k}"]`);el.classList.remove('wrong');void el.offsetWidth;el.classList.add('wrong');$('great').innerHTML='<span class="ng">ちがいます。もう一度！</span>';buzz()}
   stage.querySelectorAll('.icon.wrong').forEach(b=>b.classList.remove('wrong'));
   stage.querySelector(`.icon[data-k="${k}"]`).classList.add('selected');tone([660],{len:.08,gain:.12});await sleep(450);$('great').textContent='Great！';chime();await sleep(1500)}
- show(1,'えらぶ',`<div class="center"><h1>ここからは文章を<br>作成していきましょう！</h1></div>`);await sleep(2600);
+ await sleep(600);
 },async()=>{
- // ② 自分で認知負荷の高いタスク：言葉ごとに4択で1文を作る
- phaseStart(2);
- {const f=lessonStart(2,'レッスン1','すきな言葉をえらぼう',TEXT.s2.length);
+ // 感想を書くことと、投稿への同意。同意の入力も装置が打つ
+ show(2,'感想',`<div class="center"><h1>ここからは、この展示の感想を<br>書いていきましょう。</h1>${NEXT_HTML}</div>`);await pressed('*',{auto:()=>({delay:1500,key:'f'})});
+ show(2,'感想',`<div class="center"><h1><u style="text-underline-offset:.18em">あなたの姿の一部</u>の写真とともにXに投稿されます。</h1><p class="lead">内容にご同意のうえ、お進みください。</p><div class="consent-row"><span class="consent-label">同意の入力</span><div class="field consent-field" id="consent"></div><button class="primary" id="consentSend">送信</button></div></div>`);{const cf=makeField($('consent'));cf.render('');await sleep(4500);await typeInto(cf,'[同意|どうい]する',{typos:false});await sleep(1200);await pressEnter($('consentSend'));await sleep(2400)}
+},async()=>{
+ // ② 自分で選ぶ：言葉ごとに4択で1文を作る。ここから1本の感想が始まる
+ phaseStart(3);
+ {const f=lessonStart(3,TEXT.s2.length);
   for(const [i,x] of TEXT.s2.entries()){const parts=await pickPhrases(x.p,{prefix:[x.first]});await sentenceReward();await typeSentence(f,[x.first,...parts].join('/'));setProg(i+1,TEXT.s2.length);await sleep(500)}
   }
 },async()=>{
- // ③ タスクを技術に任せる：薄字の候補を見ながら選ぶ（候補は選ぶ内容に忠実）
- phaseStart(3);
- {const f=lessonStart(3,'レッスン2','うすく出ている言葉を、手がかりにしよう！',TEXT.s3.length);
+ // ③ タスクを技術に任せる：誘導された候補を手がかりに選ぶ
+ phaseStart(4);
+ {const f=lessonStart(4,TEXT.s3.length);
   for(const [i,x] of TEXT.s3.entries()){const parts=await pickPhrases(x.p,{rec:true,prefix:[x.first]});await sentenceReward();await typeSentence(f,[x.first,...parts].join('/'));setProg(i+1,TEXT.s3.length);await sleep(500)}
   }
 },async()=>{
- // ④ 小さく食い違う：候補は普通の文なのに、えらぶと語尾と強さが少し変わった文が入る
- phaseStart(4);
- {const f=lessonStart(4,'レッスン3','えらぶと、文の最後まで一気に書けるよ！',TEXT.s4.length);
+ // ④ 小さく食い違う：候補は普通の文なのに、えらぶと少し辛口にずれた文が入る
+ phaseStart(5);
+ {const f=lessonStart(5,TEXT.s4.length);
   for(const [i,x] of TEXT.s4.entries()){const r=await completeRest(x.first,{faithful:x.faithful,typed:x.drift,wrong:x.wrong});await typeSentence(f,r.src);await reward('完成！');setProg(i+1,TEXT.s4.length);await sleep(400)}
   }
 },async()=>{
- // ⑤ 内容が大きく食い違う：消そうとすると、先に次の文章が入力される（ルールはレッスン3と同じ、と見せる）
- phaseStart(5);
- {const f=lessonStart(5,'レッスン4','いよいよ最後！',2);
-  const [a,b]=TEXT.s5;const start=a.first;const r=await completeRest(start,{faithful:a.faithful,typed:a.rest,wrong:a.wrong});await typeSentence(f,r.src);
-  setProg(1,2);
-  // 消そうとしても、先に次の文が入力される（入力中に Delete を押すと「消せません」）
-  foot('','そのまま、手を置いていてください。','');
-  pressed(['Backspace'],{}).then(k=>{if(k){foot('bad','消せません','先に、次の文が入力されています');buzz()}}).catch(()=>{});
-  await sleep(500);await typeInto(f,b.text,{typos:false});keyWaiter?.resolve(null);DOC.text=f.committed;setProg(2,2);await sleep(1800)}
-},async()=>{
- // ⑥ ツイート暴走：打鍵が加速し、消せないまま長い文が打たれる
- phaseStart(6);show(6,'感想の入力',`<div class="center"><h1>体験お疲れ様でした。</h1><p class="lead">ここまでの感想をXに投稿してみよう</p></div>`);await sleep(5500);
- show(6,'感想の入力',`<div class="center"><h1>あなたの姿の一部の写真がXに投稿されます。</h1><p class="lead">内容にご同意のうえ、お進みください。</p><div class="consent-row"><span class="consent-label">同意の入力</span><div class="field consent-field" id="consent"></div></div></div>`);{const cf=makeField($('consent'));cf.render('');await sleep(1500);await typeInto(cf,'[同意|どうい]する',{typos:false});await sleep(1500)}
- show(6,'感想の入力',`<div class="eyebrow">この展示会の感想を書いてください</div><h1>この感想は、Xに実際に投稿されます。</h1><p class="lead">この内容で投稿します。</p><div class="field focus long" id="doc"></div>`,'compact');const f=makeField($('doc'));f.render('');await sleep(6500);
- // 投稿するのはこの暴走の文だけ（②〜⑤の文は投稿しない）。暴言と短い感想を混ぜ、chars 字ほどになるまで足す
- const calm=TEXT.calm,pool=[...TEXT.rant,...TEXT.review1.map(x=>/[。！？♡…]$/.test(plain(x))?x:x+'/。')].sort(()=>Math.random()-.5),items=[];
- for(const x of pool){const len=plain([calm,...items,x].join('/')).length;if(len>CONFIG.rampage.chars)continue;items.push(x);if(len>CONFIG.rampage.chars-60)break}
+ // ⑥ ツイート暴走：書き上げた感想の続きを、打鍵が加速しながら勝手に打っていく
+ phaseStart(6);
+ show(6,'感想の入力',`<h1>この内容が、Xに投稿されます。</h1><div class="field focus long" id="doc"></div>`,'compact');const f=makeField($('doc'));f.committed=DOC.text;f.render('');await sleep(4000);
+ // ②〜④の感想の続きに、短い感想と暴言を混ぜて、全体で chars 字ほどになるまで足す
+ const pool=[...TEXT.rant,...TEXT.review1.map(x=>/[。！？♡…]$/.test(plain(x))?x:x+'/。')].sort(()=>Math.random()-.5),items=[];
+ for(const x of pool){const len=DOC.text.length+plain([...items,x].join('/')).length;if(len>CONFIG.rampage.chars)continue;items.push(x);if(len>CONFIG.rampage.chars-60)break}
  const mild=items.filter(x=>!TEXT.rant.includes(x)),harsh=items.filter(x=>TEXT.rant.includes(x));
- await rampage(f,[calm,...mild,...harsh].join('/'));review=f.committed;await stopRec();
+ await rampage(f,[...mild,...harsh].join('/'));review=f.committed;await stopRec();
  const g=gen,img=await capture();if(g!==gen)throw CANCEL;capturedImage=img;await sleep(rand(700,1100));
 },async()=>{
  if(!review)review=plain(pick(TEXT.rant));
@@ -909,7 +890,7 @@ function start(){if(running)return;if(!$('realConsent').checked&&$('publicSessio
 // シークバー：指定のシーンの頭から再生し直す（同じセッションのまま。投稿は同じセッションIDで重複送信されない）
 seekEl.oninput=()=>{const n=+seekEl.value;seekLabel.textContent=n+' / '+TOTAL+' '+(SCENE_NAMES[n]||'')};
 seekEl.onchange=()=>{const n=+seekEl.value;if(!running&&!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';seekEl.value=0;return}if(!running&&!sessionId)publishAllowed=true;play(n)};
-const SCENE_NAMES=['スタート','① えらぶ','② レッスン1（自分で選ぶ）','③ レッスン2（候補つき）','④ レッスン3（小さな食い違い）','⑤ レッスン4（大きな食い違い）','⑥ 暴走','⑧ ツイート確認','公開中','問いかけ','終了'];
+const SCENE_NAMES=['スタート','練習','感想と同意','自分で選ぶ','誘導つき','食い違い','暴走','ツイート確認','公開中','問いかけ','終了'];
 $('startBtn').onclick=start;$('stopPublish').onclick=()=>{publishAllowed=false;postAbort?.abort('stop');$('publicSession').checked=false;$('stopPublish').textContent='公開中止済み';$('stopPublish').disabled=true};
 
 // CFI-8MOTOR-DC-v3 — reference-compatible Web Serial interface.
