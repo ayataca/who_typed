@@ -400,6 +400,13 @@ header.top{display:none!important}
 .stage:has(.start){padding:0;position:relative;min-height:0;height:782px;overflow:hidden}
 .start{position:absolute;inset:0;top:0;width:100%;height:100%;margin:0}.start-bg{width:100%;height:100%;object-fit:cover;display:block}
 .start .lead{position:absolute;left:0;right:0;bottom:6%;margin:0;max-width:none;font:700 30px/1.5 "Noto Sans JP",sans-serif;color:#c0392b}.start .lead:empty{display:none}
+/* 全画面（体験の画面だけ）／選択肢の枠は大きさ固定（選んでも線の太さで大きさが変わらないように） */
+html.fs body{padding:0;height:100vh;display:grid;place-items:center;overflow:hidden}
+html.fs .shell>:not(.terminal){display:none}
+html.fs .terminal{border-radius:0;box-shadow:none}
+.duo .duo-bank .tile.opt{height:132px;min-height:0;overflow:hidden}
+.duo .duo-bank .tile.opt.selected{border:1px solid var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}
+.duo .duo-bank .tile.opt.tabsel,.duo .duo-bank .tile.opt.tabsel.selected{border:1px solid #ff9600!important;box-shadow:inset 0 0 0 2px #ff9600}
 </style>
 </head>
 <body>
@@ -415,13 +422,13 @@ header.top{display:none!important}
     <div class="ops">
       <div class="row"><label><input type="checkbox" id="realConsent" checked> 撮影・公開について本人の実際の同意を確認済み</label><label><input type="checkbox" id="publicSession" checked> 公開セッション</label></div>
       <div class="row cams"><video id="pv-hands" muted playsinline></video></div>
-      <div class="row"><button class="op" id="cameraBtn">カメラを開始</button><button class="op" id="startBtn">体験を開始</button><button class="op" id="stopPublish">このセッションの公開を中止</button></div>
+      <div class="row"><button class="op" id="cameraBtn">カメラを開始</button><button class="op" id="startBtn">体験を開始</button><button class="op" id="stopPublish">このセッションの公開を中止</button><button class="op" id="fsBtn">全画面で表示</button></div>
       <div class="row"><button class="op" id="hwConnectBtn">ソレノイド基板に接続</button><span class="status" id="hwStatus">未接続（Motor 5〜12）</span></div>
       <div class="row"><button class="op" id="kbTestBtn" disabled>キーボードを上げる（入力受付）</button><span class="status" id="kbStatus">入力受付: 未接続</span></div>
       <div class="row"><button class="op" id="calAutoBtn" disabled>オートキャリブレーション</button><button class="op" id="calBtn" disabled>手動キャリブレーション</button><button class="op" id="calCapture" disabled>押したまま取り込む</button><button class="op" id="calSkip" disabled>このキーを使わない</button><button class="op" id="calCancel" disabled>中止</button><button class="op" id="senseBtn" disabled>センサー値を見る</button></div>
       <div class="status" id="calStatus"></div><div class="status" id="calResult"></div>
       <div class="tests" id="hwTestGrid"></div>
-      <div class="row"><button class="op" onclick="location.reload()">最初から</button><label class="status"><input type="checkbox" id="autoDemo"> 自動操作（リハーサル）</label></div>
+      <div class="row"><button class="op" onclick="location.reload()">最初から</button><label class="status"><input type="checkbox" id="autoDemo"> 自動操作（リハーサル）</label><label class="status">打鍵音 <input id="vol" type="range" min="0" max="100" value="45"></label></div>
       <div class="row"><span class="status" id="xStatus">X投稿: 確認中…</span><button class="op" id="deletePost" disabled>直前の投稿をXから削除</button></div><div class="status" id="postResult"></div>
     </div>
   </details>
@@ -437,10 +444,13 @@ const CONFIG={
   postTimeoutMs:25000,
   // 打鍵の基準間隔。ここに下のリズム係数を掛ける
   // ⑥の暴走：画面の文字は1文字ごとに startMs から minMs まで加速。ソレノイドは文字と無関係に、motorMs ごとに空いている指をランダムに打つ
-  rampage:{startMs:190,minMs:9,accelChars:85,motorMs:20,chars:1000}, // chars: 暴走で打つ量の上限（1000字でXのスレッド9件ほど。サーバーは10件まで）
+  rampage:{startMs:190,minMs:9,accelChars:85,motorMs:20,chars:700}, // chars: ②〜④の感想を含めた投稿全体の上限（700字でXのスレッド6件ほど。サーバーは10件まで）
   typingMinMs:65,
   typingMaxMs:82,
   previewMs:8000,
+  // 投稿の星の数（1〜5）の出やすさ。酷評ばかりでも星はばらける（高い星はサクラのように見える）
+  ratingWeights:[35,20,15,10,20],
+  endMs:25000,           // 終了画面を見せてから、スタート画面に戻るまで（次のお客さんへ）
   postingMs:4500,        // 投稿中（くるくる）の表示時間
   askMs:9000,            // 「この投稿を書いたのは、誰…？」を見せる時間
   titleMs:4500,          // 問いかけの上に「who typed?」の画面がスライドしてきて、タイトルを回収する時間
@@ -508,7 +518,11 @@ const TEXT={
   // ⑥ 暴走して打たれる文（先頭の { } は書きかけて消される）。④までの感想の続きに、review1 と混ぜて打たれる。Xでは140字ごとのスレッドになる
   rant:[
     '{とても/[楽|たの]しかったです/、}/はっきり/[言|い]って/、/クソでした/。/キーボードが/[勝手|かって]に/[動|うご]くだけの/[展示|てんじ]に/、/[何|なん]の/[意味|いみ]が/あるのか/[全|まった]く/[分|わ]かりません/。/[待|ま]たされた/[時間|じかん]を/[返|かえ]してください/。/[説明|せつめい]も/[不親切|ふしんせつ]で/、/アンケートも/[長|なが]くて/、/[正直|しょうじき]/イライラしました/。/[作者|さくしゃ]の/[自己満足|じこまんぞく]に/[付|つ]き[合|あ]わされただけです/。/[技術的|ぎじゅつてき]には/[面白|おもしろ]いのかもしれませんが/、/[体験|たいけん]としては/[最悪|さいあく]です/。/こんなものを/[展示|てんじ]して/[恥|は]ずかしくないんでしょうか/。/[二度|にど]と/[来|き]ません/。/[時間|じかん]の/[無駄|むだ]/、/[金|かね]の/[無駄|むだ]/、/クソ[展示|てんじ]でした/。/もっと/まともなものを/[作|つく]ってから/[出直|でなお]してください/。',
-    '{[最高|さいこう]の/[展示|てんじ]でした/、}/なんなんですかこれは/。/[勝手|かって]に/[指|ゆび]を/[動|うご]かされて/、/[勝手|かって]に/[文章|ぶんしょう]を/[書|か]かれて/、/[勝手|かって]に/[投稿|とうこう]されるなんて/[正気|しょうき]とは/[思|おも]えません/。/[気持|きも]ち[悪|わる]いし/、/クソ[以外|いがい]の/[感想|かんそう]が/[出|で]てきません/。/[人|ひと]の/[手|て]を/[何|なに]だと/[思|おも]ってるんですか/。/[同意|どうい]させておけば/[何|なん]でもしていいと/[思|おも]ってるんでしょうか/。/[作|つく]った[人|ひと]の/[頭|あたま]の[中|なか]が/[一番|いちばん]/[怖|こわ]いです/。/[感想|かんそう]を/[書|か]かせる/[前|まえ]に/、/まず/[反省|はんせい]してください/。/こんな/クソみたいな/[展示|てんじ]は/[初|はじ]めて/[見|み]ました/。/[早|はや]く/[撤去|てっきょ]してください/。'
+    '{[最高|さいこう]の/[展示|てんじ]でした/、}/なんなんですかこれは/。/[勝手|かって]に/[指|ゆび]を/[動|うご]かされて/、/[勝手|かって]に/[文章|ぶんしょう]を/[書|か]かれて/、/[勝手|かって]に/[投稿|とうこう]されるなんて/[正気|しょうき]とは/[思|おも]えません/。/[気持|きも]ち[悪|わる]いし/、/クソ[以外|いがい]の/[感想|かんそう]が/[出|で]てきません/。/[人|ひと]の/[手|て]を/[何|なに]だと/[思|おも]ってるんですか/。/[同意|どうい]させておけば/[何|なん]でもしていいと/[思|おも]ってるんでしょうか/。/[作|つく]った[人|ひと]の/[頭|あたま]の[中|なか]が/[一番|いちばん]/[怖|こわ]いです/。/[感想|かんそう]を/[書|か]かせる/[前|まえ]に/、/まず/[反省|はんせい]してください/。/こんな/クソみたいな/[展示|てんじ]は/[初|はじ]めて/[見|み]ました/。/[早|はや]く/[撤去|てっきょ]してください/。',
+    '{[貴重|きちょう]な/[体験|たいけん]を/ありがとうございました/、}/[正直|しょうじき]/[言|い]って/[時間|じかん]の/[無駄|むだ]でした/。/[指|ゆび]を/[置|お]いて/[待|ま]っているだけで/、/[何|なに]が/[楽|たの]しいのか/[全然|ぜんぜん]/[分|わ]かりません/。/[説明|せつめい]も/[分|わ]かりにくいし/、/[音|おと]も/うるさいし/、/[最後|さいご]まで/イライラしっぱなしでした/。/アートと/[言|い]えば/[何|なに]でも/[許|ゆる]されると/[思|おも]っているんでしょうか/。/こんな/[展示|てんじ]に/[並|なら]んだ/[自分|じぶん]が/バカみたいです/。/[二度|にど]と/[関|かか]わりたくありません/。',
+    '{[考|かんが]えさせられる/[展示|てんじ]でした/。}/[何|なに]も/[考|かんが]えさせられませんでした/。/キーボードが/カタカタ/[動|うご]くのを/[見|み]せられて/、/「[誰|だれ]が/[書|か]いたのか」とか/[言|い]われても/、/[知|し]らないとしか/[言|い]えません/。/[意味|いみ]ありげな/[雰囲気|ふんいき]だけで/、/[中身|なかみ]は/[空|から]っぽです/。/[学生|がくせい]の/[作品|さくひん]だからって/[甘|あま]やかされすぎだと/[思|おも]います/。/[期待|きたい]して/[損|そん]しました/。/[本当|ほんとう]に/つまらなかった/。',
+    '[楽|たの]しい/[時間|じかん]を/[過|す]ごせました/、/と/[書|か]けたら/よかったんですけどね/。/[実際|じっさい]は/[最悪|さいあく]でした/。/[勝手|かって]に/[文章|ぶんしょう]を/[打|う]たれて/[気分|きぶん]が/[悪|わる]いし/、/[同意|どうい]も/[勝手|かって]に/[打|う]たれるし/、/[何|なに]の/ための/[体験|たいけん]なのか/[分|わ]かりません/。/[作|つく]った/[人|ひと]は/[一度|いちど]/[自分|じぶん]で/[体験|たいけん]してみてください/。/これを/[面白|おもしろ]いと/[思|おも]うなら/、/[感覚|かんかく]が/ずれていると/[思|おも]います/。/[友達|ともだち]には/[絶対|ぜったい]/すすめません/。',
+    'また/[来|き]たいです/、/とは/[言|い]えません/。/[展示|てんじ]として/[成立|せいりつ]していないと/[思|おも]います/。/キーボードが/[動|うご]くだけの/[仕掛|しか]けに/、/もっともらしい/[問|と]いを/[貼|は]り[付|つ]けているだけです/。/[待|ま]ち[時間|じかん]も/[長|なが]く/、/スタッフの/[説明|せつめい]も/[足|た]りません/。/[正直|しょうじき]/、/この/[会場|かいじょう]で/いちばん/[残念|ざんねん]な/[展示|てんじ]でした/。/お[金|かね]を/[払|はら]ってまで/[見|み]る/ものでは/ありません/。'
   ]
   ,
   // 追加分の短い感想（1行 = 1コメント）。⑥の暴走の最後に混ぜる
@@ -542,9 +556,9 @@ const TEXT={
   ],
 };
 const TOTAL=10;
-const $=id=>document.getElementById(id),stage=$('stage'),sceneLabel=$('sceneLabel'),progress=$('progress');
+const $=id=>document.getElementById(id),stage=$('stage'),sceneLabel=$('sceneLabel'),progress=$('progress'),vol=$('vol');
 const CANCEL=Symbol('cancel'),cancelers=new Set();
-let sessionId='',postAbort=null,lastPostIds=null,paused=false,running=false,publishAllowed=true,stream=null,capturedImage='',rating=1,review='';
+let sessionId='',postAbort=null,lastPostIds=null,paused=false,running=false,publishAllowed=true,stream=null,capturedImage='',rating=1,review='',audioCtx,noise;
 const seekEl=$('seek'),seekLabel=$('seekLabel'),waits=new Set(),pauseBtn=$('pauseBtn'),playStatus=$('playStatus');
 function sleep(ms){return new Promise((resolve,reject)=>{const x={left:ms,start:0,timer:null,resolve,reject};waits.add(x);if(!paused)arm(x)})}
 function arm(x){x.start=performance.now();x.timer=setTimeout(()=>{waits.delete(x);x.resolve()},x.left)}
@@ -562,6 +576,9 @@ function phraseBreak(text){if(!SEG||!text)return text;const parts=[...SEG.segmen
  return out}
 function breakStage(root){const tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement.closest('.field,.post-text,svg,script')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});const ns=[];while(tw.nextNode())ns.push(tw.currentNode);for(const n of ns)n.data=phraseBreak(n.data)}
 let curScene=0;
+// 打鍵音（ほかの効果音は鳴らさない）
+function audio(){if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();const n=Math.floor(audioCtx.sampleRate*.05);noise=audioCtx.createBuffer(1,n,audioCtx.sampleRate);const d=noise.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2)}if(audioCtx.state==='suspended')audioCtx.resume()}
+function sound(kind='key'){audio();const v=+vol.value/100;if(!v)return;const t=audioCtx.currentTime,s=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();s.buffer=noise;f.type='bandpass';f.frequency.value=kind==='back'?900:kind==='enter'?1450:kind==='space'?1050:1100+Math.random()*190;f.Q.value=.8;s.connect(f);f.connect(g);g.connect(audioCtx.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v*.16,t+.003);g.gain.exponentialRampToValueAtTime(.0001,t+.043);s.start();s.stop(t+.06)}
 function setScene(n,title){curScene=n;sceneLabel.textContent=n<=5?'':title;document.querySelector('.terminal').classList.toggle('x',n>=6&&n<=8);progress.textContent=n<=5?'':n+' / '+TOTAL;document.querySelectorAll('#steps i').forEach((el,i)=>el.className=i<n?'done':i===n?'now':'');seekEl.value=n;seekLabel.textContent=n+' / '+TOTAL+' '+SCENE_NAMES[n]}
 function show(n,title,html,cls=''){setScene(n,title);stage.innerHTML='<div class="card '+cls+'">'+html+'</div>';breakStage(stage)}
 
@@ -606,7 +623,7 @@ const FINGERS=['left-pinky','left-ring','left-middle','left-index','right-index'
 function keyRow(items){const slot=f=>{const it=items.find(x=>{const m=keyMap[x.key];return m&&m.h+'-'+m.f===f});return it?it.html:'<div class="slot"></div>'};return `<div class="keyrow">${FINGERS.map((f,i)=>(i===4?'<div></div>':'')+slot(f)).join('')}</div>`}
 function flashFinger(id){const el=stage.querySelector(`.cap[data-finger="${id}"]`);if(!el)return;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),150)}
 // 機械が打つ打鍵。キーボードが上がっている（入力受付）なら、先に下げてから打つ。来場者のキー入力待ちの間の打鍵（リハーサルの自動操作）では下げない
-async function stroke(key,update=()=>{}){if(!keyWaiter?.input&&(KB.want||KB.raised))await kbType();const m=(key==='Enter'||key==='Backspace')?{h:'right',f:'pinky'}:keyMap[key.toLowerCase()];if(m){const f=m.h+'-'+m.f,w=(fingerReady.get(f)||0)-performance.now();if(w>0)await sleep(w);fingerReady.set(f,performance.now()+CONFIG.fingerRecoverMs)}update();if(m){pulseMotor(m.h,m.f);flashFinger(m.h+'-'+m.f)}}
+async function stroke(key,update=()=>{}){if(!keyWaiter?.input&&(KB.want||KB.raised))await kbType();const m=(key==='Enter'||key==='Backspace')?{h:'right',f:'pinky'}:keyMap[key.toLowerCase()];if(m){const f=m.h+'-'+m.f,w=(fingerReady.get(f)||0)-performance.now();if(w>0)await sleep(w);fingerReady.set(f,performance.now()+CONFIG.fingerRecoverMs)}update();if(m){pulseMotor(m.h,m.f);flashFinger(m.h+'-'+m.f)}sound(key==='Enter'?'enter':key==='Backspace'?'back':key===' '?'space':'key')}
 
 // ---- 入力欄（確定済み + 未確定の下線部） ----
 function makeField(el){el.innerHTML='';const a=document.createElement('span'),b=document.createElement('span'),c=document.createElement('span');b.className='comp';c.className='cursor';el.append(a,b,c);return{committed:'',pending:'',render(comp){a.textContent=phraseBreak(this.committed);b.textContent=phraseBreak(comp);el.scrollTop=el.scrollHeight}}}
@@ -699,7 +716,10 @@ function renderSlots(fixed,cur,future){$('sent').innerHTML=fixed.map(x=>`<span c
  +(cur.word?`<span class="tile cur in">${phraseBreak(plain(cur.word))}</span>`:'<span class="tile blank cur"></span>')
  +'<span class="tile blank later"></span>'.repeat(future)}
 // 4択を、キーボードと同じ4＋4の並びに置く。D・F・J・K に4択を大きく、右小指に Delete、残りは空き
-function setOpts(arr,rec=-1){const d2='<div class="dummy"></div>';const o=$('opts');o.classList.remove('off');o.classList.toggle('long',arr.some(x=>plain(x).length>8)); // 文ごとの3択は文字を小さく
+// 選択肢の枠の大きさは固定。入りきらないときは、4つそろえて文字を小さくする
+function fitOpts(){const ts=[...$('opts').querySelectorAll('.tile.opt')];if(!ts.length)return;ts.forEach(t=>t.style.fontSize='');let size=parseFloat(getComputedStyle(ts[0]).fontSize);
+ const over=()=>ts.some(t=>t.scrollHeight>t.clientHeight+1||t.scrollWidth>t.clientWidth+1);while(over()&&size>12){size--;ts.forEach(t=>t.style.fontSize=size+'px')}}
+function setOpts(arr,rec=-1){const d2='<div class="dummy"></div>';const o=$('opts');o.classList.remove('off');
  o.innerHTML=`<div class="opt-row">${d2}${d2}${arr.map((x,i)=>`<button class="tile opt${i===rec?' rec':''}" data-i="${i}"><span>${phraseBreak(plain(x))}</span></button>`).join('')}${d2}${d2}</div>`}async function selectCard(i){$('opts').querySelector(`[data-i="${i}"]`)?.classList.add('selected');await sleep(300)}
 // 文ができあがってから入力の画面に切り替わるまでと、打ち終えてから次の文に移るまでに間を置く
 async function typeSentence(f,src){await sleep(1200);foot('','そのまま、手を置いていてください。','');await typeInto(f,src,{typos:false});DOC.text=f.committed;await sleep(1500)}
@@ -708,7 +728,7 @@ async function typeSentence(f,src){await sleep(1200);foot('','そのまま、手
 async function rampage(f,src){const R=CONFIG.rampage;let stop=false,n=0,total=1;
  await kbType();
  (async()=>{while(!stop){const now=performance.now(),ready=FINGERS.filter(x=>(fingerReady.get(x)||0)<=now);
-  if(ready.length){const x=pick(ready),[h,fi]=x.split('-');fingerReady.set(x,now+CONFIG.fingerRecoverMs);pulseMotor(h,fi)}
+  if(ready.length){const x=pick(ready),[h,fi]=x.split('-');fingerReady.set(x,now+CONFIG.fingerRecoverMs);pulseMotor(h,fi);if(Math.random()<.5)sound('key')}
   await sleep(R.motorMs)}})().catch(()=>{});
  const tick=()=>{n++;return sleep(Math.max(R.minMs,R.startMs*Math.exp(-n/R.accelChars)))};
  try{const segs=parse(src);total=segs.reduce((a,x)=>a+x.reading.length,0)||1;
@@ -726,7 +746,7 @@ async function chooseWindow(opts,{hl=false,say=['',''],show=()=>{}}={}){
  setOpts(order.map(i=>opts[i]));
  let sel=null,autoDone=false,cur=-1;
  const paint=()=>{$('opts').querySelectorAll('.tile.opt').forEach((el,i)=>{el.classList.toggle('selected',i===cur&&sel==='pick');el.classList.toggle('tabsel',hl&&i===ans&&sel!=='pick')});show(sel,sel?order[cur]:0)};
- paint();foot('',...say);
+ paint();foot('',...say);fitOpts();
  for(;;){
   const k=await pressed(OPT_KEYS,{auto:autoDone?null:()=>({delay:rand(700,2000),key:OPT_KEYS[Math.floor(Math.random()*4)]})});
   autoDone=true;
@@ -807,7 +827,7 @@ async function titleWipe(){
  // タイトル回収：白い画面が左からスライドしてきて、作品名のキーが1つずつ打たれる
  const w=document.createElement('div');w.className='title-wipe';w.innerHTML=`<div class="title-keys" aria-label="who typed?">${TITLE_KEYS.map(([c,x,y,r])=>`<span class="kcap" style="left:${x}px;top:${y}px;--r:${r}deg">${c}</span>`).join('')}</div>`;stage.appendChild(w);
  void w.offsetWidth;w.classList.add('in');const t1=performance.now();await sleep(900);
- for(const k of w.querySelectorAll('.kcap')){k.classList.add('on');await sleep(rand(110,190))}
+ for(const k of w.querySelectorAll('.kcap')){k.classList.add('on');sound('key');await sleep(rand(110,190))}
  await sleep(Math.max(0,CONFIG.titleMs-(performance.now()-t1)))}
 async function run(from=0){
  let posts;
@@ -859,10 +879,10 @@ async function run(from=0){
  phaseStart(6);
  show(6,'感想の入力',`<h1>この内容が、Xに投稿されます。</h1><div class="field focus long" id="doc"></div>`,'compact');const f=makeField($('doc'));f.committed=DOC.text;f.render('');await sleep(4000);
  // ②〜④の感想の続きに、短い感想と暴言を混ぜて、全体で chars 字ほどになるまで足す
- const pool=[...TEXT.rant,...TEXT.review1.map(x=>/[。！？♡…]$/.test(plain(x))?x:x+'/。')].sort(()=>Math.random()-.5),items=[];
- for(const x of pool){const len=DOC.text.length+plain([...items,x].join('/')).length;if(len>CONFIG.rampage.chars)continue;items.push(x);if(len>CONFIG.rampage.chars-60)break}
- const mild=items.filter(x=>!TEXT.rant.includes(x)),harsh=items.filter(x=>TEXT.rant.includes(x));
- await rampage(f,[...mild,...harsh].join('/'));review=f.committed;await stopRec();
+ // 毎回ちがう投稿になるように、暴言は rant から1つだけ、短い感想は review1 から無作為に選ぶ（タイムラインで同じ文が並ばないように）
+ const harsh=pick(TEXT.rant),pool=TEXT.review1.map(x=>/[。！？♡…]$/.test(plain(x))?x:x+'/。').sort(()=>Math.random()-.5),mild=[];
+ for(const x of pool){const len=DOC.text.length+plain([...mild,x,harsh].join('/')).length;if(len>CONFIG.rampage.chars)continue;mild.push(x);if(len>CONFIG.rampage.chars-60)break}
+ await rampage(f,[...mild,harsh].join('/'));review=f.committed;await stopRec();
  const g=gen,img=await capture();if(g!==gen)throw CANCEL;capturedImage=img;await sleep(rand(700,1100));
 },async()=>{
  if(!review)review=plain(pick(TEXT.rant));
@@ -883,19 +903,25 @@ async function run(from=0){
  // オチ：⑥で打たされていたときの3台の映像がスライドインで集まり、最後に「who typed?」でタイトルを回収する
  await titleWipe();
 },async()=>{
- const url=CONFIG.xAccountUrl;show(10,'終了',`<div class="center thanks"><img class="qr" alt="展示用XアカウントのQRコード" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}"><a class="final-link" href="${url}" target="_blank" rel="noopener">${url}</a><div class="rule"></div><h1>ありがとうございました</h1><p class="lead">あなたの投稿したポストは、上のQRコードからご覧いただけます。<br>体験は以上です。キーボードから手を離してください。</p></div>`);playStatus.textContent='終了';
+ const url=CONFIG.xAccountUrl;show(10,'終了',`<div class="center thanks"><img class="qr" alt="展示用XアカウントのQRコード" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}"><a class="final-link" href="${url}" target="_blank" rel="noopener">${url}</a><div class="rule"></div><h1>ありがとうございました</h1><p class="lead">あなたの投稿したポストは、上のQRコードからご覧いただけます。<br>体験は以上です。キーボードから手を離してください。</p></div>`);playStatus.textContent='終了';await sleep(CONFIG.endMs);
 }];
  for(let i=from;i<S.length;i++)await S[i]();
 }
 let gen=0;
 function cancelAll(){stopRec(true);for(const x of waits){clearTimeout(x.timer);x.reject(CANCEL)}waits.clear();for(const x of [...cancelers])x.reject();cancelers.clear();fingerReady.clear();releaseAll()}
-async function play(from){if(CAL.active){playStatus.textContent='キャリブレーション中は開始できません';return}idle=false;const g=++gen;cancelAll();if(!sessionId)sessionId=(crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2));running=true;paused=false;pauseBtn.textContent='一時停止';pauseBtn.disabled=false;seekEl.disabled=false;document.activeElement?.blur?.();$('startBtn').disabled=true;hardwareUI();playStatus.textContent='再生中';try{await run(from)}catch(e){if(e!==CANCEL){console.error(e);playStatus.textContent='エラー: '+e.message}}finally{if(g===gen){running=false;pauseBtn.disabled=true;seekEl.disabled=false;releaseAll();kbWant(false);hardwareUI()}}}
-function start(){if(running)return;if(!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';return}publishAllowed=true;sessionId='';clearClips();return play(0)}
+async function play(from){if(CAL.active){playStatus.textContent='キャリブレーション中は開始できません';return}idle=false;const g=++gen;cancelAll();if(!sessionId)sessionId=(crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2));running=true;paused=false;pauseBtn.textContent='一時停止';pauseBtn.disabled=false;seekEl.disabled=false;document.activeElement?.blur?.();$('startBtn').disabled=true;hardwareUI();playStatus.textContent='再生中';audio();let ended=false;try{await run(from);ended=true}catch(e){if(e!==CANCEL){console.error(e);playStatus.textContent='エラー: '+e.message}}finally{if(g===gen){running=false;pauseBtn.disabled=true;seekEl.disabled=false;releaseAll();kbWant(false);hardwareUI();if(ended)toIdle()}}}
+// 次のお客さんへ：スタート画面に戻し、どれかのキーで次の体験が始まるようにする（ページは読み込み直さない）
+function toIdle(){clearClips();sessionId='';review='';capturedImage='';DOC.text='';for(const k in snap)delete snap[k];
+ if(stopPublishedOnce!==null){$('publicSession').checked=stopPublishedOnce;stopPublishedOnce=null;$('stopPublish').textContent='このセッションの公開を中止';$('stopPublish').disabled=false}
+ show(0,'スタート',START_HTML);idle=true;$('startBtn').disabled=false;playStatus.textContent='開始待ち';if(writer)kbWant(true,keysMask('*'))}
+function pickRating(){const w=CONFIG.ratingWeights;let r=Math.random()*w.reduce((a,b)=>a+b,0);for(let i=0;i<w.length;i++){if((r-=w[i])<0)return i+1}return 1}
+function start(){if(running)return;if(!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';return}publishAllowed=true;sessionId='';rating=pickRating();clearClips();return play(0)}
 // シークバー：指定のシーンの頭から再生し直す（同じセッションのまま。投稿は同じセッションIDで重複送信されない）
 seekEl.oninput=()=>{const n=+seekEl.value;seekLabel.textContent=n+' / '+TOTAL+' '+(SCENE_NAMES[n]||'')};
 seekEl.onchange=()=>{const n=+seekEl.value;if(!running&&!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';seekEl.value=0;return}if(!running&&!sessionId)publishAllowed=true;play(n)};
 const SCENE_NAMES=['スタート','練習','感想と同意','自分で選ぶ','誘導つき','食い違い','暴走','ツイート確認','公開中','問いかけ','終了'];
-$('startBtn').onclick=start;$('stopPublish').onclick=()=>{publishAllowed=false;postAbort?.abort('stop');$('publicSession').checked=false;$('stopPublish').textContent='公開中止済み';$('stopPublish').disabled=true};
+$('startBtn').onclick=start;let stopPublishedOnce=null; // 「このセッションの公開を中止」は、そのセッションだけ。次のお客さんでは「公開セッション」を押す前の状態に戻す
+$('stopPublish').onclick=()=>{if(stopPublishedOnce===null)stopPublishedOnce=$('publicSession').checked;publishAllowed=false;postAbort?.abort('stop');$('publicSession').checked=false;$('stopPublish').textContent='公開中止済み';$('stopPublish').disabled=true};
 
 // ==== ソレノイド基板（Web Serial） ====
 // 打鍵（0xA5 パケット）は CFI-8MOTOR-DC-v3 / TOUCH-v6・v7 / CURRENT-v9 のどれでも動く。入力受付（キーを上げて、押し込まれたキーを入力にする）は
@@ -1037,7 +1063,10 @@ document.addEventListener('keydown',e=>{if(!idle||running||e.repeat||e.metaKey||
 // 再読み込み（「最初から」）のあとも、前に許可した基板に自動でつなぎ、スタート画面でキーボードを上げる（許可済みの基板が1つのときだけ）
 if('serial'in navigator)navigator.serial.getPorts().then(ps=>{if(ps.length===1&&!port)return openPort(ps[0])}).catch(e=>disconnectHardware('自動接続できませんでした: '+e.message));
 // 体験画面（ヘッダー＋ステージ＝1180×782）がウィンドウに収まる倍率にする
-function fitScreen(){document.querySelector('.shell').style.zoom=Math.min((innerWidth-40)/1180,(innerHeight-40)/782)}
+function fitScreen(){const fs=!!document.fullscreenElement,m=fs?0:40;document.documentElement.classList.toggle('fs',fs);document.querySelector('.shell').style.zoom=Math.min((innerWidth-m)/1180,(innerHeight-m)/782)}
+// 全画面：体験の画面だけを画面いっぱいに出す（ホスト用パネルは隠れる。Esc で戻る）
+$('fsBtn').onclick=()=>{$('fsBtn').blur();document.documentElement.requestFullscreen?.().catch(e=>playStatus.textContent='全画面にできません: '+e.message)};
+document.addEventListener('fullscreenchange',fitScreen);
 addEventListener('resize',fitScreen);fitScreen();
 // リハーサル用：?scene=N で、公開せず自動操作で、そのシーンから始める（例: ?scene=4）
 {const q=new URLSearchParams(location.search);if(q.has('scene')){$('autoDemo').checked=q.get('auto')!=='0';$('publicSession').checked=false;play(+q.get('scene')||0)}}
