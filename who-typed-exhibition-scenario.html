@@ -447,7 +447,7 @@ const CONFIG={
   // 書きかけた文を右小指のBackspace連打でまとめて消し、別の文に書き直す（{ } で囲んだ部分）
   rewrite:{beforeDeleteMs:[600,1000],afterDeleteMs:[350,650]},
   fingerRecoverMs:170,   // 同じ指の次の駆動まで（150ms駆動 + OFF時間）
-  // 入力受付（CFI_8solenoid_current_serial_v9）。来場者がキーを押す場面では、押せるキーだけが上がったまま待ち、
+  // 入力受付（CFI_8solenoid_current_serial_v10）。来場者がキーを押す場面では、押せるキーだけが上がったまま待ち、
   // 自動入力の場面では入力受付を抜けて、ソレノイドが1本ずつパチパチと上がる。上がったキーは5秒ごとに1秒休む（基板が決める）
   //   dropMs: 入力受付を抜けてから最初の打鍵まで（キーが下がりきるのを待つ）
   //   raiseKeys: 入力受付で上げてよいキー。同時に上げるのは4本まで（真ん中の D F J K）。待っているキーがこの外なら上げない
@@ -899,7 +899,7 @@ $('startBtn').onclick=start;$('stopPublish').onclick=()=>{publishAllowed=false;p
 
 // ==== ソレノイド基板（Web Serial） ====
 // 打鍵（0xA5 パケット）は CFI-8MOTOR-DC-v3 / TOUCH-v6・v7 / CURRENT-v9 のどれでも動く。入力受付（キーを上げて、押し込まれたキーを入力にする）は
-// CFI_8solenoid_current_serial_v9（CFI-8MOTOR-CURRENT-v9）だけ。
+// CFI_8solenoid_current_serial_v9 以降（v10 は MCP3208 で8本とも押し込みを判定する）だけ。
 // ページは 100ms ごとの心拍で「いま望む状態」をそのまま送る：入力受付なら 0xC7（上げるキー）、それ以外は 0xA5（いま打っているキー）。
 // 基板はパケットのとおりにモードを切り替えるので、ページは切り替えの返事を待たない。基板の再起動や通信断も、次の心拍で元に戻る。
 // 基板からは MODE（基板のモード）と RAISED（いま実際に上がっているキー）が届き、表示にだけ使う。
@@ -936,7 +936,7 @@ const CAL={active:false,press:0,timer:null,data:{},watch:null,nocur:0,skipped:0}
 const calAutoBtn=$('calAutoBtn'),calBtn=$('calBtn'),calCap=$('calCapture'),calSkip=$('calSkip'),calStop=$('calCancel'),senseBtn=$('senseBtn'),calSt=$('calStatus'),calRes=$('calResult');
 function kbUI(){const resting=KB.want&&KB.mode==='INPUT'?KB.mask&~KB.raised:0;
  kbs.textContent='入力受付: '+(!writer?'未接続':!KB.ver?'確認中…'
-  :!KB.ok?`このファームウェアでは使えません（${KB.ver==='?'?'返事なし':KB.ver}）。CFI_8solenoid_current_serial_v9 を書き込んでください（打鍵は動きます）`
+  :!KB.ok?`このファームウェアでは使えません（${KB.ver==='?'?'返事なし':KB.ver}）。CFI_8solenoid_current_serial_v10 を書き込んでください（打鍵は動きます）`
   :CAL.active?'キャリブレーション中'
   :KB.error?(/profile missing/.test(KB.error)?'校正データがありません（「オートキャリブレーション」を行ってください）':KB.error)
   :!KB.want?'OFF（下がっています）'
@@ -974,7 +974,7 @@ function calBegin(){clearTimeout(CAL.timer);CAL.active=true;CAL.press=0;CAL.nocu
 function calEnd(msg){clearTimeout(CAL.timer);CAL.active=false;CAL.press=0;calSay(msg);kbUI()}
 function onCalLine(s){let m;const step=n=>`（${CAL_ORDER.indexOf(n)+1}/8）`;
  if(/^CAL MODE START/.test(s)){calBegin();calSay('測定中：キーが1本ずつ小さく動きます。どのキーにも触れないでください')}
- else if(/^AUTO START/.test(s)){calBegin();calSay('オートキャリブレーション中：キーが1本ずつ自分で上下します。どのキーにも触れないでください（約15秒）')}
+ else if(/^AUTO START/.test(s)){calBegin();calSay('オートキャリブレーション中：キーが1本ずつ自分で上下します。どのキーにも触れないでください（約25秒）')}
  else if((m=s.match(/^AUTO KEY (\d+) OFF (\d+) \d+ \d+ FLOAT (\d+) \d+ \d+ THRESHOLD (\d+) (UP|DOWN)/))){calSay(`${keyLabel(+m[1])}：下げたとき ${m[2]} / 上げたとき ${m[3]} µs → しきい値 ${m[4]}（押すと値が${m[5]==='UP'?'上がる':'下がる'}${/GUESS/.test(s)?'。下げたときの値がはっきりしないので、押すと下がる前提で決めました':''}）${step(+m[1])}`)}
  else if((m=s.match(/^AUTO SKIP (\d+) OFF (\d+) \d+ \d+ FLOAT (\d+) \d+ \d+(?: (\w+))?/))){CAL.skipped|=1<<(+m[1]-1);const why=m[4]==='NOSENSE'?'電流を測る配線（ADC）がない':m[4]==='NOCURRENT'?'上げても電流が流れていない（配線・電源を確認）':m[4]==='NOISY'?`上げたときの値のばらつきが大きすぎる（${m[3]} µs 前後）`:`上げても下げても値が変わらない（${m[2]} / ${m[3]} µs）`;calSay(`${keyLabel(+m[1])}：${why}ので、使わないことにしました${step(+m[1])}`)}
  else if((m=s.match(/^CAL EXTEND (\d+)/))){CAL.press=0;calSay(`${keyLabel(+m[1])} が上がります。まだ触れないでください${step(+m[1])}`)}
