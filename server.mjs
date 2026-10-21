@@ -183,7 +183,8 @@ function feedImage(name) {
   return f ? '/' + f : '';
 }
 function feed(limitSessions = 300) {
-  const entries = postedEntries();
+  // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない
+  const entries = postedEntries().filter(e => dryRun || !e.dryRun);
   const posts = [];
   for (const e of entries.slice(-limitSessions).reverse()) {
     e.texts.forEach((text, i) => posts.push({
