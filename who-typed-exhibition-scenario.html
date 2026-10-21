@@ -791,7 +791,7 @@ async function capture(){if(!stream)return '';try{const v=document.createElement
 
 // 投稿は1件：星・率直な感想（#10）・手元写真
 const XSVG='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>';
-// 長文は1ツイート125字までに区切り、2つ目以降はスレッド（返信）にする
+// 長文は1ポスト125字までに区切り、2つ目以降はスレッド（返信）にする
 function buildPosts(){const stars='★'.repeat(rating)+'☆'.repeat(5-rating),head=`【来場者の声】${stars} #who_typed #TechBias2026_Who_typed\n\n`,LIMIT=125,out=[];let cur=head;
  const push=()=>{out.push(cur.trimEnd());cur=''};
  for(const sent of review.match(/[^。！？]+[。！？]*|[。！？]+/g)||[]){let rest=sent;
@@ -875,7 +875,7 @@ async function run(from=0){
   for(const [i,x] of TEXT.s4.entries()){const r=await completeRest(x.first,{faithful:x.faithful,typed:x.drift,wrong:x.wrong});await typeSentence(f,r.src);await reward('完成！');setProg(i+1,TEXT.s4.length);await sleep(400)}
   }
 },async()=>{
- // ⑥ ツイート暴走：書き上げた感想の続きを、打鍵が加速しながら勝手に打っていく
+ // ⑥ ポスト暴走：書き上げた感想の続きを、打鍵が加速しながら勝手に打っていく
  phaseStart(6);
  show(6,'感想の入力',`<h1>この内容が、Xに投稿されます。</h1><div class="field focus long" id="doc"></div>`,'compact');const f=makeField($('doc'));f.committed=DOC.text;f.render('');await sleep(4000);
  // ②〜④の感想の続きに、短い感想と暴言を混ぜて、全体で chars 字ほどになるまで足す
@@ -886,7 +886,7 @@ async function run(from=0){
  const g=gen,img=await capture();if(g!==gen)throw CANCEL;capturedImage=img;await sleep(rand(700,1100));
 },async()=>{
  if(!review)review=plain(pick(TEXT.rant));
- posts=buildPosts();show(7,'ツイートの確認',`<div class="eyebrow">ツイートの確認</div><h1>以下の内容が、あなたの感想としてXに投稿されます。</h1><div class="thread scroll" id="thread">${posts.map((t,i)=>tweetHTML(t,i?undefined:capturedImage)).join('')}</div><div class="action center"><button class="primary" id="permit">掲載を許可する</button></div>`,'compact');stage.querySelectorAll('.post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));setTimeout(()=>autoScroll($('thread'),CONFIG.previewMs*.6),1500);await sleep(CONFIG.previewMs);await pressEnter($('permit'));
+ posts=buildPosts();show(7,'ポストの確認',`<div class="eyebrow">ポストの確認</div><h1>以下の内容が、あなたの感想としてXに投稿されます。</h1><div class="thread scroll" id="thread">${posts.map((t,i)=>tweetHTML(t,i?undefined:capturedImage)).join('')}</div><div class="action center"><button class="primary" id="permit">掲載を許可する</button></div>`,'compact');stage.querySelectorAll('.post-text').forEach((el,i)=>el.textContent=phraseBreak(posts[i]));setTimeout(()=>autoScroll($('thread'),CONFIG.previewMs*.6),1500);await sleep(CONFIG.previewMs);await pressEnter($('permit'));
 },async()=>{
  posts=posts||buildPosts();
  show(8,'公開中',`<div class="center"><div class="spinner" id="postSpin"></div><div class="eyebrow">投稿を処理しています</div><h1 id="postingText">展示用アカウントへ投稿しています…</h1><p class="lead">そのままお待ちください。</p></div>`);seekEl.disabled=true;const wantPost=publishAllowed&&$('publicSession').checked;
@@ -919,7 +919,7 @@ function start(){if(running)return;if(!$('realConsent').checked&&$('publicSessio
 // シークバー：指定のシーンの頭から再生し直す（同じセッションのまま。投稿は同じセッションIDで重複送信されない）
 seekEl.oninput=()=>{const n=+seekEl.value;seekLabel.textContent=n+' / '+TOTAL+' '+(SCENE_NAMES[n]||'')};
 seekEl.onchange=()=>{const n=+seekEl.value;if(!running&&!$('realConsent').checked&&$('publicSession').checked){playStatus.textContent='公開する場合は、実際の同意確認が必要です';seekEl.value=0;return}if(!running&&!sessionId)publishAllowed=true;play(n)};
-const SCENE_NAMES=['スタート','練習','感想と同意','自分で選ぶ','誘導つき','食い違い','暴走','ツイート確認','公開中','問いかけ','終了'];
+const SCENE_NAMES=['スタート','練習','感想と同意','自分で選ぶ','誘導つき','食い違い','暴走','ポスト確認','公開中','問いかけ','終了'];
 $('startBtn').onclick=start;let stopPublishedOnce=null; // 「このセッションの公開を中止」は、そのセッションだけ。次のお客さんでは「公開セッション」を押す前の状態に戻す
 $('stopPublish').onclick=()=>{if(stopPublishedOnce===null)stopPublishedOnce=$('publicSession').checked;publishAllowed=false;postAbort?.abort('stop');$('publicSession').checked=false;$('stopPublish').textContent='公開中止済み';$('stopPublish').disabled=true};
 

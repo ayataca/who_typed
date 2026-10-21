@@ -2,11 +2,11 @@
 // - 展示HTMLを配信する（file:// で開いたときのカメラ権限の問題も避けられる）
 // - X API の認証情報をこのPCの .env にだけ置き、HTMLの代わりにXへ投稿する
 // 起動: node server.mjs  → http://localhost:8787
-import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import path from 'node:path';
+import http from 'node:http';
 import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -71,7 +71,7 @@ async function xFetch(method, url, body) {
   return json;
 }
 
-// texts[0] に画像を付けて投稿し、2つ目以降はそのツイートへの返信（スレッド）として続ける
+// texts[0] に画像を付けて投稿し、2つ目以降はそのポストへの返信（スレッド）として続ける
 async function postToX({ texts, imageBase64 }) {
   const media = await xFetch('POST', 'https://api.x.com/2/media/upload', {
     media: imageBase64, media_category: 'tweet_image', media_type: 'image/jpeg',
@@ -104,7 +104,7 @@ async function handlePost(req) {
   const { sessionId, imageData, rating } = req;
   const texts = Array.isArray(req.texts) ? req.texts : (typeof req.text === 'string' ? [req.text] : []);
   if (!/^[\w-]{8,64}$/.test(sessionId || '')) return { status: 400, body: { ok: false, error: 'sessionId がありません' } };
-  // 日本語は1文字が2文字分に数えられるので、1ツイート140字まで。スレッドは10件まで
+  // 日本語は1文字が2文字分に数えられるので、1ポスト140字まで。スレッドは10件まで
   if (!texts.length || texts.length > 10 || texts.some(x => typeof x !== 'string' || !x.trim() || x.length > 140)) return { status: 400, body: { ok: false, error: '本文が不正です' } };
   const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(imageData || '');
   if (!m) return { status: 400, body: { ok: false, error: '手元写真がありません（撮影に失敗した回は投稿しません）' } };

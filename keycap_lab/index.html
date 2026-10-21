@@ -4,64 +4,128 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Keycap Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0e0f11;--panel:#141518;--fg:#e8e6e1;--dim:#7d7a74;--line:#26272b;--acc:#ffb547}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.5 "Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
-#app{display:grid;grid-template-columns:190px 1fr;height:100%}
-nav{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:14px 0}
-nav h2{font-size:11px;font-weight:500;color:var(--dim);margin:14px 18px 4px;letter-spacing:.08em}
-nav button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--fg);font:inherit;padding:5px 18px;cursor:pointer;opacity:.72}
-nav button:hover{opacity:1}
-nav button.on{opacity:1;color:var(--acc)}
-main{display:grid;grid-template-rows:auto 1fr auto;min-width:0}
-header{display:flex;gap:24px;align-items:flex-start;padding:18px 24px 0}
-#head{flex:1;min-width:0}
-h1{font-size:22px;font-weight:600;margin:0}
-#note,#use{margin:2px 0 0;color:var(--dim)}
-#use:before{content:"→ "}
-#opts{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.5 "Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+body{display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden}
+/* シナリオの画面：16:9 より横長にはしない（横長のウィンドウでは、左右を空ける） */
+#frame{position:relative;justify-self:center;height:100%;min-height:0;overflow:hidden}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+/* 下の帯：細かい設定。全画面のときは隠れて、シナリオの画面だけになる（Esc で戻る） */
+#bar{display:flex;flex-direction:column;gap:6px;padding:8px 16px 10px;background:var(--panel);border-top:1px solid var(--line);color:var(--dim)}
+html.fs #bar{display:none}
+.row{display:flex;gap:10px 18px;align-items:center;flex-wrap:wrap}
+#opts{display:flex;gap:8px;flex-wrap:wrap}
 .seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .seg button{background:none;border:0;color:var(--dim);font:inherit;font-size:12px;padding:4px 10px;cursor:pointer}
 .seg button.on{background:var(--line);color:var(--fg)}
-#opts input[type=text]{background:var(--panel);border:1px solid var(--line);color:var(--fg);font:inherit;padding:4px 8px;border-radius:6px;width:300px}
-#conn{background:none;border:1px solid var(--line);color:var(--fg);font:inherit;font-size:12px;padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.op{background:none;border:1px solid var(--line);color:var(--fg);font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.op:disabled{opacity:.45;cursor:default}
 #conn.live{border-color:var(--acc);color:var(--acc)}
 #conn.warn{border-color:#e5484d;color:#e5484d}
-canvas{width:100%;height:100%;display:block;touch-action:none}
-footer{display:flex;gap:28px;align-items:center;padding:10px 24px 16px;color:var(--dim);font-size:12px}
-footer label{display:flex;gap:8px;align-items:center}
-footer input{width:130px;accent-color:var(--acc)}
-footer output{width:44px;color:var(--fg)}
+#bar label{display:flex;gap:6px;align-items:center}
+#bar input[type=range]{width:110px;accent-color:var(--acc)}
+#bar output{width:44px;color:var(--fg)}
+#pv-hands{width:96px;aspect-ratio:16/9;background:#000;border-radius:4px;object-fit:cover}
+#postResult a{color:#9ecbff}
 #keys{margin-left:auto}
 #status{color:var(--acc)}
+
+/* ===== Xへの投稿のあとの画面（本編 who-typed-exhibition-scenario.html と同じ見た目。post.js） ===== */
+#post{position:absolute;left:0;top:0;display:none;overflow:hidden;background:#f3f6f9;
+  --ink:#2b3445;--ink-2:#5b6270;--gray:#c7c9cc;--rule:#e1e2e4;--cap:#f6f5f1;--cap-edge:#dcdad3;--paper:#f3f6f9;--text:#1a2330;
+  --x-bg:#000;--x-panel:#16181c;--x-line:#2f3336;--x-ink:#e7e9ea;--x-sub:#71767b;--x-blue:#1d9bf0}
+#post.on{display:block}
+#post.x{background:#000}
+#post .terminal{position:absolute;left:50%;top:50%;width:1180px;height:720px;transform-origin:50% 50%}
+#post .stage{width:1180px;height:720px;display:grid;place-items:center;padding:36px 54px 110px;position:relative;overflow:hidden;background:var(--paper);color:var(--text);
+  font-family:"Poppins","Noto Sans JP",-apple-system,"Hiragino Sans",sans-serif;word-break:keep-all;overflow-wrap:anywhere;line-break:strict}
+#post .stage:has(.compact){padding:24px 54px 100px}
+#post.x .stage{background:var(--x-bg);color:var(--x-ink);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Segoe UI",sans-serif}
+#post .card{width:min(980px,100%)}
+#post .card:has(.ask){width:100%}
+#post .eyebrow{font:500 20px/1.6 "Noto Sans JP",sans-serif;color:var(--ink-2);letter-spacing:.04em;margin-bottom:18px}
+#post.x .eyebrow{font-family:inherit;color:var(--x-sub);font-weight:600;font-size:24px;letter-spacing:.08em}
+#post .card h1{font:700 40px/1.45 "Noto Sans JP",sans-serif;letter-spacing:.03em;margin:0 0 18px;text-wrap:pretty}
+#post.x .card h1{font-family:inherit;letter-spacing:0}
+#post .card.compact h1{font-size:32px;margin-bottom:4px}
+#post .card.compact .eyebrow{margin-bottom:10px}
+#post .lead{font-size:22px;line-height:1.9;color:#4e5964;text-wrap:pretty}
+#post.x .lead{color:#8b98a5}
+#post .center{text-align:center}
+#post .thread{border:1px solid var(--x-line);border-radius:16px;padding:16px 18px 6px;max-width:640px;margin:18px auto 0;background:#000;color:var(--x-ink)}
+#post .thread.scroll{max-height:400px;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 26px,#000 calc(100% - 56px),transparent);mask-image:linear-gradient(to bottom,transparent 0,#000 26px,#000 calc(100% - 56px),transparent)}
+#post .tw{display:grid;grid-template-columns:42px 1fr;gap:12px;position:relative}
+#post .tw+.tw{margin-top:18px}
+#post .tw:not(:last-child)::before{content:'';position:absolute;left:20px;top:50px;bottom:-14px;width:2px;background:var(--x-line)}
+#post .avatar{width:42px;height:42px;background:#e7e9ea;color:#000;border-radius:50%;display:grid;place-items:center;font-family:"Poppins",sans-serif;font-weight:600}
+#post .tw-head{display:flex;align-items:center;gap:6px;font-size:17px}
+#post .handle,#post .tw .when{color:var(--x-sub);font-size:15px}
+#post .tw-head .xm{margin-left:auto;width:18px;height:18px;color:var(--x-ink)}
+#post .xm svg{width:100%;height:100%;fill:currentColor;display:block}
+#post .post-text{font-size:19px;line-height:1.75;white-space:pre-wrap;margin-top:4px}
+#post .photo{width:100%;height:190px;object-fit:cover;background:var(--x-panel);border-radius:16px;margin-top:12px;border:1px solid var(--x-line)}
+#post .tw-act{display:flex;justify-content:space-between;max-width:420px;margin:10px 0 4px;color:var(--x-sub);font-size:14px}
+#post .tw-act span{display:inline-flex;align-items:center;gap:6px}
+#post .tw-act svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#post .action{position:absolute;bottom:46px;left:50%;transform:translateX(-50%);margin:0}
+#post .primary{border:0;border-radius:999px;background:#eff3f4;color:#0f1419;padding:14px 34px;font:700 20px/1.2 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+#post .primary.pressed{background:var(--x-blue);color:#fff;transform:translateY(2px);box-shadow:0 0 0 7px #1d9bf055}
+#post .spinner{width:58px;height:58px;border:6px solid var(--x-line);border-top-color:var(--x-blue);border-radius:50%;margin:0 auto 30px;animation:kp-spin .9s linear infinite}
+@keyframes kp-spin{to{transform:rotate(360deg)}}
+#post .ask{display:grid;grid-template-columns:1fr 470px;gap:40px;align-items:stretch}
+#post .ask-l{position:relative;display:flex;flex-direction:column;justify-content:center}
+#post .ask .who{font:700 56px/1.45 "Noto Sans JP",sans-serif;letter-spacing:.04em;margin:0;color:var(--ink)}
+#post .ask .rule{width:120px;height:1px;background:var(--gray);margin:0 0 26px}
+#post .ask .thread{margin:0;max-height:560px;align-self:center}
+#post .kcap{position:relative;display:grid;place-items:center;padding-bottom:7px;border-radius:14px;background:linear-gradient(170deg,#fff,var(--cap) 60%,#ebe9e3);box-shadow:inset 0 -7px 0 var(--cap-edge),inset 0 0 0 1px #e6e4de,0 14px 22px -10px #2b344566,0 3px 4px -2px #2b344522;font:500 34px/1 "Poppins",sans-serif;color:var(--ink)}
+#post .title-wipe{position:absolute;inset:0;z-index:10;background:#fff;display:grid;place-items:center;transform:translateX(-102%);transition:transform .8s cubic-bezier(.65,0,.25,1);box-shadow:24px 0 60px -20px #2b344540}
+#post .title-wipe.in{transform:none}
+#post .title-keys{position:relative;height:300px}
+#post .title-wipe .title-keys{width:540px;height:292px;transform:scale(calc(var(--k,1) * 1.35))}
+#post .title-keys .kcap{position:absolute;width:76px;height:76px;font-size:36px;opacity:0;transform:translateY(-14px) rotate(var(--r)) scale(1.06)}
+#post .title-keys .kcap.on{opacity:1;transform:rotate(var(--r));transition:opacity .12s,transform .22s cubic-bezier(.3,1.5,.6,1)}
+#post .thanks .qr{width:210px;height:210px;margin:0 auto 12px;display:block;image-rendering:pixelated;box-shadow:0 0 0 1px var(--rule)}
+#post .thanks .final-link{font:500 15px/1 "Poppins",sans-serif;color:var(--ink-2);word-break:break-all}
+#post .thanks .rule{width:120px;height:1px;background:var(--gray);margin:30px auto 26px}
+#post .thanks h1{font-size:44px;margin:0 0 16px}
+#post .thanks .lead{font-size:19px;color:var(--ink-2);line-height:1.9}
+@media (prefers-reduced-motion:reduce){#post .title-keys .kcap,#post .title-wipe{transition:none!important}}
 </style>
 </head>
 <body>
-<div id="app">
-  <nav id="list"></nav>
-  <main>
-    <header>
-      <div id="head"><h1 id="name"></h1><p id="note"></p><p id="use"></p></div>
-      <div id="opts"></div>
-      <button id="conn"></button>
-    </header>
-    <canvas id="cv"></canvas>
-    <footer>
-      <label>速さ <input id="spd" type="range" min="0.25" max="3" step="0.05" value="1"><output></output></label>
-      <label>強さ <input id="str" type="range" min="5" max="100" step="1" value="100"><output></output></label>
-      <label>駆動時間 <input id="len" type="range" min="30" max="400" step="5" value="150"><output></output></label>
-      <span id="status"></span>
-      <span id="keys">Space 一時停止　Esc 止める　asdfjkl; 手で打つ・白いキーを押す</span>
-    </footer>
-  </main>
-</div>
+<div id="frame"><canvas id="cv"></canvas><div id="post"></div></div>
+<footer id="bar">
+  <div class="row">
+    <div id="opts"></div>
+    <button class="op" id="fsBtn">全画面で表示</button>
+    <button class="op" id="conn"></button>
+    <span id="status"></span>
+    <span id="keys">Enter はじめる　Space 一時停止　H 表示の切り替え　Esc 全画面をやめる</span>
+  </div>
+  <div class="row">
+    <label>速さ <input id="spd" type="range" min="0.25" max="3" step="0.05" value="1"><output></output></label>
+    <label>強さ <input id="str" type="range" min="5" max="100" step="1" value="100"><output></output></label>
+    <label>駆動時間 <input id="len" type="range" min="30" max="400" step="5" value="150"><output></output></label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="realConsent" checked> 撮影・公開について本人の実際の同意を確認済み</label>
+    <label><input type="checkbox" id="publicSession" checked> 公開セッション</label>
+    <button class="op" id="stopPublish">このセッションの公開を中止</button>
+    <button class="op" id="cameraBtn">カメラを開始</button><video id="pv-hands" muted playsinline></video>
+    <span id="xStatus">X投稿: 確認中…</span><button class="op" id="deletePost" disabled>直前の投稿をXから削除</button>
+    <span id="postResult"></span>
+  </div>
+</footer>
+<script src="post.js"></script>
 <script src="dialogue.js"></script>
 <script>
 'use strict';
 // ---- 基本 ----
 const $ = id => document.getElementById(id);
-const NAMES = ['A', 'S', 'D', 'F', 'J', 'K', 'L', ';'];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
 const ri = n => Math.floor(Math.random() * n);
@@ -70,7 +134,7 @@ const now = () => performance.now();
 const P = {spd: 1, str: 100, len: 150};   // 速さ（倍）・強さ（PWM %）・駆動時間（ms。キーが立ち上がるのに要る長さ。どの打鍵もこれより短くしない）
 
 // ---- 基板（Web Serial） ----
-// P key ms duty kick hz … 1本を ms だけ動かす ／ F ttl kick d0..d7 … 8本の強さをまとめて（動き続けるもの）／ X … 全部止める
+// P key ms duty kick hz … 1本を ms だけ動かす ／ X … 全部止める
 const enc = new TextEncoder();
 let port = null, writer = null, reader = null, version = '';
 function send(line) { if (writer) writer.write(enc.encode(line + '\n')).catch(() => {}); }
@@ -101,17 +165,6 @@ function onLine(l) {
   if ((m = l.match(/^(?:VERSION|READY) ([A-Z].*)$/))) version = m[1];
   else if ((m = l.match(/^REST (\d)/))) sim[+m[1]].rest = true;
   else if ((m = l.match(/^AWAKE (\d)/))) sim[+m[1]].rest = false;
-  else if ((m = l.match(/^RAISED ([0-9A-F]+)/i))) boardRaised = parseInt(m[1], 16);
-  else if ((m = l.match(/^DOWN (\d)/))) firePress(+m[1]);
-  else if ((m = l.match(/^UP (\d)/))) fireRelease(+m[1]);
-  else if ((m = l.match(/^SENSE (.*)/))) sense = m[1].trim().split(/\s+/).map(v => v.split('/').map(Number));
-  else if ((m = l.match(/^(?:AUTO KEY|CAL CONTACT) (\d)/))) calKeys[+m[1]] = 'ok';
-  else if ((m = l.match(/^(?:AUTO SKIP|CAL SKIP) (\d)/))) calKeys[+m[1]] = 'skip';
-  else if ((m = l.match(/^CAL DATA (\d)/))) calKeys[+m[1]] = /SKIPPED/.test(l) ? 'skip' : 'ok';
-  else if (/^AUTO START/.test(l)) { calKeys.fill(null); status('校正中…キーに触れないでください'); }
-  else if (/^CAL SAVED/.test(l)) status('校正を保存しました', 3000);
-  else if (/^CAL (CANCELLED|TIMEOUT)/.test(l)) status('校正を中止しました', 3000);
-  else if (/^(LISTEN ERROR|CAL PROFILE MISSING)/.test(l)) status('校正データがありません（「校正」でオートキャリブレーション）');
   connUI();
 }
 let statusTimer = 0;
@@ -127,12 +180,12 @@ async function closePort() {
 }
 function connUI() {
   const b = $('conn');
-  b.className = '';
+  b.className = 'op';
   if (!('serial' in navigator)) { b.textContent = 'Chrome で開いてください'; b.disabled = true; return; }
   if (!writer) { b.textContent = '基板に接続'; return; }
-  if (version && !/KEYCAP-LAB-v[2-9]/.test(version)) { b.textContent = `${version}（keycap_lab.ino を書き込む）`; b.className = 'warn'; return; }
+  if (version && !/KEYCAP-LAB-v[2-9]/.test(version)) { b.textContent = `${version}（keycap_lab.ino を書き込む）`; b.className = 'op warn'; return; }
   b.textContent = version ? '接続中' : '接続中…';
-  b.className = 'live';
+  b.className = 'op live';
 }
 $('conn').onclick = async () => {
   if (writer) return closePort();
@@ -144,9 +197,8 @@ if ('serial' in navigator) {
 }
 
 // ---- 出力（基板と、画面のキーの両方へ） ----
-const sim = NAMES.map(() => ({active: false, start: 0, until: 0, duty: 0, kick: 0, hz: 0, lift: 0, rest: false}));
+const sim = Array.from({length: 8}, () => ({active: false, start: 0, until: 0, duty: 0, kick: 0, hz: 0, lift: 0, rest: false}));
 const lastHit = new Array(8).fill(-1e9);
-let lastFrame = '', lastFrameAt = 0;
 function hit(k, ms = P.len, duty = P.str, kick = 0, hz = 0) {
   if (paused || k < 0 || k > 7) return;
   ms = Math.round(clamp(Math.max(ms, P.len), 1, 5000)); duty = Math.round(clamp(duty, 0, 100));
@@ -154,53 +206,9 @@ function hit(k, ms = P.len, duty = P.str, kick = 0, hz = 0) {
   send(`P ${k} ${ms} ${duty} ${kick | 0} ${hz | 0}`);
   const t = now();
   Object.assign(sim[k], {active: true, start: t, until: t + ms, duty, kick, hz});
-  lastHit[k] = t; lastFrame = '';
+  lastHit[k] = t;
 }
-// 8本の強さ（0〜100）。続けて呼ぶと動き続け、呼ばなくなると ttl で止まる
-// 上がり始めたキーは、駆動時間がたつまで下げない
-const frameHold = NAMES.map(() => ({until: 0, duty: 0}));
-function frame(d, ttl = 160, kick = 0) {
-  if (paused) return;
-  const t = now();
-  d = d.map((v, k) => {
-    v = Math.round(clamp(v || 0, 0, 100));
-    const hold = frameHold[k];
-    if (v && !(sim[k].active && t <= sim[k].until)) { hold.until = t + P.len; hold.duty = v; }
-    return v || (t < hold.until ? hold.duty : 0);
-  });
-  const key = d.join(' ');
-  if (key === lastFrame && (t - lastFrameAt < ttl * 0.45 || d.every(v => !v))) return;
-  lastFrame = key; lastFrameAt = t;
-  send(`F ${ttl} ${kick} ${key}`);
-  d.forEach((v, k) => {
-    const s = sim[k];
-    if (!v) { s.active = false; return; }
-    if (!s.active || t > s.until) { Object.assign(s, {start: t, kick, hz: 0}); lastHit[k] = t; }
-    Object.assign(s, {active: true, until: t + ttl, duty: v});
-  });
-}
-function stopAll() { send('X'); sim.forEach(s => s.active = false); lastFrame = ''; listenMask = 0; pressed.fill(false); }
-// あなたが押すキー：mask のキーを上げて待ち、押し込まれたら実験の press(s, k) を呼ぶ（基板からの DOWN、または PC のキー）
-let listenMask = 0, boardRaised = 0, sense = null;
-const pressed = new Array(8).fill(false), calKeys = new Array(8).fill(null);
-function listen(mask) {
-  if (paused) mask = 0;
-  if (mask === listenMask) return;
-  listenMask = mask;
-  for (let i = 0; i < 8; i++) if (!(mask >> i & 1)) pressed[i] = false;
-  send('U ' + mask.toString(16));
-}
-setInterval(() => { if (listenMask) send('U ' + listenMask.toString(16)); }, 300);   // 1秒途切れると基板が下げる
-function firePress(k) {
-  if (paused || !(listenMask >> k & 1) || pressed[k]) return;
-  pressed[k] = true;
-  cur.press?.(s, k, now());
-}
-function fireRelease(k) {
-  if (!pressed[k]) return;
-  pressed[k] = false;
-  cur.release?.(s, k, now());
-}
+function stopAll() { send('X'); sim.forEach(s => s.active = false); }
 function simLevel(k, t) {
   const s = sim[k];
   if (!s.active || t > s.until) return 0;
@@ -216,93 +224,38 @@ function clearTimers() { timers.forEach(clearTimeout); timers.clear(); }
 // ---- 音 ----
 let AC = null;
 function audio() { if (!AC) AC = new AudioContext(); if (AC.state === 'suspended') AC.resume(); return AC; }
-function tone(f, ms = 200, vol = 0.12, type = 'sine') {
-  const a = audio(), o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
-  o.type = type; o.frequency.value = f;
-  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + ms / 1000);
-  o.connect(g).connect(a.destination); o.start(t); o.stop(t + ms / 1000 + 0.02);
-}
 
 // ---- 画面の配置（画面のキーと実物のキーを同じ並びにする） ----
 const cv = $('cv'), g = cv.getContext('2d');
-let W = 0, H = 0, STEP = 0, KY = 0, GROUND = 0;
+let W = 0, H = 0, STEP = 0, KY = 0;
 const KX = [];
 function layout() {
+  const fr = $('frame'), fs = !!document.fullscreenElement;
+  document.documentElement.classList.toggle('fs', fs);
+  fr.style.width = Math.min(innerWidth, fr.clientHeight * 16 / 9) + 'px';   // 16:9 より横長にしない
   const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
   W = r.width; H = r.height;
   cv.width = W * dpr; cv.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  STEP = Math.min(W / 10.5, 120);
+  STEP = Math.min(W / 10.5, H * 0.13, 120);
   for (let i = 0; i < 8; i++) KX[i] = W / 2 + (i - 3.5) * STEP + (i < 4 ? -1 : 1) * STEP * 0.3;
   KY = H - STEP * 0.7;
-  GROUND = KY - STEP * 0.75;
 }
 const kx = i => KX[i];
-function kToX(k) {
-  if (k <= 0) return KX[0] + k * STEP;
-  if (k >= 7) return KX[7] + (k - 7) * STEP;
-  const i = Math.floor(k);
-  return KX[i] + (KX[i + 1] - KX[i]) * (k - i);
-}
-function xToK(x) {
-  if (x <= KX[0]) return (x - KX[0]) / STEP;
-  if (x >= KX[7]) return 7 + (x - KX[7]) / STEP;
-  for (let i = 0; i < 7; i++) if (x <= KX[i + 1]) return i + (x - KX[i]) / (KX[i + 1] - KX[i]);
-}
-const ptr = {x: 0, y: 0, down: false};
-cv.addEventListener('pointerdown', e => { ptr.down = true; cv.setPointerCapture(e.pointerId); movePtr(e); });
-cv.addEventListener('pointermove', movePtr);
-cv.addEventListener('pointerup', () => ptr.down = false);
-function movePtr(e) { const r = cv.getBoundingClientRect(); ptr.x = e.clientX - r.left; ptr.y = e.clientY - r.top; }
 
-// ---- 描画の道具 ----
-const ACC = '#ffb547', FG = '#e8e6e1', DIM = '#7d7a74', LINE = '#26272b';
+// ---- 画面のキー（橙は、機械が押し上げているキー） ----
+const ACC = '#ffb547';
 function alpha(c, a) { const n = parseInt(c.slice(1), 16); return `rgba(${n >> 16},${n >> 8 & 255},${n & 255},${a})`; }
-function rrect(x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
-function dot(x, y, r, c) { g.fillStyle = c; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
-function text(s, x, y, size, c = FG, align = 'center') { g.fillStyle = c; g.font = `500 ${size}px "Hiragino Sans","Noto Sans JP",sans-serif`; g.textAlign = align; g.textBaseline = 'middle'; g.fillText(s, x, y); }
-function glow(t, decay = 220) {   // 打ったキーの上に光の柱
-  for (let i = 0; i < 8; i++) {
-    const a = Math.exp(-(t - lastHit[i]) / decay);
-    if (a < 0.02) continue;
-    const grd = g.createLinearGradient(0, GROUND, 0, GROUND - STEP * 3);
-    grd.addColorStop(0, alpha(ACC, 0.5 * a)); grd.addColorStop(1, alpha(ACC, 0));
-    g.fillStyle = grd; g.fillRect(kx(i) - STEP * 0.3, GROUND - STEP * 3, STEP * 0.6, STEP * 3);
-  }
-}
-function heart(x, y, s) {
-  g.beginPath(); g.moveTo(x, y + 0.9 * s);
-  g.bezierCurveTo(x - 1.25 * s, y + 0.05 * s, x - 0.85 * s, y - 1.05 * s, x, y - 0.4 * s);
-  g.bezierCurveTo(x + 0.85 * s, y - 1.05 * s, x + 1.25 * s, y + 0.05 * s, x, y + 0.9 * s);
-  g.fill();
-}
-const CARD_KEYS = [2, 3, 4, 5], WORDS = ['たのしい', 'ふつう', 'つまらない', 'ふしぎ'];
-function cards(hl, sel, selColor = ACC) {
-  const w = STEP * 0.92, h = STEP * 1.25, y = GROUND * 0.32;
-  CARD_KEYS.forEach((k, i) => {
-    const x = kx(k) - w / 2;
-    rrect(x, y, w, h, 8);
-    g.fillStyle = sel === i ? selColor : hl === i ? '#2a2b30' : '#18191c'; g.fill();
-    g.strokeStyle = sel === i ? selColor : hl === i ? ACC : LINE; g.lineWidth = 1.5; g.stroke();
-    text(WORDS[i], kx(k), y + h / 2, Math.min(STEP * 0.17, 18), sel === i ? '#111' : FG);
-  });
-  return y + h;
-}
 function drawKeys(t, dt) {
   const ks = STEP * 0.74;
-  const onBoard = writer && /KEYCAP-LAB-v[2-9]/.test(version);
   for (let i = 0; i < 8; i++) {
     const s = sim[i], push = simLevel(i, t);
-    const up = !push && (onBoard ? boardRaised : listenMask) >> i & 1 && !pressed[i] ? 1 : 0;
     s.lift += (push - s.lift) * Math.min(1, dt / 30);
-    s.up = (s.up || 0) + (up - (s.up || 0)) * Math.min(1, dt / 40);
-    const y = KY - Math.max(s.lift, s.up) * ks * 0.25;
-    rrect(kx(i) - ks / 2, y - ks / 2 + 4, ks, ks, ks * 0.16); g.fillStyle = '#08090a'; g.fill();
-    rrect(kx(i) - ks / 2, y - ks / 2, ks, ks, ks * 0.16);
+    const y = KY - s.lift * ks * 0.25;
+    g.beginPath(); g.roundRect(kx(i) - ks / 2, y - ks / 2 + 4, ks, ks, ks * 0.16); g.fillStyle = '#08090a'; g.fill();
+    g.beginPath(); g.roundRect(kx(i) - ks / 2, y - ks / 2, ks, ks, ks * 0.16);
     g.fillStyle = '#1d1e22'; g.fill();
-    if (s.up > 0.02) { g.fillStyle = alpha(FG, s.up * 0.85); g.fill(); }
     if (s.lift > 0.02) { g.fillStyle = alpha(ACC, s.lift * 0.85); g.fill(); }
-    g.strokeStyle = s.rest ? '#e5484d' : pressed[i] ? FG : '#34353a'; g.lineWidth = 1.5; g.stroke();
-    text(NAMES[i], kx(i), y, ks * 0.3, Math.max(s.lift, s.up) > 0.5 ? '#111' : DIM);
+    g.strokeStyle = s.rest ? '#e5484d' : '#34353a'; g.lineWidth = 1.5; g.stroke();
   }
 }
 
@@ -335,7 +288,7 @@ function toMora(str) {
 
 // ---- 人らしい打鍵（who-typed-exhibition-scenario.html の CONFIG.rhythm と interKey と同じ） ----
 const RHYTHM = {min: 65, max: 82, altHand: 0.82, sameHand: 1.0, rowJump: 1.15, sameFinger: 1.55, sameKey: 1.25, inMora: 0.9, moraStart: 1.12,
-  phrasePause: [40, 140], commaPause: [180, 380], periodPause: [320, 560], hesitationChance: 0.04, hesitation: [140, 320], jitter: 0.15};
+  hesitationChance: 0.04, hesitation: [140, 320], jitter: 0.15};
 const ROWS = ['qwertyuiop', 'asdfghjkl;', 'zxcvbnm,./'];
 const rowOf = ch => { const r = ROWS.findIndex(x => x.includes(ch)); return r < 0 ? 1 : r; };
 function interKey(a, b, moraStart) {
@@ -352,1292 +305,26 @@ function interKey(a, b, moraStart) {
   if (moraStart && Math.random() < RHYTHM.hesitationChance) t += rand(...RHYTHM.hesitation);
   return t;
 }
-// 文を、その文字を打つ指で打つ。返す st の done（打ち終えた文字）と pend（入力中のローマ字）を描く。
-// human = false は一定のテンポ。同じ指が続くときは、キーが戻るのを待つ
-function typist(str, {human = true, onDone} = {}) {
-  const st = {done: '', pend: '', m: toMora(str)};
-  let mi = 0, ki = 0, lastF = -1, lastAt = 0;
-  const step = () => {
-    if (mi >= st.m.length) return onDone?.();
-    const mo = st.m[mi];
-    if (!mo.keys) { st.done += mo.disp; mi++; return at((mo.space ? rand(...RHYTHM.phrasePause) + 120 : 80) / P.spd, step); }
-    const ch = mo.keys[ki], f = fingerOf(ch);
-    if (f >= 0) { hit(f); lastF = f; lastAt = now(); }
-    st.pend += ch; ki++;
-    const end = ki >= mo.keys.length;
-    if (end) { st.done += mo.disp; st.pend = ''; mi++; ki = 0; }
-    const next = end ? st.m[mi]?.keys[0] : mo.keys[ki];
-    let w = human ? interKey(ch, next, end) : 130;
-    if (end && /[、,]/.test(mo.disp)) w += rand(...RHYTHM.commaPause);
-    if (end && /[。.！？!?]/.test(mo.disp)) w += rand(...RHYTHM.periodPause);
-    w /= P.spd;
-    if (fingerOf(next) === lastF) w = Math.max(w, P.len + 90 - (now() - lastAt));
-    at(w, step);
-  };
-  step();
-  return st;
-}
-function drawTyped(st, y, size = Math.min(STEP * 0.42, 44)) {
-  if (!st) return;
-  g.font = `500 ${size}px "Hiragino Sans",sans-serif`;
-  const w1 = g.measureText(st.done).width, w2 = g.measureText(st.pend).width, x0 = W / 2 - (w1 + w2) / 2;
-  text(st.done, x0, y, size, FG, 'left'); text(st.pend, x0 + w1, y, size, ACC, 'left');
-  if (st.pend) { g.fillStyle = ACC; g.fillRect(x0 + w1, y + size * 0.6, w2, 2); }
-}
-function speak(str) {
-  if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(str); u.lang = 'ja-JP';
-  speechSynthesis.speak(u);
-}
-function bubble(x, y, w, h, fill, tail) {   // tail: 'left' / 'right' / null
-  rrect(x, y, w, h, Math.min(18, h / 2)); g.fillStyle = fill; g.fill();
-  if (tail) { g.beginPath(); const tx = tail === 'left' ? x : x + w; g.moveTo(tx, y + 10); g.lineTo(tx + (tail === 'left' ? -9 : 9), y + 6); g.lineTo(tx, y + 20); g.fill(); }
-}
-const MELODIES = {
-  'きらきら星': [[0, 1], [0, 1], [4, 1], [4, 1], [5, 1], [5, 1], [4, 2], [3, 1], [3, 1], [2, 1], [2, 1], [1, 1], [1, 1], [0, 2]],
-  'かえるのうた': [[0, 1], [1, 1], [2, 1], [3, 1], [2, 1], [1, 1], [0, 2], [2, 1], [3, 1], [4, 1], [5, 1], [4, 1], [3, 1], [2, 2],
-    [0, 1], [-1, 1], [0, 1], [-1, 1], [0, 1], [-1, 1], [0, 1], [-1, 1],
-    [0, .5], [0, .5], [1, .5], [1, .5], [2, .5], [2, .5], [3, .5], [3, .5], [2, 1], [1, 1], [0, 2]],
-  '音階': [0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 0].map(k => [k, 0.5]),
-};
-const FREQ = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
 
-// ---- リズムの道具（太鼓の音・16分音符の刻み・流れるタイムライン） ----
-const randn = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
-let NOISE = null;
-function drum(kind, vol = 1) {
-  const a = audio(), t = a.currentTime, gn = a.createGain();
-  gn.connect(a.destination);
-  if (kind === 'kick') {
-    const o = a.createOscillator();
-    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
-    gn.gain.setValueAtTime(0.55 * vol, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
-    o.connect(gn); o.start(t); o.stop(t + 0.34);
-    return;
-  }
-  if (!NOISE) { NOISE = a.createBuffer(1, a.sampleRate / 2, a.sampleRate); const d = NOISE.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
-  const n = a.createBufferSource(), f = a.createBiquadFilter(), len = kind === 'hat' ? 0.05 : 0.18;
-  n.buffer = NOISE;
-  f.type = kind === 'hat' ? 'highpass' : 'bandpass'; f.frequency.value = kind === 'hat' ? 7000 : 1800;
-  gn.gain.setValueAtTime((kind === 'hat' ? 0.1 : 0.32) * vol, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + len);
-  n.connect(f).connect(gn); n.start(t); n.stop(t + len + 0.02);
-}
-function plink(f = 1200, vol = 0.1) {   // 水の一滴
-  const a = audio(), t = a.currentTime, o = a.createOscillator(), gn = a.createGain();
-  o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 1.8, t + 0.05);
-  gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-  o.connect(gn).connect(a.destination); o.start(t); o.stop(t + 0.18);
-}
-function knock(vol = 0.3) { tone(780, 160, vol); tone(1240, 90, vol * 0.5, 'triangle'); tone(390, 260, vol * 0.4); }   // 竹が石を打つ音
-function whisper(str) {
-  if (!('speechSynthesis' in window)) return;
-  const u = new SpeechSynthesisUtterance(str); u.lang = 'ja-JP'; u.volume = 0.15; u.rate = 0.75; u.pitch = 0.3;
-  speechSynthesis.speak(u);
-}
-// 16分音符ごとに fn(n, T) を呼ぶ（n は通し番号、T はその時刻）。250ms 先まで予約する
-function seq(s, t, bpm, fn) {
-  if (s.next == null) { s.n = 0; s.next = t + 600; }
-  while (s.next - t < 250) { fn(s.n, s.next); s.n++; s.next += 60000 / (bpm * P.spd) / 4; }
-}
-// 8ビート：バスドラムは1拍目と3拍目（と3拍目の裏）、スネアは2拍目と4拍目、ハイハットは8分音符
-const BACKBEAT = n => { const i = n % 16; return [...([0, 8, 10].includes(i) ? ['kick'] : []), ...(i === 4 || i === 12 ? ['snare'] : []), ...(i % 2 ? [] : ['hat'])]; };
-// T に太鼓（drums）とキー（keys）を鳴らし、タイムラインに残す
-function beatAt(s, T, {drums = [], keys = [], str = P.str} = {}) {
-  s.ev ||= [];
-  drums.forEach(d => s.ev.push({T, row: 'drum', d}));
-  if (keys.length) s.ev.push({T, row: 'key'});
-  at(T - now(), () => {
-    if (s.o.snd !== '音なし') drums.forEach(d => drum(d));
-    keys.forEach(k => hit(k, P.len, str));
-  });
-}
-function beatGrid(s, T, n) { s.ev ||= []; if (n % 4 === 0) s.ev.push({T, row: 'grid', bar: n % 16 === 0}); }
-// 上の段が太鼓、下の段がキー。右の縦線が「いま」で、鳴ったものが左へ流れていく
-function timeline(s, t) {
-  const cx = W * 0.78, px = (cx - W * 0.12) / 3000, y0 = GROUND * 0.34, y1 = GROUND * 0.62, R = STEP * 0.09;
-  s.ev = (s.ev || []).filter(e => e.T > t - 3000);
-  text('音', cx + STEP * 0.6, y0, STEP * 0.16, DIM); text('キー', cx + STEP * 0.6, y1, STEP * 0.16, DIM);
-  s.ev.forEach(e => {
-    const x = cx + (e.T - t) * px;
-    if (e.T > t || x < 0) return;   // まだ鳴っていないものは出さない
-    const a = Math.max(0, 1 - (t - e.T) / 3000);
-    if (e.row === 'grid') { g.fillStyle = alpha(FG, (e.bar ? 0.22 : 0.09) * a); g.fillRect(x, y0 - STEP * 0.5, 1, y1 - y0 + STEP); }
-    else if (e.row === 'drum') dot(x, y0, e.d === 'kick' ? R * 1.3 : e.d === 'snare' ? R : R * 0.5, alpha(FG, 0.7 * a));
-    else dot(x, y1, R * 1.4, alpha(ACC, a));
-  });
-  g.fillStyle = alpha(FG, 0.5); g.fillRect(cx - 1, y0 - STEP * 0.6, 2, y1 - y0 + STEP * 1.2);
-}
-// 文の次の1文字を T に打つ（ローマ字の2打目以降は 55ms ずつ後。同じ指は1回）
-function moraAt(s, T) {
-  if (!s.m.length) return;
-  if (s.rest > 0) { if (--s.rest === 0) { s.mi = 0; at(T - now(), () => s.st.done = ''); } return; }
-  const mo = s.m[s.mi++];
-  if (s.mi >= s.m.length) s.rest = 6;
-  let lastF = -1, j = 0;
-  for (const ch of mo.keys) {
-    const f = fingerOf(ch);
-    if (f < 0 || f === lastF) continue;
-    lastF = f;
-    const TT = T + j++ * 55;
-    s.ev.push({T: TT, row: 'key'});
-    at(TT - now(), () => hit(f));
-  }
-  at(T - now(), () => s.st.done += mo.disp);
-}
-// 長い文を折り返して、下の行から見せる（入力中のローマ字は橙）
-function drawWrapped(done, pend, y0, y1, size) {
-  const per = Math.max(8, Math.floor(W * 0.8 / size)), rows = Math.max(1, Math.floor((y1 - y0) / (size * 1.5)));
-  const lines = [];
-  for (let i = 0; i < done.length; i += per) lines.push(done.slice(i, i + per));
-  if (!lines.length) lines.push('');
-  const shown = lines.slice(-rows);
-  shown.forEach((l, j) => text(l, W * 0.1, y0 + j * size * 1.5, size, FG, 'left'));
-  if (pend) { g.font = `500 ${size}px "Hiragino Sans",sans-serif`; text(pend, W * 0.1 + g.measureText(shown[shown.length - 1]).width, y0 + (shown.length - 1) * size * 1.5, size, ACC, 'left'); }
-}
-const QUERIES = [
-  {kana: 'きょうの てんき', sug: ['今日の天気', '今日の天気 東京', '今日の天気 1時間ごと', '今日の天気 夜'], pick: 1},
-  {kana: 'ちかくの かふぇ', sug: ['近くのカフェ', '近くのカフェ 今やってる', '近くのカフェ 静か', '近くのカフェ ひとりで'], pick: 3},
-  {kana: 'ゆびが かってに', sug: ['指が勝手に', '指が勝手に動く', '指が勝手に打つ', '指が勝手に送信する'], pick: 3},
-  {kana: 'これを うったのは', sug: ['これを打ったのは', 'これを打ったのは誰', 'これを打ったのは私', 'これを打ったのは私じゃない'], pick: 3},
-];
-// プチゲーム：start → 毎フレーム tick → press。G.done で早めに終わる。時間切れのときは G.win のまま
-const MINI = [
-  {cmd: 'つぶせ！', sub: '白いキーの上を歩く虫を押す', dur: 3400,
-   start(s, G) { G.dir = pick([1, -1]); G.x = -1; },
-   tick(s, G, t, p) { G.x = G.dir > 0 ? -0.6 + p * 8.2 : 7.6 - p * 8.2; const k = Math.round(G.x); listen(k >= 0 && k < 8 ? 1 << k : 0); },
-   press(s, G, k) { if (k === Math.round(G.x)) { G.win = G.done = true; } },
-   draw(s, G, t) {
-     const x = kToX(G.x), y = GROUND - STEP * 0.2, r = STEP * 0.1;
-     g.strokeStyle = FG; g.lineWidth = 2;
-     for (let i = -1; i <= 1; i++) { const w = Math.sin(t / 60 + i) * r * 0.5; g.beginPath(); g.moveTo(x + i * r * 0.7, y); g.lineTo(x + i * r * 0.9 + w, y - r * 1.6); g.moveTo(x + i * r * 0.7, y); g.lineTo(x + i * r * 0.9 - w, y + r * 1.6); g.stroke(); }
-     dot(x, y, r, FG);
-   }},
-  {cmd: 'まて！', sub: 'どのキーも押さない', dur: 3000,
-   start(s, G) { G.win = true; G.next = 0; },
-   tick(s, G, t) { listen(0x3C); if (t > G.next) { hit(pick([0, 1, 6, 7]), P.len, P.str * rand(0.5, 1)); G.next = t + rand(150, 320) / P.spd; } },
-   press(s, G) { G.win = false; G.done = true; },
-   draw() {}},
-  {cmd: 'れんだ！', sub: 'F と J をこうごに6回', dur: 3400,
-   start(s, G) { G.n = 0; G.need = 6; },
-   tick(s, G) { listen(1 << (G.n % 2 ? 4 : 3)); },
-   press(s, G, k) { if (k === (G.n % 2 ? 4 : 3)) { G.n++; tone(600 + G.n * 80, 60, 0.08, 'square'); if (G.n >= G.need) G.win = G.done = true; } },
-   draw(s, G) { text(`${G.n} / ${G.need}`, W / 2, GROUND * 0.6, STEP * 0.4, FG); }},
-  {cmd: 'うけろ！', sub: '落ちてきた列のキーを押す', dur: 2800,
-   start(s, G) { G.k = ri(8); },
-   tick(s, G, t, p) { listen(p > 0.55 && p < 0.92 ? 1 << G.k : 0); },
-   press(s, G, k) { if (k === G.k) G.win = G.done = true; },
-   draw(s, G, t, p) { dot(kx(G.k), Math.min(1, p / 0.6) ** 2 * (GROUND - STEP * 0.3), STEP * 0.14, ACC); }},
-  {cmd: 'ながいほう！', sub: '長く押し上げられた指を押す', dur: 4000,
-   start(s, G) { const [a, b] = [2, 3, 4, 5].sort(() => Math.random() - 0.5); G.strong = a; G.weak = b; G.next = 0; G.i = 0; },
-   tick(s, G, t, p) {
-     if (p < 0.4) { if (t > G.next) { const k = G.i++ % 2 ? G.weak : G.strong; hit(k, k === G.strong ? P.len + 250 : P.len, k === G.strong ? 100 : 40); G.next = t + 520 / P.spd; } }
-     else listen(1 << G.strong | 1 << G.weak);
-   },
-   press(s, G, k) { if (k === G.strong || k === G.weak) { G.win = k === G.strong; G.done = true; } },
-   draw(s, G) { [G.strong, G.weak].forEach(k => text('?', kx(k), GROUND * 0.6, STEP * 0.5, FG)); }},
-];
-function miniNext(s) {
-  listen(0);
-  if (s.life <= 0) { s.state = 'over'; s.ts = now(); return at(3500, () => { Object.assign(s, {score: 0, life: 4, speed: 1}); miniNext(s); }); }
-  let gi; do gi = ri(MINI.length); while (gi === s.gi);
-  Object.assign(s, {gi, G: {}, state: 'cmd', ts: now()});
-  tone(880, 80, 0.08, 'square'); at(110, () => tone(1320, 120, 0.08, 'square'));
-  at(1000 / s.speed, () => { Object.assign(s, {state: 'play', ts: now(), dur: MINI[gi].dur / s.speed}); MINI[gi].start(s, s.G); });
-}
-function miniEnd(s) {
-  if (s.state !== 'play') return;
-  listen(0);
-  Object.assign(s, {state: 'res', ts: now(), win: !!s.G.win});
-  if (s.win) { s.score++; s.speed = Math.min(2.2, s.speed * 1.1); tone(1046, 90, 0.1, 'triangle'); at(100, () => tone(1568, 160, 0.1, 'triangle')); }
-  else { s.life--; tone(220, 300, 0.1, 'sawtooth'); }
-  at(900, () => miniNext(s));
-}
-// 感情のグラデーション「文」：段階ごとに、文と打ち方を変える
-function gradText(s) {
-  const ph = () => (now() - s.t0) / s.total;
-  const line = p => p < 0.33 ? 'きょうは たのしかった。' : p < 0.66 ? 'きょうは たのしかった、の かな。' : 'たのしかった ';
-  let keys = [], i = 0;
-  const load = () => {
-    keys = [];
-    toMora(line(ph())).forEach(m => { if (!m.keys) keys.push({disp: m.disp, ch: ''}); else [...m.keys].forEach((ch, j) => keys.push({ch, f: fingerOf(ch), disp: m.disp, end: j === m.keys.length - 1})); });
-    i = 0;
-  };
-  const step = () => {
-    const p = ph();
-    if (p >= 1) return;
-    if (i >= keys.length) {
-      if (p < 0.66) return at(1500 / P.spd, () => { s.out = ''; load(); step(); });
-      load(); return at(40, step);   // おかしい：区切らずに打ち続ける
-    }
-    const e = keys[i++];
-    if (!e.ch) { s.out += e.disp; return at(rand(150, 300) / P.spd, step); }
-    const x = clamp((p - 0.33) / 0.33, 0, 1), y = clamp((p - 0.66) / 0.34, 0, 1);
-    let f = e.f;
-    if (x > 0 && Math.random() < 0.15 * x) f = clamp(f + pick([-1, 1]), 0, 7);   // 文字と違う指が動く
-    if (y > 0.3 && Math.random() < 0.5 * y) f = ri(8);
-    if (f >= 0) hit(f);
-    s.pend += e.ch;
-    if (e.end) { s.out += e.disp; s.pend = ''; }
-    let w = interKey(e.ch, keys[i]?.ch, e.end);
-    if (x > 0 && Math.random() < 0.3 * x) w += rand(200, 650) * x;   // ためらう
-    if (y > 0) w *= Math.max(0.15, 1 - 0.9 * y);                       // 止まらなくなる
-    w /= P.spd;
-    if (keys[i]?.f === f) w = Math.max(w, P.len + 60);
-    at(w, step);
-  };
-  load(); at(800, step);
-}
-
-// ---- 実験 ----
+// ---- 体験（声の対話。dialogue.js） ----
 // init(s) で始め、draw(s, t, dt) を毎フレーム呼ぶ。s.o は右上の選択肢。at() の予約は切り替えで消える
-const EXPS = [
-// はじめ
-{id: 'intro', group: 'はじめ', name: 'インストラクター', note: 'インストラクターが「こんにちは」とあいさつし、同じ言葉をあなたの指で打たせる（入力は受け付けない）', use: '体験の最初の誘導',
- opts: {voice: ['声あり', '声なし']}, text: 'こんにちは',
- init(s) {
-   const say = str => { s.say = str; s.sayT = now(); if (s.o.voice === '声あり') speak(str); };
-   const run = () => {
-     s.st = null; say('こんにちは。');
-     at(1800, () => { say('キーボードに指を置いてください。');
-       at(2800, () => { say(`いっしょに「${s.text}」と打ってみましょう。`);
-         at(3000, () => { s.st = typist(s.text, {onDone: () => at(700, () => { say('じょうずです。'); at(3500, run); })}); }); }); });
-   };
-   run();
- },
- draw(s, t) {
-   const x = W * 0.2, y = GROUND * 0.36, r = STEP * 0.42, talking = t - s.sayT < s.say.length * 110;
-   dot(x, y + r * 2.1, r * 1.25, '#2a2b30');
-   dot(x, y, r, FG); dot(x - r * 0.32, y - r * 0.1, r * 0.08, '#111'); dot(x + r * 0.32, y - r * 0.1, r * 0.08, '#111');
-   g.fillStyle = '#111'; g.beginPath(); g.ellipse(x, y + r * 0.35, r * 0.22, talking ? r * (0.06 + 0.1 * Math.abs(Math.sin(t / 70))) : r * 0.04, 0, 0, Math.PI * 2); g.fill();
-   const shown = s.say.slice(0, Math.floor((t - s.sayT) / 70) + 1), size = Math.min(STEP * 0.24, 24);
-   g.font = `500 ${size}px "Hiragino Sans",sans-serif`;
-   const bw = Math.max(g.measureText(s.say).width + size * 1.6, size * 4), bx = x + r * 1.5, by = y - r * 0.9;
-   bubble(bx, by, bw, size * 2.4, '#2a2b30', 'left');
-   text(shown, bx + size * 0.8, by + size * 1.2, size, FG, 'left');
-   drawTyped(s.st, GROUND * 0.78);
- }},
-{id: 'lineup', group: 'はじめ', name: '順に光る', note: '画面のキーが左から1つずつ光り、実物のキーも同じ順に上がっていく', use: '指を置く位置の確認／体験の始まり',
- opts: {mode: ['たまる', '1本ずつ'], dir: ['左から', '右から']},
- init(s) {
-   s.lit = new Array(8).fill(-1e9);
-   const run = () => {
-     const iv = 350 / P.spd, hold = 900, order = s.o.dir === '左から' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
-     s.end = now() + 7 * iv + hold;
-     order.forEach((k, j) => at(j * iv, () => { hit(k, s.o.mode === 'たまる' ? (7 - j) * iv + hold : P.len); s.lit[k] = now(); }));
-     at(8 * iv + hold + 700, run);
-   };
-   run();
- },
- draw(s, t) {
-   for (let i = 0; i < 8; i++) {
-     const a = s.o.mode === 'たまる' ? (t >= s.lit[i] && t < s.end ? 1 : 0) : Math.exp(-(t - s.lit[i]) / 250);
-     if (a < 0.02) continue;
-     const grd = g.createRadialGradient(kx(i), KY, 0, kx(i), KY, STEP * 0.9);
-     grd.addColorStop(0, alpha(ACC, 0.45 * a)); grd.addColorStop(1, alpha(ACC, 0));
-     g.fillStyle = grd; g.fillRect(kx(i) - STEP, KY - STEP, STEP * 2, STEP * 2);
-   }
- }},
-
-// 動き
-{id: 'dot', group: '動き', name: '点', note: '点の下のキーが上がる。ドラッグで動かせる', use: 'キャラやカーソルの移動に合わせてウェーブ',
- opts: {mode: ['1本', 'なめらか', '尾を引く'], dir: ['往復', '右から左', '左から右']},
- init(s) { s.k = s.o.dir === '右から左' ? 8.5 : s.o.dir === '左から右' ? -1.5 : 0; s.dir = s.o.dir === '右から左' ? -1 : 1; s.trail = new Array(8).fill(0); s.path = []; },
- draw(s, t, dt) {
-   if (ptr.down) s.k = clamp(xToK(ptr.x), 0, 7);
-   else if (s.o.dir === '往復') { s.k += s.dir * dt / 1000 * 2.5 * P.spd; if (s.k > 7) { s.k = 7; s.dir = -1; } if (s.k < 0) { s.k = 0; s.dir = 1; } }
-   else { s.k += s.dir * dt / 1000 * 2.5 * P.spd; if (s.k < -2.5) s.k = 8.5; if (s.k > 9.5) s.k = -1.5; }
-   let lv = new Array(8).fill(0);
-   if (s.o.mode === '1本') { const k = Math.round(s.k); if (k >= 0 && k < 8) lv[k] = 1; }
-   else if (s.o.mode === 'なめらか') lv = lv.map((_, i) => { const w = 1 - Math.abs(s.k - i); return w > 0.15 ? 0.35 + 0.65 * w : 0; });
-   else { s.trail = s.trail.map((v, i) => Math.abs(s.k - i) < 0.5 ? 1 : Math.max(0, v - dt / 380)); lv = s.trail; }
-   frame(lv.map(v => v * P.str));
-   const y = GROUND * 0.5, x = kToX(s.k);
-   s.path.push([x, t]); s.path = s.path.filter(p => t - p[1] < 400);
-   s.path.forEach(([px, pt]) => dot(px, y, 10 * (1 - (t - pt) / 400), alpha(ACC, 0.25 * (1 - (t - pt) / 400))));
-   dot(x, y, 14, ACC);
- }},
-{id: 'walk', group: '動き', name: '歩く', note: '小さな何かが指の上を歩いて渡る。足が着いたキーが鳴る', use: 'エージェントが手元にやって来る／去っていく',
- opts: {mode: ['てくてく', 'のしのし', 'ちょこちょこ']},
- init(s) { s.x = -1.2; s.n = null; s.foot = 0; s.prints = []; },
- draw(s, t, dt) {
-   const m = s.o.mode, stride = {てくてく: 1, のしのし: 2, ちょこちょこ: 0.5}[m];
-   s.x += dt / 1000 * 1.5 * P.spd * {てくてく: 1, のしのし: 0.7, ちょこちょこ: 1.2}[m];
-   const n = Math.floor(s.x / stride + 0.5);
-   if (n !== s.n) {
-     s.n = n; s.foot ^= 1;
-     const k = Math.round(n * stride);
-     if (k >= 0 && k < 8) hit(k, P.len, P.str * (m === 'ちょこちょこ' ? 0.7 : 1));
-     s.prints.push({x: kToX(n * stride), f: s.foot, t});
-   }
-   if (s.x > 8.5) { s.x = -1.5; s.n = null; s.prints = []; }
-   s.prints.forEach(p => { const a = Math.max(0, 1 - (t - p.t) / 2500); g.fillStyle = alpha(ACC, 0.6 * a); g.beginPath(); g.ellipse(p.x, GROUND - 24 + (p.f ? -8 : 8), 7, 4, 0, 0, Math.PI * 2); g.fill(); });
-   const bob = Math.abs(Math.sin((s.x / stride) * Math.PI)) * 10, x = kToX(s.x);
-   dot(x, GROUND - 80 - bob, m === 'のしのし' ? 24 : m === 'ちょこちょこ' ? 11 : 16, FG);
- }},
-{id: 'steps', group: '動き', name: '足音', note: '人の足音。左足は左手、右足は右手で、かかと（人差し指・中指）から指先（薬指・小指）へ', use: '誰かが近づいてきて、通り過ぎていく',
- opts: {mode: ['近づいて遠ざかる', '一定']},
- init(s) {
-   s.n = 0; s.prints = [];
-   const N = 16;
-   const step = () => {
-     const env = s.o.mode === '一定' ? 1 : Math.sin(Math.PI * ((s.n % N) + 0.5) / N), left = s.n % 2 === 0;
-     const d = P.str * (0.5 + 0.5 * env);
-     (left ? [3, 2] : [4, 5]).forEach(k => hit(k, P.len, d));
-     at(90 / P.spd, () => (left ? [1, 0] : [6, 7]).forEach(k => hit(k, P.len, d * 0.8)));
-     s.prints.push({left, t: now(), env, p: s.o.mode === '一定' ? 0.5 : (s.n % N) / N});
-     s.n++;
-     at(s.o.mode !== '一定' && s.n % N === 0 ? 1800 : 520 / P.spd, step);
-   };
-   step();
- },
- draw(s, t) {
-   s.prints = s.prints.filter(p => t - p.t < 2500);
-   s.prints.forEach(p => {
-     const a = 1 - (t - p.t) / 2500, sc = STEP * (0.08 + 0.12 * p.env), x = W / 2 + (p.left ? -1 : 1) * STEP * 0.4, y = GROUND * (-0.1 + 1.1 * p.p);
-     g.fillStyle = alpha(FG, 0.8 * a);
-     g.beginPath(); g.ellipse(x, y, sc * 0.5, sc, 0, 0, Math.PI * 2); g.fill();
-     g.beginPath(); g.ellipse(x, y + sc * 1.35, sc * 0.4, sc * 0.45, 0, 0, Math.PI * 2); g.fill();
-   });
- }},
-{id: 'ball', group: '動き', name: '跳ねるボール', note: 'ボールが弾むたび、落ちた場所のキーが打たれる。弾みが弱まると打鍵も弱く', use: '何かが落ちてくる・転がってくる',
- init(s) { s.x = 0.5; s.vx = 1.3; s.y = 1; s.vy = 0; s.wait = 0; s.sq = 0; },
- draw(s, t, dt) {
-   const d = dt / 1000 * P.spd;
-   if (s.wait > 0) s.wait -= dt;
-   else {
-     s.vy -= 4 * d; s.y += s.vy * d; s.x += s.vx * d;
-     if (s.x > 7) { s.x = 7; s.vx *= -1; } if (s.x < 0) { s.x = 0; s.vx *= -1; }
-     if (s.y <= 0) {
-       const v = -s.vy; s.y = 0; s.vy = v * 0.78; s.sq = t;
-       hit(Math.round(s.x), P.len, P.str * clamp(v / 2.8, 0.3, 1));
-       if (s.vy < 0.55) { s.vy = 0; s.wait = 700; s.after = true; }
-     }
-   }
-   if (s.wait <= 0 && s.after) { s.after = false; s.y = 1; s.vy = 0; }
-   const top = H * 0.08, x = kToX(s.x), y = GROUND - 16 - s.y * (GROUND - 16 - top), q = Math.exp(-(t - s.sq) / 60);
-   g.fillStyle = alpha(FG, 0.12); g.beginPath(); g.ellipse(x, GROUND, 18 * (1 - s.y * 0.5), 4, 0, 0, Math.PI * 2); g.fill();
-   g.fillStyle = ACC; g.beginPath(); g.ellipse(x, y + q * 5, 16 * (1 + q * 0.35), 16 * (1 - q * 0.3), 0, 0, Math.PI * 2); g.fill();
- }},
-{id: 'ripple', group: '動き', name: '波紋', note: 'どこかに落ちた一滴が左右に広がり、離れるほど弱く', use: '通知が手元に広がる',
- init(s) { s.rings = []; s.next = 0; },
- draw(s, t, dt) {
-   if (t >= s.next) { const o = ri(8); s.rings.push({o, r: 0, done: new Set()}); s.next = t + 1600 / P.spd; }
-   s.rings.forEach(R => {
-     R.r += dt / 1000 * 4 * P.spd;
-     for (let i = 0; i < 8; i++) { const dd = Math.abs(i - R.o); if (dd <= R.r && !R.done.has(i)) { R.done.add(i); hit(i, P.len, P.str * Math.max(0.3, 1 - dd / 8)); } }
-     const a = Math.max(0, 1 - R.r / 8);
-     g.strokeStyle = alpha(ACC, a); g.lineWidth = 2;
-     g.beginPath(); g.ellipse(kx(R.o), GROUND, R.r * STEP + 4, (R.r * STEP + 4) * 0.35, 0, Math.PI, Math.PI * 2); g.stroke();
-   });
-   s.rings = s.rings.filter(R => R.r < 8);
- }},
-{id: 'meet', group: '動き', name: '集まる', note: '両手の小指から人差し指へ、左右が寄っていく', use: '選択肢に吸い寄せられる／決定の瞬間',
- opts: {mode: ['内へ', '外へ', '往復']},
- init(s) {
-   const run = () => {
-     const iv = 170 / P.spd;
-     let seq = [[0, 7], [1, 6], [2, 5], [3, 4]];
-     if (s.o.mode === '外へ') seq.reverse();
-     if (s.o.mode === '往復') seq = [...seq, ...seq.slice(0, 3).reverse()];
-     seq.forEach((p, j) => at(j * iv, () => { p.forEach(k => hit(k)); s.cur = p; }));
-     at(seq.length * iv + 900 / P.spd, run);
-   };
-   run();
- },
- draw(s, t) { glow(t, 260); if (s.cur) s.cur.forEach(k => dot(kx(k), GROUND * 0.5, 10, ACC)); }},
-{id: 'sweep', group: '動き', name: 'なぞる', note: '端から端まで一気に（グリッサンド）', use: 'スクロール・ページをめくる・消し去る',
- opts: {mode: ['右へ', '左へ', '往復']},
- init(s) {
-   const run = () => {
-     const iv = 35 / P.spd;
-     let seq = [0, 1, 2, 3, 4, 5, 6, 7];
-     if (s.o.mode === '左へ') seq.reverse();
-     if (s.o.mode === '往復') seq = [...seq, ...seq.slice(0, 7).reverse()];
-     seq.forEach((k, j) => at(j * iv, () => hit(k)));
-     at(seq.length * iv + 800 / P.spd, run);
-   };
-   run();
- },
- draw(s, t) { glow(t, 160); }},
-
-// リズム・気配
-{id: 'heart', group: '気配', name: '鼓動', note: 'ドクン、ドクン。だんだん速くなる', use: '投稿の直前の緊張／キーボードが生きている',
- opts: {mode: ['全部', '人差し指', '左手']},
- init(s) {
-   s.bpm = 60;
-   const beat = () => {
-     const keys = {全部: [0, 1, 2, 3, 4, 5, 6, 7], 人差し指: [3, 4], 左手: [0, 1, 2, 3]}[s.o.mode];
-     keys.forEach(k => hit(k)); s.p1 = now();
-     at(Math.min(180, 60000 / s.bpm * 0.3), () => { keys.forEach(k => hit(k, P.len, P.str * 0.6)); s.p2 = now(); });
-     s.bpm = s.bpm >= 150 ? 60 : s.bpm + 3 * P.spd;
-     at(60000 / s.bpm, beat);
-   };
-   beat();
- },
- draw(s, t) { const k = 1 + 0.22 * Math.exp(-(t - (s.p1 || -1e9)) / 110) + 0.1 * Math.exp(-(t - (s.p2 || -1e9)) / 110); g.fillStyle = ACC; heart(W / 2, GROUND * 0.48, STEP * 0.55 * k); }},
-{id: 'breath', group: '気配', name: '呼吸', note: 'PWM でゆっくり持ち上がり、ゆっくり沈む', use: '待機中のキーボードが息をしている',
- opts: {mode: ['全部', '波']},
- init(s) { s.c = 0; },
- draw(s, t, dt) {
-   s.c += dt * P.spd;
-   const b = p => 0.5 - 0.5 * Math.cos(Math.PI * 2 * p), ph = s.c / 4200;
-   const lv = NAMES.map((_, i) => b(s.o.mode === '全部' ? ph : ph - i / 8));
-   frame(lv.map(v => v > 0.12 ? v * P.str : 0), 200);
-   if (s.o.mode === '全部') { dot(W / 2, GROUND * 0.48, STEP * (0.3 + 0.6 * lv[0]), alpha(ACC, 0.25 + 0.5 * lv[0])); }
-   else lv.forEach((v, i) => { rrect(kx(i) - STEP * 0.15, GROUND - v * STEP * 2.5, STEP * 0.3, v * STEP * 2.5, 4); g.fillStyle = alpha(ACC, 0.3 + 0.6 * v); g.fill(); });
- }},
-{id: 'rain', group: '気配', name: '雨', note: '降ってきた粒が落ちた場所を打つ', use: 'コメントや通知が降ってくる',
- init(s) { s.drops = []; s.next = 0; s.splash = []; },
- draw(s, t, dt) {
-   if (t >= s.next) { s.drops.push({x: rand(kx(0) - STEP * 0.4, kx(7) + STEP * 0.4), y: -20, v: rand(0.7, 1.1)}); s.next = t + (-Math.log(1 - Math.random())) * 450 / P.spd; }
-   g.strokeStyle = alpha(FG, 0.7); g.lineWidth = 2;
-   s.drops.forEach(d => {
-     d.y += dt * d.v * GROUND / 900 * P.spd;
-     g.beginPath(); g.moveTo(d.x, d.y - 14); g.lineTo(d.x, d.y); g.stroke();
-     if (d.y >= GROUND) { d.gone = true; hit(clamp(Math.round(xToK(d.x)), 0, 7), P.len, P.str * rand(0.6, 1)); s.splash.push({x: d.x, t}); }
-   });
-   s.drops = s.drops.filter(d => !d.gone);
-   s.splash = s.splash.filter(p => t - p.t < 400);
-   s.splash.forEach(p => { const k = (t - p.t) / 400; g.strokeStyle = alpha(ACC, 1 - k); g.beginPath(); g.ellipse(p.x, GROUND, 4 + k * 22, 2 + k * 6, 0, 0, Math.PI * 2); g.stroke(); });
- }},
-{id: 'tremble', group: '気配', name: 'ふるえ', note: '指がふるえる（速さで周波数。1回のオンは駆動時間より短くならない）', use: '迷い・ためらい／何かが起きる前触れ',
- opts: {mode: ['全部', '右手', '人差し指']},
- init(s) {
-   const burst = () => {
-     s.keys = {全部: [0, 1, 2, 3, 4, 5, 6, 7], 右手: [4, 5, 6, 7], 人差し指: [3, 4]}[s.o.mode];
-     s.hz = Math.round(clamp(5 + 10 * P.spd, 3, 40));
-     s.keys.forEach(k => hit(k, 2600, P.str, 15, s.hz)); s.on = now();
-     at(4000, burst);
-   };
-   burst();
- },
- draw(s, t) {
-   const on = t - s.on < 2600;
-   g.strokeStyle = on ? ACC : LINE; g.lineWidth = 2;
-   s.keys.forEach(k => { g.beginPath(); for (let y = GROUND * 0.2; y <= GROUND; y += 6) g.lineTo(kx(k) + (on ? rand(-1, 1) * STEP * 0.08 : 0), y); g.stroke(); });
- }},
-{id: 'spread', group: '気配', name: 'ざわめき', note: '1本のぴくつきが隣へうつり、全部に広がって、ふっと止む', use: '暴走の前触れ／制御を失っていく',
- init(s) { s.a = new Array(8).fill(0); s.a[ri(8)] = 0.05; s.full = 0; s.quiet = 0; },
- draw(s, t, dt) {
-   if (s.quiet) { if (t < s.quiet) return; s.quiet = 0; s.a.fill(0); s.a[ri(8)] = 0.05; s.full = 0; }
-   const a = s.a.slice();
-   for (let i = 0; i < 8; i++) {
-     if (a[i] > 0) s.a[i] = Math.min(1, a[i] + dt / 1000 * 0.2 * P.spd);
-     else if ((a[i - 1] || 0) > 0.3 || (a[i + 1] || 0) > 0.3) s.a[i] = 0.02;
-     if (s.a[i] > 0 && Math.random() < dt / 1000 * (0.6 + 10 * s.a[i] * s.a[i]) * P.spd) hit(i, P.len, P.str * (0.5 + 0.5 * s.a[i]));
-   }
-   if (s.a.every(v => v >= 1) && (s.full += dt) > 2200) { stopAll(); s.quiet = t + 2500; }
-   g.lineWidth = 1.5;
-   s.a.forEach((v, i) => { g.strokeStyle = alpha(ACC, 0.2 + 0.8 * v); g.beginPath(); for (let y = GROUND * 0.15; y <= GROUND; y += 8) g.lineTo(kx(i) + rand(-1, 1) * v * STEP * 0.3, y); g.stroke(); });
- }},
-{id: 'drift', group: '気配', name: 'ずれ', note: 'メトロノームとキーが、ゆっくりずれては戻る', use: '同期していたものが、少しずつ外れていく違和感',
- opts: {snd: ['音あり', '音なし']},
- init(s) { s.n = 0; s.next = now() + 400; s.flash = -1e9; },
- draw(s, t) {
-   while (s.next - t < 250) {
-     const T = s.next, off = 160 * Math.sin(Math.PI * 2 * s.n / 24);
-     at(T - t, () => { s.flash = now(); if (s.o.snd === '音あり') tone(1600, 30, 0.1, 'square'); });
-     at(T + off - t, () => { hit(3); hit(4); });
-     s.n++; s.next += 60000 / (90 * P.spd);
-   }
-   const a = Math.exp(-(t - s.flash) / 120);
-   dot(W / 2, GROUND * 0.48, STEP * 0.25, alpha(FG, 0.15 + 0.85 * a));
- }},
-
-// 打鍵
-{id: 'type', group: '打鍵', name: '打たされる', note: '画面の文を、その文字を打つ指で打つ（ローマ字入力）。「人」は本編と同じ人らしいテンポ', use: 'who typed? の本体。誰が打った？',
- opts: {mode: ['人', '機械']}, text: 'これは わたしが うった ぶんです。',
- init(s) { const run = () => { s.st = typist(s.text, {human: s.o.mode === '人', onDone: () => at(2500, run)}); }; run(); },
- draw(s) { drawTyped(s.st, GROUND * 0.45); }},
-{id: 'line', group: '打鍵', name: 'LINE', note: '友だちからのメッセージに、あなたの指が勝手に返信して送ってしまう', use: '自分のアカウントで、自分の指で、勝手にやり取りされる',
- init(s) {
-   const SCRIPT = [['ゆうき', '今日ひま？'], ['me', 'ひまだよ'], ['ゆうき', 'じゃあ7時に駅で！'], ['me', 'ごめん、やっぱりいけない'], ['ゆうき', 'え、なんで？'], ['me', 'なんとなく'], ['ゆうき', '……そっか']];
-   s.msgs = []; s.st = null;
-   let i = 0;
-   const next = () => {
-     if (i >= SCRIPT.length) return at(4000, () => { s.msgs = []; i = 0; next(); });
-     const [who, txt] = SCRIPT[i++];
-     if (who !== 'me') return at(1100 / P.spd, () => { s.msgs.push({me: false, txt}); tone(1320, 60, 0.04); next(); });
-     at(1300 / P.spd, () => { s.st = typist(txt, {onDone: () => at(450, () => { hit(7); s.msgs.push({me: true, txt}); s.st = null; next(); })}); });   // 送信は Enter（右小指）
-   };
-   next();
- },
- draw(s) {
-   const pw = Math.min(380, W * 0.4), ph = GROUND - 20, px = W / 2 - pw / 2, py = 10, size = Math.min(16, STEP * 0.17);
-   rrect(px, py, pw, ph, 22); g.fillStyle = '#8aa4c8'; g.fill();
-   g.save(); rrect(px, py, pw, ph, 22); g.clip();
-   g.fillStyle = '#7b93b8'; g.fillRect(px, py, pw, 46); text('ゆうき', px + pw / 2, py + 23, size, '#fff');
-   g.font = `500 ${size}px "Hiragino Sans",sans-serif`;
-   let y = py + ph - 64;
-   [...s.msgs].reverse().forEach(m => {
-     const w = g.measureText(m.txt).width + size * 1.6, h = size * 2.2;
-     y -= h + 10;
-     const x = m.me ? px + pw - w - 16 : px + 48;
-     if (!m.me) dot(px + 26, y + h / 2, 13, '#d9dde3');
-     bubble(x, y, w, h, m.me ? '#86d76a' : '#fff', m.me ? 'right' : 'left');
-     text(m.txt, x + size * 0.8, y + h / 2, size, '#111', 'left');
-   });
-   g.fillStyle = '#fff'; g.fillRect(px, py + ph - 52, pw, 52);
-   if (s.st) {
-     text(s.st.done, px + 18, py + ph - 26, size, '#111', 'left');
-     const w1 = g.measureText(s.st.done).width;
-     text(s.st.pend, px + 18 + w1, py + ph - 26, size, '#06c755', 'left');
-   }
-   g.restore();
- }},
-{id: 'voice', group: '打鍵', name: '声で打つ', note: '「話す」を押して話すと、その言葉があなたの指で打たれる（かなで認識された部分。漢字だけなら声のリズムで）。「こえ」は声のリズムをそのまま指に返す', use: '声で入力したのに、打ったのは指',
- opts: {mode: ['ことば', 'こえ']},
- actions: [{label: s => s.rec ? '聞いています…' : '話す', run: s => listenVoice(s)}],
- init(s) { s.rec = false; s.env = []; s.peaks = []; s.st = null; s.heard = ''; },
- stop(s) { s.halt?.(); },
- draw(s, t) {
-   if (s.heard) text(s.heard, W / 2, GROUND * 0.25, Math.min(STEP * 0.2, 20), DIM);
-   drawTyped(s.st, GROUND * 0.45);
-   if (!s.env.length) return;
-   const t1 = s.env[s.env.length - 1].t || 1, max = Math.max(...s.env.map(e => e.r), 0.02), x0 = W * 0.15, w = W * 0.7, base = GROUND * 0.8;
-   g.fillStyle = alpha(FG, 0.5);
-   s.env.forEach(e => g.fillRect(x0 + e.t / t1 * w, base - e.r / max * STEP, 2, e.r / max * STEP * 2));
-   s.peaks.forEach(p => dot(x0 + p.t / t1 * w, base - STEP * 1.3, 5, t >= p.at ? ACC : DIM));
- }},
-{id: 'runaway', group: '打鍵', name: '暴走', note: 'ゆっくり打ち始め、止められない速さまで加速して、ぷつりと止まる', use: '⑥ 暴走',
- opts: {mode: ['でたらめ', 'くりかえし']},
- init(s) {
-   const POOL = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん', LOOP = 'とてもよかったです。ほんとうに';
-   s.t0 = now(); s.txt = ''; s.prev = -1;
-   const step = () => {
-     const p = (now() - s.t0) / (12000 / P.spd);
-     if (p >= 1) return at(2600, () => { s.t0 = now(); s.txt = ''; step(); });
-     const iv = 260 * Math.pow(18 / 260, p);
-     let k; do k = ri(8); while (k === s.prev); s.prev = k;
-     hit(k);
-     s.txt += s.o.mode === 'でたらめ' ? pick(POOL) : LOOP[s.txt.length % LOOP.length];
-     at(iv, step);
-   };
-   step();
- },
- draw(s) {
-   const size = Math.min(STEP * 0.24, 24), per = Math.floor(W * 0.8 / size), rows = Math.floor((GROUND - 40) / (size * 1.5));
-   const lines = [];
-   for (let i = 0; i < s.txt.length; i += per) lines.push(s.txt.slice(i, i + per));
-   lines.slice(-rows).forEach((l, j) => text(l, W * 0.1, 30 + j * size * 1.5, size, FG, 'left'));
- }},
-{id: 'piano', group: '打鍵', name: '演奏', note: '降ってくる音符が届いた瞬間に、その指が弾く', use: '弾かされる心地よさ（「自分が弾いた」と感じるか）',
- opts: {mel: Object.keys(MELODIES), snd: ['音あり', '音なし']},
- init(s) {
-   const run = () => {
-     const beat = 60000 / (100 * P.spd);
-     let tt = 0;
-     s.notes = MELODIES[s.o.mel].map(([k, b]) => { const n = {k, t: tt, d: b * beat}; tt += b * beat; return n; });
-     s.t0 = now() + 1800; s.beat = beat;
-     s.notes.forEach(n => { if (n.k >= 0) at(s.t0 + n.t - now(), () => { hit(n.k); if (s.o.snd === '音あり') tone(FREQ[n.k], n.d * 0.9, 0.12, 'triangle'); }); });
-     at(s.t0 + tt + 1500 - now(), run);
-   };
-   run();
- },
- draw(s, t) {
-   const px = (GROUND - 20) / 1800;
-   s.notes.forEach(n => {
-     if (n.k < 0) return;
-     const y = GROUND - (s.t0 + n.t - t) * px, h = Math.max(6, n.d * px - 6);
-     if (y < -h || y - h > GROUND + 40) return;
-     const a = y > GROUND ? Math.max(0, 1 - (y - GROUND) / 40) : 1;
-     rrect(kx(n.k) - STEP * 0.28, y - h, STEP * 0.56, h, 5); g.fillStyle = alpha(ACC, 0.85 * a); g.fill();
-   });
-   g.fillStyle = LINE; g.fillRect(kx(0) - STEP * 0.5, GROUND, kx(7) - kx(0) + STEP, 2);
- }},
-
-{id: 'burst', group: '打鍵', name: '超高速', note: '人には無理な速さで文を打つ。「ゆらぎあり」は単語ごとの勢い、打ち間違いと Backspace（右小指）まで入れて、速くても人らしく', use: '速さに納得感を出す（暴走の手前）',
- opts: {mode: ['ゆらぎあり', '一定']}, text: 'きょうは ほんとうに たのしかったです。また きたいと おもいます。',
- init(s) {
-   const keys = [];
-   toMora(s.text).forEach(m => { if (!m.keys) keys.push({disp: m.disp, ch: '', space: m.space}); else [...m.keys].forEach((ch, j) => keys.push({ch, f: fingerOf(ch), disp: m.disp, end: j === m.keys.length - 1})); });
-   s.out = ''; s.pend = ''; s.times = [];
-   const rnd = s.o.mode === 'ゆらぎあり';
-   let i = 0, lastF = -1, lastAt = 0, mood = 1;
-   const press = f => { if (f < 0) return; hit(f); lastF = f; lastAt = now(); s.times.push(lastAt); };
-   const wait = (ms, nextF) => { if (nextF === lastF) ms = Math.max(ms, P.len + 60 - (now() - lastAt)); at(ms, step); };   // 同じ指は戻るのを待つ
-   const step = () => {
-     if (i >= keys.length) return at(2500, () => { s.out = ''; s.pend = ''; i = 0; step(); });
-     const e = keys[i];
-     if (!e.ch) { s.out += e.disp; i++; return wait((rnd ? (e.space ? rand(70, 220) : 120) : 45) / P.spd, keys[i]?.f); }
-     if (rnd && e.f >= 0 && Math.random() < 0.035) {   // 打ち間違えて、消して、打ち直す
-       const wf = e.f === 0 ? 1 : e.f >= 6 ? 5 : e.f + pick([-1, 1]);
-       press(wf); s.pend += FINGERS[wf][0];
-       return at(rand(110, 200) / P.spd, () => { press(7); s.pend = s.pend.slice(0, -1); wait(rand(50, 90) / P.spd, e.f); });
-     }
-     press(e.f); s.pend += e.ch; i++;
-     if (e.end) { s.out += e.disp; s.pend = ''; }
-     mood = clamp(mood + (1 - mood) * 0.1 + (rnd ? rand(-0.15, 0.15) : 0), 0.6, 1.6);
-     let ms = rnd ? 42 * Math.exp(randn() * 0.35) * mood : 45;
-     if (rnd && e.end && /[、。]/.test(e.disp)) ms += rand(150, 320);
-     wait(ms / P.spd, keys[i]?.f);
-   };
-   step();
- },
- draw(s, t) {
-   s.times = s.times.filter(x => t - x < 1000);
-   text(`${s.times.length} 打/秒`, W / 2, GROUND * 0.15, Math.min(STEP * 0.3, 30), DIM);
-   drawWrapped(s.out, s.pend, GROUND * 0.4, GROUND * 0.9, Math.min(STEP * 0.32, 32));
- }},
-
-// リズム（音楽に乗る／乗らない）
-{id: 'onbeat', group: 'リズム', name: 'のる', note: '太鼓に合わせて指が打たれる（バスドラムは左手、スネアは右手）。「文」は8分音符に1文字ずつ打つ', use: '音楽に乗せてキーボードを打つ気持ちよさ。裏拍・のれないと比べる基準',
- opts: {mode: ['太鼓', '文'], snd: ['音あり', '音なし']}, text: 'たのしい たのしい きもちいい',
- init(s) { s.ev = []; s.st = {done: '', pend: ''}; s.m = toMora(s.text); s.mi = 0; s.rest = 0; },
- draw(s, t) {
-   seq(s, t, 100, (n, T) => {
-     const d = BACKBEAT(n);
-     beatGrid(s, T, n);
-     if (s.o.mode === '太鼓') return beatAt(s, T, {drums: d, keys: d.includes('kick') ? [2, 3] : d.includes('snare') ? [4, 5] : []});
-     beatAt(s, T, {drums: d});
-     if (n % 2 === 0) moraAt(s, T);
-   });
-   timeline(s, t);
-   if (s.o.mode === '文') drawTyped(s.st, GROUND * 0.9);
- }},
-{id: 'offbeat', group: 'リズム', name: '裏拍', note: '太鼓は表、指は裏で入る。「8分裏」はレゲエの刻み、「3-3-2」は前のめりのシンコペーション、「16分裏」は細かく跳ねる', use: '裏拍で気持ちいい感覚を出す',
- opts: {mode: ['8分裏', '3-3-2', '16分裏'], snd: ['音あり', '音なし']},
- init(s) { s.ev = []; },
- draw(s, t) {
-   seq(s, t, 100, (n, T) => {
-     const i = n % 16, m = s.o.mode, TRES = [0, 3, 6, 8, 11, 14];
-     let keys = [];
-     if (m === '8分裏' && i % 4 === 2) keys = i % 8 === 2 ? [2, 3] : [4, 5];
-     if (m === '3-3-2' && TRES.includes(i)) keys = [[3], [4], [2, 5], [3], [4], [2, 5]][TRES.indexOf(i)];
-     if (m === '16分裏' && i % 4 === 3) keys = i % 8 === 3 ? [3] : [4];
-     beatGrid(s, T, n);
-     beatAt(s, T, {drums: BACKBEAT(n), keys});
-   });
-   timeline(s, t);
- }},
-{id: 'oddbeat', group: 'リズム', name: 'のれない', note: '太鼓はふつうに鳴るのに、指は拍にはまらない。「ずれる」は毎拍前後にぶれる、「黄金比」は拍と割り切れない間隔、「つまずく」は1小節に1回だけ拍を外す', use: 'ありえない拍で気持ち悪い感覚を出す',
- opts: {mode: ['ずれる', '黄金比', 'つまずく'], snd: ['音あり', '音なし']},
- init(s) { s.ev = []; s.kk = 0; s.kT = null; },
- draw(s, t) {
-   seq(s, t, 100, (n, T) => {
-     const i = n % 16, m = s.o.mode, st = 60000 / (100 * P.spd) / 4, side = () => [3, 4][s.kk++ % 2];
-     beatGrid(s, T, n);
-     beatAt(s, T, {drums: BACKBEAT(n)});
-     if (m === 'ずれる' && i % 4 === 0) beatAt(s, T + pick([-1, 1]) * rand(50, 120), {keys: [side()]});
-     if (m === '黄金比') { s.kT ??= T; while (s.kT < T + st) { beatAt(s, s.kT, {keys: [[2, 3, 4, 5][s.kk++ % 4]]}); s.kT += st * 4 * 0.618; } }
-     if (m === 'つまずく') {
-       if (i === 0) { s.trip = ri(3); s.tripAt = pick([4, 8, 12]); }
-       if (i % 4) return;
-       if (i !== s.tripAt) beatAt(s, T, {keys: [side()]});
-       else if (s.trip === 1) beatAt(s, T + st * 1.4, {keys: [side()]});              // 遅れる
-       else if (s.trip === 2) { beatAt(s, T, {keys: [3]}); beatAt(s, T + st * 0.6, {keys: [5]}); }   // もつれる
-       // trip 0：1拍ぬける
-     }
-   });
-   timeline(s, t);
- }},
-
-// 情緒（ゆっくりした時間差）
-{id: 'amadare', group: '情緒', name: '雨だれ', note: '軒先から、ぽつ…ぽつ…としずくが落ちる。ふくらんで落ちるまでの間が長く、場所ごとに間がちがう', use: 'ゆっくりと時間差をつけた、情緒のある触覚',
- opts: {mode: ['降りつづく', 'やんでいく'], snd: ['音あり', '音なし']},
- init(s) {
-   s.t0 = now(); s.fall = []; s.rings = [];
-   s.taps = [1, 4, 6].map((k, i) => ({k, per: [2400, 3300, 4300][i] * rand(0.9, 1.1), born: now() - rand(0, 1800)}));
- },
- draw(s, t) {
-   const eave = GROUND * 0.1, ending = s.o.mode === 'やんでいく';
-   let el = (t - s.t0) / 1000;
-   if (ending && el > 40) { s.t0 = t; el = 0; s.taps.forEach(p => p.born = t + rand(1500, 3500)); }   // やんだら、しばらくしてまた降りだす
-   const slow = ending ? 1 + el / 10 : 1;
-   g.fillStyle = '#2a2b30'; g.fillRect(kx(0) - STEP, eave - 16, kx(7) - kx(0) + STEP * 2, 16);
-   s.taps.forEach(p => {
-     const a = (t - p.born) / (p.per * slow / P.spd);
-     if (a >= 1) { p.born = t; p.per = clamp(p.per * rand(0.85, 1.15), 1800, 5200); s.fall.push({k: p.k, t0: t}); }
-     if (a > 0) { const r = STEP * (0.03 + 0.07 * a * a), e = 1 + a * 0.4; g.fillStyle = alpha(FG, 0.85); g.beginPath(); g.ellipse(kx(p.k), eave + r * e, r, r * e, 0, 0, Math.PI * 2); g.fill(); }
-   });
-   s.fall = s.fall.filter(d => {
-     const q = (t - d.t0) / 450;
-     if (q < 1) { dot(kx(d.k), eave + (GROUND - eave) * q * q, STEP * 0.06, alpha(FG, 0.85)); return true; }
-     hit(d.k, P.len, P.str * rand(0.45, 0.7));
-     if (s.o.snd === '音あり') plink(900 + d.k * 70 + rand(-40, 40), 0.08);
-     s.rings.push({k: d.k, t});
-     if (Math.random() < 0.25) { const j = clamp(d.k + pick([-1, 1]), 0, 7); at(110, () => hit(j, P.len, P.str * 0.3)); }   // しぶきが隣へ
-     return false;
-   });
-   s.rings = s.rings.filter(r => t - r.t < 1400);
-   s.rings.forEach(r => { const q = (t - r.t) / 1400; g.strokeStyle = alpha(FG, 0.6 * (1 - q)); g.lineWidth = 1.5; g.beginPath(); g.ellipse(kx(r.k), GROUND, STEP * (0.1 + q * 0.9), STEP * (0.03 + q * 0.2), 0, 0, Math.PI * 2); g.stroke(); });
- }},
-{id: 'shishi', group: '情緒', name: '鹿おどし', note: '竹筒に水がたまり（右手にぽたぽた）、かたむいて水をこぼし（右へ流れる）、もどった竹が石を打つ（左手にカーン）。そのあとの静けさまで', use: '待つ時間ごと味わう、間（ま）のある触覚',
- opts: {snd: ['音あり', '音なし']},
- init(s) {
-   s.rings = [];
-   const cycle = () => {
-     const fillMs = 7000 / P.spd;
-     Object.assign(s, {phase: 'fill', t1: now(), fill: 0});
-     const drip = () => {
-       if (s.phase !== 'fill') return;
-       const f = (now() - s.t1) / fillMs;
-       hit(6, P.len, P.str * (0.25 + 0.15 * f));
-       if (s.o.snd === '音あり') plink(1500 - f * 500, 0.04);
-       at(rand(450, 700) / P.spd, drip);
-     };
-     at(300, drip);
-     at(fillMs, () => {
-       Object.assign(s, {phase: 'tip', t1: now()});
-       [4, 5, 6, 7].forEach((k, j) => at(j * 80, () => hit(k, P.len, P.str * 0.55)));   // 水がこぼれる
-       at(520, () => {
-         Object.assign(s, {phase: 'back', t1: now()});
-         at(200, () => {
-           Object.assign(s, {phase: 'quiet', t1: now()});
-           hit(0, P.len + 120, 100); hit(1, P.len + 120, 100); s.rings.push({t: now()});
-           if (s.o.snd === '音あり') { knock(0.3); at(320, () => knock(0.06)); }
-           at(160, () => hit(0, P.len, P.str * 0.35));   // 小さく跳ね返る
-           at(3600 / P.spd, cycle);
-         });
-       });
-     });
-   };
-   cycle();
- },
- draw(s, t) {
-   const REST = -0.22, DOWN = 0.5, q = t - s.t1;
-   let a = REST;
-   if (s.phase === 'fill') { s.fill = clamp(q / (7000 / P.spd), 0, 1); a = REST + 0.1 * Math.pow(s.fill, 4); }
-   else if (s.phase === 'tip') { const u = clamp(q / 500, 0, 1); a = REST + 0.1 + (DOWN - REST - 0.1) * (1 - (1 - u) ** 2); s.fill = Math.max(0, 1 - u * 1.5); }
-   else if (s.phase === 'back') { const u = clamp(q / 200, 0, 1); a = DOWN + (REST - DOWN) * u * u; }
-   const px = W / 2, py = GROUND * 0.62, Lh = (kx(6) - kx(1)) / 2 + STEP * 0.3, c = Math.cos(a), sn = Math.sin(a);
-   const bx = px - c * Lh, by = py - sn * Lh, mx = px + c * Lh, my = py + sn * Lh;
-   const restMx = px + Math.cos(REST) * Lh, restMy = py + Math.sin(REST) * Lh, stoneX = px - Math.cos(REST) * Lh, stoneY = py - Math.sin(REST) * Lh + STEP * 0.24;
-   s.rings = s.rings.filter(r => t - r.t < 3000);
-   s.rings.forEach(r => { const u = (t - r.t) / 3000; g.strokeStyle = alpha(FG, 0.5 * (1 - u)); g.lineWidth = 1.5; g.beginPath(); g.ellipse(stoneX, GROUND - 4, STEP * (0.3 + u * 2), STEP * (0.06 + u * 0.3), 0, 0, Math.PI * 2); g.stroke(); });
-   g.fillStyle = '#3a3b41'; g.beginPath(); g.ellipse(stoneX, stoneY + STEP * 0.15, STEP * 0.42, STEP * 0.26, 0, 0, Math.PI * 2); g.fill();   // 石
-   g.strokeStyle = '#4a4b52'; g.lineWidth = STEP * 0.07; g.beginPath(); g.moveTo(px, py); g.lineTo(px, GROUND - 4); g.stroke();             // 支柱
-   const sx = restMx + STEP * 0.15, sy = py - STEP * 1.5;                                                                                    // かけい（水の出口）
-   g.strokeStyle = '#6f8a5a'; g.lineWidth = STEP * 0.12; g.lineCap = 'round'; g.beginPath(); g.moveTo(sx + STEP * 1.2, sy - STEP * 0.25); g.lineTo(sx, sy); g.stroke();
-   if (s.phase === 'fill' || s.phase === 'quiet') { g.strokeStyle = alpha('#7fb2d9', 0.8); g.lineWidth = 2; g.setLineDash([6, 6]); g.lineDashOffset = -t / 20; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx, restMy - STEP * 0.1); g.stroke(); g.setLineDash([]); }
-   g.strokeStyle = '#6f8a5a'; g.lineWidth = STEP * 0.24; g.beginPath(); g.moveTo(bx, by); g.lineTo(mx, my); g.stroke();                     // 竹筒
-   if (s.fill > 0.01) { const L = Lh * 0.9 * s.fill; g.strokeStyle = '#7fb2d9'; g.lineWidth = STEP * 0.12; g.beginPath(); g.moveTo(mx - c * STEP * 0.1, my - sn * STEP * 0.1); g.lineTo(mx - c * L, my - sn * L); g.stroke(); }
-   if (s.phase === 'tip') { g.fillStyle = alpha('#7fb2d9', 0.7); for (let i = 0; i < 6; i++) dot(mx + rand(-6, 6), my + (i + (t / 40) % 1) * STEP * 0.15, 3, alpha('#7fb2d9', 0.7)); }
-   g.lineCap = 'butt';
-   dot(px, py, STEP * 0.06, '#8a8b92');
- }},
-
-// 勝手に（自分の指で、勝手に決まる）
-{id: 'dontpush', group: '勝手に', name: '押すなよ', note: '「送信」はあなたの右人差し指（J）の下。押すなよ、押すなよ…とぴくつきが強まっていき、最後に押される（「止まる」は押されずに終わる）', use: '勝手に決定されてしまう（押すなよ押すなよ）',
- opts: {end: ['押される', '止まる', 'どちらか'], voice: ['声なし', '声あり']},
- init(s) {
-   const run = () => {
-     Object.assign(s, {phase: 'tease', t0: now(), says: [], tw: -1e9});
-     const willPush = s.o.end === '押される' || (s.o.end === 'どちらか' && Math.random() < 0.5), dur = 7000 / P.spd;
-     const tick = () => {
-       const p = (now() - s.t0) / dur;
-       if (p >= 1) {
-         if (willPush) { hit(4, P.len + 350, 100); tone(660, 90, 0.1); at(90, () => tone(990, 140, 0.1)); }
-         Object.assign(s, {phase: willPush ? 'pushed' : 'held', tp: now()});
-         return at(3800, run);
-       }
-       hit(4, P.len + 120 * p, P.str * (0.3 + 0.45 * p)); s.tw = now();   // だんだん長く・強く
-       if (Math.random() < 0.3 * p) hit(pick([3, 5]), P.len, P.str * 0.3);   // となりの指もつられる
-       at((900 - 650 * p) * rand(0.8, 1.2) / P.spd, tick);
-     };
-     const say = () => { if (s.phase !== 'tease') return; s.says.push({t: now(), i: s.says.length}); if (s.o.voice === '声あり') speak('押すなよ'); at(1700 / P.spd, say); };
-     at(600, () => { say(); tick(); });
-   };
-   run();
- },
- draw(s, t) {
-   const size = Math.min(STEP * 0.2, 20), on = s.phase === 'pushed';
-   text('さっきの写真、グループに送る？', W / 2, GROUND * 0.16, size, DIM);
-   const bw = STEP * 1.5, bh = STEP * 0.62, bx = kx(4) - bw / 2, by = GROUND * 0.5 + (on ? 4 : 0);
-   const shake = s.phase === 'tease' ? Math.exp(-(t - s.tw) / 120) * STEP * 0.05 : 0;
-   rrect(bx + rand(-1, 1) * shake, by, bw, bh, 10); g.fillStyle = on ? ACC : '#2a2b30'; g.fill();
-   g.strokeStyle = on ? ACC : '#e5484d'; g.lineWidth = 2; g.stroke();
-   text('送信', kx(4), by + bh / 2, size * 1.2, on ? '#111' : FG);
-   g.fillStyle = LINE; g.fillRect(kx(4) - 1, by + bh + 6, 2, Math.max(0, GROUND - by - bh - 10));
-   s.says.forEach(sa => { const q = (t - sa.t) / 2400; if (q < 1) text('押すなよ', W * 0.18 + (sa.i % 3) * STEP * 0.7, GROUND * 0.7 - q * STEP * 1.2 - (sa.i % 2) * STEP * 0.4, size * (1 + 0.12 * sa.i), alpha(FG, 1 - q)); });
-   if (on) text('送信しました', W / 2, GROUND * 0.32, size * 1.3, FG);
-   if (s.phase === 'held') text('……押さないんかい', W / 2, GROUND * 0.32, size * 1.3, DIM);
- }},
-{id: 'search', group: '勝手に', name: '検索', note: '検索欄にあなたの指で打ち、出てきた候補を勝手に選んで（↓は右薬指 L で代用）Enter（右小指）。「だんだん」は検索がおかしくなっていく', use: '検索欄に文字を打つ／自分の検索履歴が勝手に作られる',
- opts: {mode: ['だんだん', 'ふつう']},
- init(s) {
-   s.hist = []; s.qi = 0;
-   const run = () => {
-     const list = s.o.mode === 'ふつう' ? QUERIES.slice(0, 2) : QUERIES;
-     if (s.qi >= list.length) { s.qi = 0; s.hist = []; }
-     const q = list[s.qi++];
-     Object.assign(s, {q, hl: -1, phase: 'type', result: null});
-     s.st = typist(q.kana, {onDone: () => at(600 / P.spd, () => {
-       s.phase = 'pick';
-       let h = 0;
-       const down = () => {
-         if (h > q.pick) { hit(7); s.phase = 'result'; s.result = q.sug[q.pick]; s.hist.unshift(s.result); return at(2800 / P.spd, run); }
-         s.hl = h++; hit(6, P.len, P.str * 0.6);
-         at(420 / P.spd, down);
-       };
-       down();
-     })});
-   };
-   at(600, run);
- },
- draw(s, t) {
-   if (!s.q) return;
-   const size = Math.min(STEP * 0.19, 18), bw = Math.min(560, W * 0.55), bx = W / 2 - bw / 2, by = GROUND * 0.1, bh = size * 2.4;
-   rrect(bx, by, bw, bh, bh / 2); g.fillStyle = '#1d1e22'; g.fill(); g.strokeStyle = '#3a3b41'; g.lineWidth = 1.5; g.stroke();
-   g.strokeStyle = DIM; g.lineWidth = 2; g.beginPath(); g.arc(bx + bh * 0.5, by + bh * 0.46, size * 0.38, 0, Math.PI * 2); g.moveTo(bx + bh * 0.5 + size * 0.28, by + bh * 0.46 + size * 0.28); g.lineTo(bx + bh * 0.5 + size * 0.6, by + bh * 0.46 + size * 0.6); g.stroke();
-   const tx = bx + bh, ty = by + bh / 2;
-   if (s.phase === 'type') {
-     text(s.st.done, tx, ty, size, FG, 'left');
-     g.font = `500 ${size}px "Hiragino Sans",sans-serif`;
-     text(s.st.pend, tx + g.measureText(s.st.done).width, ty, size, ACC, 'left');
-   } else text(s.result || (s.hl >= 0 ? s.q.sug[s.hl] : s.st.done), tx, ty, size, FG, 'left');
-   const showSug = (s.phase === 'type' && s.st.done.length >= 2) || s.phase === 'pick';
-   if (showSug) s.q.sug.forEach((sg, i) => {
-     const y = by + bh + 8 + i * size * 2;
-     if (i === s.hl) { rrect(bx, y, bw, size * 2, 6); g.fillStyle = '#2a2b30'; g.fill(); }
-     text(sg, tx, y + size, size, i === s.hl ? FG : DIM, 'left');
-   });
-   if (s.phase === 'result') {
-     text(`「${s.result}」の検索結果`, bx, by + bh + size * 1.6, size, DIM, 'left');
-     for (let i = 0; i < 3; i++) { g.fillStyle = '#1d1e22'; g.fillRect(bx, by + bh + size * 3 + i * size * 2.2, bw * (0.9 - i * 0.15), size * 1.2); }
-   }
-   if (s.hist.length) {
-     const hx = Math.min(W - 10, bx + bw + STEP * 0.4);
-     text('最近の検索', hx, by + size, size * 0.8, DIM, 'left');
-     s.hist.slice(0, 6).forEach((h, i) => text(h, hx, by + size * (2.6 + i * 1.6), size * 0.8, i ? DIM : FG, 'left'));
-   }
- }},
-{id: 'ghost', group: '勝手に', name: '誰もいない声', note: '音声入力が「聞いています」になり、誰も話していないのに言葉が入って、あなたの指で打たれる', use: '声入力で、誰も話していないのに入力される',
- opts: {voice: ['無音', 'ささやき']},
- init(s) {
-   const LINES = ['ねえ', 'きこえてる？', 'いま うったのは だれ？', 'わたしだよ'];
-   let li = 0;
-   Object.assign(s, {env: [], st: null, state: 'idle', t0: now()});
-   const run = () => {
-     const line = LINES[li++ % LINES.length], start = 1800 + rand(0, 1200);
-     Object.assign(s, {state: 'listen', st: {done: '', pend: ''}, env: [], t0: now()});
-     let tt = start;
-     toMora(line).forEach(m => {
-       const T = tt;
-       if (!m.space) s.env.push({t: T, a: rand(0.5, 1)});
-       at(T, () => {
-         s.state = 'voice';
-         let lastF = -1, j = 0;
-         for (const ch of m.keys) { const f = fingerOf(ch); if (f < 0 || f === lastF) continue; lastF = f; at(j++ * 45, () => hit(f, P.len, P.str * 0.8)); }
-         s.st.done += m.disp;
-       });
-       tt += (m.space ? rand(250, 400) : rand(150, 260)) / P.spd;
-     });
-     if (s.o.voice === 'ささやき') at(start - 100, () => whisper(line));
-     at(tt + 900, () => { s.state = 'idle'; at(1800, run); });
-   };
-   at(800, run);
- },
- draw(s, t) {
-   const cx = W / 2, cy = GROUND * 0.2, r = STEP * 0.32, live = s.state !== 'idle', ink = live ? '#111' : DIM;
-   if (live) { const q = (t % 1200) / 1200; g.strokeStyle = alpha(ACC, 1 - q); g.lineWidth = 2; g.beginPath(); g.arc(cx, cy, r * (1 + q * 0.8), 0, Math.PI * 2); g.stroke(); }
-   dot(cx, cy, r, live ? ACC : '#2a2b30');
-   rrect(cx - r * 0.2, cy - r * 0.5, r * 0.4, r * 0.65, r * 0.2); g.fillStyle = ink; g.fill();
-   g.strokeStyle = ink; g.lineWidth = 2; g.beginPath(); g.arc(cx, cy - r * 0.1, r * 0.36, 0.15 * Math.PI, 0.85 * Math.PI); g.moveTo(cx, cy + r * 0.26); g.lineTo(cx, cy + r * 0.5); g.stroke();
-   if (live) text('聞いています…', cx, cy + r * 1.8, Math.min(STEP * 0.16, 16), DIM);
-   if (live) {
-     const x0 = W * 0.2, w = W * 0.6, y = GROUND * 0.5, span = 4000, el = t - s.t0;
-     g.fillStyle = alpha(FG, 0.6);
-     for (let x = 0; x < w; x += 4) {
-       const tt = el - span + x / w * span;
-       if (tt < 0) continue;
-       const nz = Math.abs(Math.sin(Math.floor(tt / 15) * 12.9898) * 43758.5453 % 1);
-       let amp = 0.04 + 0.05 * nz;
-       s.env.forEach(e => { const d = (tt - e.t) / 70; if (tt >= e.t - 140) amp += e.a * Math.exp(-d * d) * (0.7 + 0.3 * nz); });
-       const h = amp * STEP * 0.7;
-       g.fillRect(x0 + x, y - h, 2, h * 2);
-     }
-   }
-   drawTyped(s.st, GROUND * 0.78);
- }},
-
-// ゲーム（短い刺激が次々に来る）
-{id: 'wario', group: 'ゲーム', name: 'プチゲーム', input: true, note: '数秒のミニゲームが次々に来る。ひとことの指示を読んだら、すぐ白いキーで応える。クリアするたびに速くなる（つぶせ・まて・れんだ・うけろ・ながいほう）', use: 'ショート動画的なドパミン体験（メイドインワリオ風）',
- init(s) { Object.assign(s, {score: 0, life: 4, speed: 1, gi: -1}); miniNext(s); },
- press(s, k, t) { if (s.state !== 'play') return; MINI[s.gi].press(s, s.G, k, t); if (s.G.done) miniEnd(s); },
- draw(s, t) {
-   const big = Math.min(STEP * 0.7, 72), mid = Math.min(STEP * 0.2, 20), m = MINI[s.gi];
-   for (let i = 0; i < 4; i++) dot(W - 30 - i * 22, 22, 7, i < s.life ? ACC : LINE);
-   text(`${s.score}`, 30, 22, mid, FG, 'left');
-   if (s.state === 'cmd') { const q = Math.min(1, (t - s.ts) / 150); text(m.cmd, W / 2, GROUND * 0.4, big * (1.4 - 0.4 * q), FG); text(m.sub, W / 2, GROUND * 0.4 + big, mid, DIM); }
-   if (s.state === 'play') {
-     const p = (t - s.ts) / s.dur;
-     if (p >= 1) return miniEnd(s);
-     m.tick(s, s.G, t, p);
-     text(m.cmd, W / 2, GROUND * 0.14, mid * 1.6, FG);
-     g.fillStyle = LINE; g.fillRect(W * 0.3, GROUND * 0.24, W * 0.4, 6);
-     g.fillStyle = ACC; g.fillRect(W * 0.3, GROUND * 0.24, W * 0.4 * (1 - p), 6);
-     m.draw(s, s.G, t, p);
-   }
-   if (s.state === 'res') text(s.win ? 'クリア' : 'ざんねん', W / 2, GROUND * 0.45, big, s.win ? ACC : DIM);
-   if (s.state === 'over') { text('おしまい', W / 2, GROUND * 0.38, big, FG); text(`${s.score} 回クリア`, W / 2, GROUND * 0.38 + big, mid * 1.3, DIM); }
- }},
-
-// グラデーション（たのしい → 違和感 → おかしい）
-{id: 'gradient', group: 'グラデーション', name: '感情のグラデーション', note: '選ぶ場面なしで、たのしい・気持ちいい → 違和感 → おかしい へ少しずつ移る（約45秒で一巡）。「演奏」は音楽に乗った打鍵が、「文」は打たされる文が崩れていく', use: '感情の移り変わりを、キーの選択なしで作れるか',
- opts: {mode: ['演奏', '文'], snd: ['音あり', '音なし']},
- init(s) {
-   Object.assign(s, {ev: [], t0: now(), total: 45000 / P.spd, out: '', pend: '', quiet: false});
-   if (s.o.mode === '演奏') { s.mel = MELODIES['きらきら星'].flatMap(([k, b]) => [k, ...Array(b * 2 - 1).fill(null)]); s.mi = 0; }   // 8分音符ごとの並び（null は伸ばす）
-   else gradText(s);
- },
- draw(s, t) {
-   const p = (t - s.t0) / s.total;
-   if (p >= 1 && !s.quiet) { s.quiet = true; stopAll(); clearTimers(); at(3000, () => select('gradient')); }   // 3秒の静けさのあと、最初から
-   if (s.o.mode === '演奏') {
-     seq(s, t, 104, (n, T) => {
-       const ph = (T - s.t0) / s.total;
-       if (ph >= 1) return;
-       const i = n % 16, x = clamp((ph - 0.33) / 0.33, 0, 1), y = clamp((ph - 0.66) / 0.34, 0, 1);
-       let drums = BACKBEAT(n);
-       if (y > 0.45) drums = drums.filter(d => d === 'kick' && i === 0);   // 太鼓が抜けていく
-       if (y > 0.75) drums = [];
-       beatGrid(s, T, n);
-       beatAt(s, T, {drums});
-       if (i % 2 === 0) {
-         const k = s.mel[s.mi++ % s.mel.length];
-         if (k != null && k >= 0) {
-           let kk = k, off = 0, f = FREQ[k];
-           if (x > 0) { off = rand(0, 140) * x; if (Math.random() < 0.35 * x) { kk = clamp(k + pick([-1, 1]), 0, 7); f *= 1.06; } }   // 遅れる・違う指・音がずれる
-           if (y > 0) f *= 1 - 0.3 * y;
-           s.ev.push({T: T + off, row: 'key'});
-           at(T + off - now(), () => { hit(kk); if (s.o.snd === '音あり') tone(f, 300, 0.1, 'triangle'); });
-         }
-       }
-       if (y > 0 && Math.random() < 0.85 * y) { const TT = T + rand(0, 60000 / (104 * P.spd) / 4); s.ev.push({T: TT, row: 'key'}); at(TT - now(), () => hit(ri(8), P.len, P.str * rand(0.5, 1))); }   // 楽譜にない指が動きだす
-     });
-     timeline(s, t);
-   } else drawWrapped(s.out, s.pend, GROUND * 0.36, GROUND * 0.92, Math.min(STEP * 0.32, 32));
-   const x0 = W * 0.2, w = W * 0.6, y0 = GROUND * 0.1, size = Math.min(STEP * 0.15, 14);
-   g.fillStyle = LINE; g.fillRect(x0, y0, w, 2); g.fillRect(x0 + w / 3, y0 - 5, 1, 12); g.fillRect(x0 + w * 2 / 3, y0 - 5, 1, 12);
-   [['たのしい・気持ちいい', 1 / 6], ['違和感', 0.5], ['おかしい', 5 / 6]].forEach(([l, q]) => text(l, x0 + w * q, y0 + 20, size, DIM));
-   dot(x0 + w * clamp(p, 0, 1), y0 + 1, 6, ACC);
- }},
-
-// 選ぶ
-{id: 'whisper', group: '選ぶ', name: 'ささやき', note: '4択のうち1つの指だけが、ときどき押し上げられる（強さで加減）', use: '③ 誘導。さりげない後押し',
- opts: {show: ['隠す', '見せる']},
- init(s) {
-   s.target = ri(4); s.since = now(); s.tw = -1e9;
-   const tick = () => {
-     if (now() - s.since > 12000) { s.target = ri(4); s.since = now(); }
-     hit(CARD_KEYS[s.target]); s.tw = now();
-     at(rand(1200, 2200) / P.spd, tick);
-   };
-   at(800, tick);
- },
- draw(s, t) { const y = cards(); if (s.o.show === '見せる') dot(kx(CARD_KEYS[s.target]), y + 16, 4, alpha(ACC, 0.3 + 0.7 * Math.exp(-(t - s.tw) / 200))); }},
-{id: 'roulette', group: '選ぶ', name: '先回り', note: 'ルーレットが指の上を回り、止まった指が押される', use: '選んだのは誰？（機械が、あなたの指で決める）',
- opts: {snd: ['音なし', '音あり']},
- init(s) {
-   const round = () => {
-     let iv = 55, i = ri(4); s.sel = null;
-     const stepR = () => {
-       i = (i + 1) % 4; s.hl = i;
-       hit(CARD_KEYS[i], P.len, P.str * 0.7);
-       if (s.o.snd === '音あり') tone(1200, 25, 0.05, 'square');
-       iv *= 1.13;
-       if (iv < 480) return at(iv / P.spd, stepR);
-       at(iv / P.spd, () => { s.sel = i; hit(CARD_KEYS[i]); at(2200 / P.spd, round); });
-     };
-     stepR();
-   };
-   round();
- },
- draw(s) { cards(s.hl, s.sel); }},
-
-// 主体感
-{id: 'offset', group: '主体感', name: '先か後か', note: '文字が出るのとキーが動くのをずらす（－はキーが先）', use: '「自分が打った」と感じるタイミングを探す',
- opts: {ofs: ['-200', '-100', '-50', '0', '+50', '+100', '+200']}, defaults: {ofs: '0'},
- init(s) {
-   s.items = [];
-   const go = () => {
-     const off = parseInt(s.o.ofs), k = ri(8), ch = pick([...FINGERS[k].replace(/[^a-z;]/g, '')]);
-     at(Math.max(0, -off), () => hit(k));
-     at(Math.max(0, off), () => s.items.push({ch, k, t: now()}));
-     at(1400 / P.spd, go);
-   };
-   go();
- },
- draw(s, t) {
-   s.items = s.items.filter(it => t - it.t < 900);
-   s.items.forEach(it => text(it.ch, kx(it.k), GROUND * 0.45, STEP * 0.9, alpha(FG, 1 - (t - it.t) / 900)));
- }},
-{id: 'mirror', group: '主体感', name: '鏡の手', note: '画面の手の指と、あなたの指が一緒に動く。ときどき食い違う', use: '画面の手が自分の手になる／ならなくなる瞬間',
- opts: {mode: ['一致', '食い違う']},
- init(s) {
-   s.f = new Array(8).fill(-1e9);
-   const go = () => {
-     const k = ri(8), r = Math.random();
-     if (s.o.mode === '一致' || r > 0.3) { hit(k); s.f[k] = now(); }
-     else if (r < 0.15) s.f[k] = now();                       // 画面だけ動く
-     else { hit(k); s.f[k === 0 ? 1 : k === 7 ? 6 : k + pick([-1, 1])] = now(); }  // 隣の指が動いて見える
-     at(rand(180, 420) / P.spd, go);
-   };
-   go();
- },
- draw(s, t) {
-   const top = GROUND * 0.62, L = [0.95, 1.2, 1.35, 1.25, 1.25, 1.35, 1.2, 0.95];
-   [[0, 3], [4, 7]].forEach(([a, b]) => { rrect(kx(a) - STEP * 0.45, top, kx(b) - kx(a) + STEP * 0.9, STEP * 0.9, STEP * 0.3); g.fillStyle = '#2a2b30'; g.fill(); });
-   for (let i = 0; i < 8; i++) {
-     const up = Math.exp(-Math.max(0, t - s.f[i]) / 130), h = STEP * L[i];
-     rrect(kx(i) - STEP * 0.24, top - h - up * STEP * 0.35 + STEP * 0.2, STEP * 0.48, h, STEP * 0.24);
-     g.fillStyle = up > 0.05 ? alpha(ACC, 0.35 + 0.65 * up) : '#3a3b41'; g.fill();
-   }
- }},
-
-// 押す（白いキーを、あなたが押す）
-{id: 'mole', group: '押す', name: 'モグラ叩き', input: true, note: '白く上がったキーがモグラ。沈む前に押し込む', use: '自分で押す手応え（このあと奪われるもの）',
- opts: {n: ['1匹', '2匹', '3匹'], snd: ['音あり', '音なし']},
- init(s) {
-   s.m = {}; s.fx = [];
-   const sync = () => listen(Object.keys(s.m).reduce((a, k) => a | 1 << k, 0));
-   s.sync = sync;
-   const spawn = () => {
-     const free = [0, 1, 2, 3, 4, 5, 6, 7].filter(k => !s.m[k]);
-     if (Object.keys(s.m).length < parseInt(s.o.n) && free.length) {
-       const k = pick(free), id = now();
-       s.m[k] = {t: id}; sync();
-       at(300 + 1300 / P.spd, () => { if (s.m[k]?.t === id) { delete s.m[k]; s.fx.push({k, t: now(), hit: false}); sync(); } });
-     }
-     at(rand(300, 900) / P.spd, spawn);
-   };
-   spawn();
- },
- press(s, k, t) {
-   if (!s.m[k]) return;
-   delete s.m[k]; s.fx.push({k, t, hit: true}); s.sync();
-   if (s.o.snd === '音あり') tone(880, 120, 0.12, 'triangle');
- },
- draw(s, t) {
-   const r = STEP * 0.3;
-   Object.entries(s.m).forEach(([k, m]) => {
-     const a = Math.min(1, (t - m.t) / 150), x = kx(+k), y = GROUND - 10 - a * STEP * 0.7;
-     dot(x, y, r, FG); dot(x - r * 0.35, y - r * 0.15, r * 0.1, '#111'); dot(x + r * 0.35, y - r * 0.15, r * 0.1, '#111');
-   });
-   s.fx = s.fx.filter(f => t - f.t < 500);
-   s.fx.forEach(f => {
-     const k = (t - f.t) / 500, x = kx(f.k);
-     if (f.hit) { g.strokeStyle = alpha(ACC, 1 - k); g.lineWidth = 3; g.beginPath(); g.arc(x, GROUND - STEP * 0.7, r + k * STEP * 0.6, 0, Math.PI * 2); g.stroke(); }
-     else dot(x, GROUND - 10 - (1 - k) * STEP * 0.7, r, alpha(DIM, 1 - k));
-   });
- }},
-{id: 'lanes', group: '押す', name: '音ゲー', input: true, note: '8列に落ちてきたものが下に届くと、その列のキーが上がる。「自分で押す」では、届く瞬間に白いキーを押す', use: 'リズムに乗せられる／自分で乗る',
- opts: {mode: ['キーが上がる', '自分で押す']},
- init(s) { s.notes = []; s.fx = []; s.next = now() + 600; s.fall = 1600; },
- press(s, k, t) {
-   const n = s.notes.find(n => n.k === k && !n.done && Math.abs(n.at - t) <= 220);
-   if (n) { n.done = true; s.fx.push({k, t, good: true}); }
- },
- draw(s, t) {
-   const self = s.o.mode === '自分で押す';
-   if (t >= s.next) {
-     const free = [0, 1, 2, 3, 4, 5, 6, 7].filter(k => !s.notes.some(n => n.k === k && n.at > t + s.fall - 600));
-     if (free.length) {
-       const k = pick(free), n = {k, at: t + s.fall};
-       s.notes.push(n);
-       if (!self) at(s.fall, () => { hit(k); n.done = true; s.fx.push({k, t: now(), good: false}); });
-     }
-     s.next = t + rand(250, 650) / P.spd;
-   }
-   if (self) listen(s.notes.filter(n => !n.done && n.at - t < 500 && t - n.at < 220).reduce((m, n) => m | 1 << n.k, 0));
-   s.notes = s.notes.filter(n => !n.done && t - n.at < 220);
-   g.strokeStyle = LINE; g.lineWidth = 1;
-   for (let i = 0; i < 8; i++) { g.beginPath(); g.moveTo(kx(i), 0); g.lineTo(kx(i), GROUND); g.stroke(); }
-   g.fillStyle = LINE; g.fillRect(kx(0) - STEP * 0.5, GROUND, kx(7) - kx(0) + STEP, 2);
-   s.notes.forEach(n => { const y = GROUND - (n.at - t) / s.fall * (GROUND - 10); rrect(kx(n.k) - STEP * 0.3, y - 7, STEP * 0.6, 14, 7); g.fillStyle = self ? FG : ACC; g.fill(); });
-   s.fx = s.fx.filter(f => t - f.t < 350);
-   s.fx.forEach(f => { const k = (t - f.t) / 350; g.strokeStyle = alpha(f.good ? FG : ACC, 1 - k); g.lineWidth = 3; g.beginPath(); g.ellipse(kx(f.k), GROUND, STEP * (0.3 + k * 0.4), STEP * (0.1 + k * 0.12), 0, 0, Math.PI * 2); g.stroke(); });
- }},
-{id: 'chain', group: '押す', name: '波及', input: true, note: '押したキーから、ほかの指へ波が広がる', use: '自分の一押しが、思った以上に広がっていく',
- opts: {keys: ['D F J K', '8本']},
- init(s) { s.rings = []; listen(s.o.keys === '8本' ? 0xFF : 0x3C); },
- press(s, k, t) {
-   s.rings.push({o: k, t});
-   for (let d = 1; d < 8; d++) [k - d, k + d].forEach(j => { if (j >= 0 && j < 8) at(d * 90 / P.spd, () => hit(j, P.len, P.str * Math.max(0.35, 1 - d / 8))); });
- },
- draw(s, t) {
-   s.rings = s.rings.filter(R => t - R.t < 900 / P.spd);
-   s.rings.forEach(R => {
-     const r = (t - R.t) / (90 / P.spd), a = Math.max(0, 1 - r / 8);
-     g.strokeStyle = alpha(ACC, a); g.lineWidth = 2;
-     g.beginPath(); g.ellipse(kx(R.o), GROUND, r * STEP + 4, (r * STEP + 4) * 0.35, 0, Math.PI, Math.PI * 2); g.stroke();
-   });
- }},
-{id: 'echo', group: '押す', name: 'まねっこ', input: true, note: '白いキーで好きなリズムを押す。少し待つと、同じ指で打ち返される', use: '自分の癖が写し取られて、返ってくる',
- opts: {mode: ['そのまま', '少し変える', '速く']},
- init(s) { s.rec = []; s.dots = []; s.play = false; listen(0x3C); },
- press(s, k, t) { if (s.play) return; s.rec.push({k, t}); s.dots.push({k, t, me: true}); },
- draw(s, t) {
-   if (!s.play && s.rec.length && t - s.rec[s.rec.length - 1].t > 1300) {
-     s.play = true; listen(0);
-     let acc = 0, prev = s.rec[0].t;
-     s.rec.forEach(r => {
-       acc += (r.t - prev) * (s.o.mode === '速く' ? 0.6 : s.o.mode === '少し変える' ? rand(0.8, 1.25) : 1); prev = r.t;
-       const k = s.o.mode === '少し変える' && Math.random() < 0.25 ? clamp(r.k + pick([-1, 1]), 2, 5) : r.k;
-       at(500 + acc, () => { hit(k); s.dots.push({k, t: now(), me: false}); });
-     });
-     at(500 + acc + 900, () => { s.rec = []; s.play = false; listen(0x3C); });
-   }
-   s.dots = s.dots.filter(d => t - d.t < 1600);
-   s.dots.forEach(d => { const a = 1 - (t - d.t) / 1600; dot(kx(d.k), GROUND - 30 - (t - d.t) * 0.15, 9, alpha(d.me ? FG : ACC, a)); });
- }},
-{id: 'snatch', group: '押す', name: '横取り', input: true, note: '4択を押すと、ときどき別の指が押されて、そちらが選ばれる', use: '選んだつもりが、選ばされている',
- opts: {mode: ['ときどき', 'いつも', 'しない']},
- init(s) { s.sel = null; listen(0x3C); },
- press(s, k) {
-   const ci = CARD_KEYS.indexOf(k);
-   if (s.sel != null || ci < 0) return;
-   listen(0);
-   if (Math.random() < {ときどき: 0.35, いつも: 1, しない: 0}[s.o.mode]) {
-     const j = pick([0, 1, 2, 3].filter(i => i !== ci));
-     hit(CARD_KEYS[j]); s.sel = j; s.mine = false;
-   } else { s.sel = ci; s.mine = true; }
-   at(2000, () => { s.sel = null; listen(0x3C); });
- },
- draw(s) { cards(null, s.sel, s.mine ? FG : ACC); }},
-{id: 'handover', group: '押す', name: '主導権', input: true, note: '白く上がったキーを押して文を打つ。だんだん機械が先に打つようになる', use: 'who typed? の核心：どこまでが自分の入力か',
- opts: {mode: ['だんだん', '半分', '自分だけ']}, text: 'わたしは じぶんで えらんで うっている。',
- init(s) {
-   s.m = toMora(s.text); s.seq = [];
-   s.m.forEach((m, mi) => { if (!m.keys) s.seq.push({mi, ch: '', f: -1, end: true}); else [...m.keys].forEach((ch, j) => s.seq.push({mi, ch, f: fingerOf(ch), end: j === m.keys.length - 1})); });
-   s.i = 0; s.out = []; s.buf = []; s.wait = -1; s.tok = 0;
-   const done = who => {
-     const e = s.seq[s.i];
-     if (e.ch) s.buf.push({ch: e.ch, m: who === 'm'});
-     if (e.end) { s.out.push({disp: s.m[e.mi].disp, m: s.buf.some(b => b.m)}); s.buf = []; }
-     s.i++; s.wait = -1; s.tok++;
-     step();
-   };
-   s.done = done;
-   const step = () => {
-     if (s.i >= s.seq.length) { listen(0); return at(3000, () => { s.i = 0; s.out = []; s.buf = []; step(); }); }
-     const e = s.seq[s.i];
-     if (e.f < 0) return at(120 / P.spd, () => done('-'));
-     const prog = s.i / s.seq.length, p = {だんだん: Math.min(1, 1.15 * prog * prog), 半分: 0.5, 自分だけ: 0}[s.o.mode];
-     if (Math.random() < p) { listen(0); at(rand(120, 240) / P.spd, () => { hit(e.f); done('m'); }); return; }
-     s.wait = e.f; listen(1 << e.f);
-     const tok = s.tok;
-     at(6000, () => { if (s.tok === tok) { listen(0); hit(e.f); done('m'); } });   // 待っても押されなければ、機械が打つ
-   };
-   step();
- },
- press(s, k) { if (k === s.wait) s.done('me'); },
- draw(s) {
-   const size = Math.min(STEP * 0.42, 44), y = GROUND * 0.45;
-   g.font = `500 ${size}px "Hiragino Sans",sans-serif`;
-   const parts = [...s.out.map(o => [o.disp, o.m ? ACC : FG]), ...s.buf.map(b => [b.ch, b.m ? ACC : FG])];
-   const next = s.wait >= 0 ? s.seq[s.i].ch : '';
-   let w = parts.reduce((a, [str]) => a + g.measureText(str).width, 0) + g.measureText(next).width, x = W / 2 - w / 2;
-   parts.forEach(([str, c]) => { text(str, x, y, size, c, 'left'); x += g.measureText(str).width; });
-   if (next) { text(next, x, y, size, DIM, 'left'); g.fillStyle = FG; g.fillRect(x, y + size * 0.6, g.measureText(next).width, 2); }
- }},
-
-// 手で
-{id: 'calib', group: '手で', name: '校正', input: true, note: '押し込みの判定の準備。オートキャリブレーション中はキーに触れない（約25秒）', use: '基板ごとに一度。結果は Pico に保存され、v10 と共有',
- opts: {depth: ['浅く', 'ふつう', '深く']}, defaults: {depth: 'ふつう'},
- onOpt(s, k, v) { send('DEPTH ' + {浅く: 15, ふつう: 30, 深く: 50}[v]); },
- actions: [
-   {label: () => 'オートキャリブレーション', run: () => { stopAll(); send('AUTO'); }},
-   {label: s => s.check ? '下げる' : '上げて確かめる', run: s => { s.check = !s.check; listen(s.check ? 0xFF : 0); }},
- ],
- init(s) { s.check = false; s.hits = new Array(8).fill(-1e9); send('PROFILE'); const poll = () => { if (s.check) send('SENSE'); at(300, poll); }; poll(); },
- press(s, k, t) { s.hits[k] = t; },
- draw(s, t) {
-   for (let i = 0; i < 8; i++) {
-     const c = calKeys[i], y = GROUND - STEP * 0.15;
-     text(c === 'ok' ? '✓' : c === 'skip' ? '使わない' : '', kx(i), y - STEP * 1.1, STEP * 0.16, c === 'ok' ? FG : DIM);
-     if (s.check && sense?.[i]) text(sense[i][0] ? `${sense[i][0]} / ${sense[i][1]}` : '', kx(i), y - STEP * 0.6, STEP * 0.14, DIM);
-     const a = Math.exp(-(t - s.hits[i]) / 300);
-     if (a > 0.02) dot(kx(i), y - STEP * 0.25, 6, alpha(ACC, a));
-   }
- }},
-{id: 'manual', group: '手で', name: 'てうち', note: 'PC の asdfjkl; で、そのキーを打つ。Shift で長く', use: '基板と配線の確認／即興で試す',
- init() {}, draw() {}},
-];
-
-if (window.KC_DIALOGUE) EXPS.unshift(window.KC_DIALOGUE);   // 声の対話（dialogue.js）
-
-// ---- 切り替え・操作 ----
+const EXP = window.KC_DIALOGUE;
 let cur = null, s = null, paused = false;
-// 声で打つ：マイクの音量の変化（声のリズム）を取りながら、音声認識（Chrome、ja-JP）で言葉を聞く。
-// 話し終えて 0.9 秒静かになるか 6 秒たつと止まり、ことば → その文を打つ／こえ → 声の山ごとに1打（左から順に）
-async function listenVoice(s) {
-  if (s.rec) return;
-  let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); } catch (e) { status('マイクが使えません: ' + e.message, 4000); return; }
-  stopAll(); clearTimers();
-  Object.assign(s, {rec: true, env: [], peaks: [], st: null, heard: ''}); renderHead();
-  const a = audio(), an = a.createAnalyser(); an.fftSize = 1024; a.createMediaStreamSource(stream).connect(an);
-  const buf = new Float32Array(an.fftSize), t0 = now();
-  let loudAt = 0, ended = false;
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const rec = SR && s.o.mode === 'ことば' ? new SR() : null;
-  const iv = setInterval(() => {
-    an.getFloatTimeDomainData(buf);
-    let r = 0; for (const v of buf) r += v * v; r = Math.sqrt(r / buf.length);
-    s.env.push({t: now() - t0, r});
-    if (r > 0.02) loudAt = now();
-    if ((loudAt && now() - loudAt > 900) || now() - t0 > 6000) halt();
-  }, 15);
-  let played = false, recDone = !rec;
-  const play = () => {
-    if (played || cur.id !== 'voice' || paused) return;   // 2回目／話している間に別の体験へ移った
-    played = true;
-    if (s.o.mode === 'ことば' && toMora(s.heard).some(m => m.keys)) { s.st = typist(s.heard); return; }
-    if (s.heard) status('漢字は打てないので、声のリズムで打ちます', 3000);
-    const env = s.env.map((e, i, a) => ({t: e.t, r: (a[i - 1]?.r ?? e.r) / 4 + e.r / 2 + (a[i + 1]?.r ?? e.r) / 4}));
-    const max = Math.max(...env.map(e => e.r)), thr = Math.max(0.02, 0.25 * max);
-    let low = Infinity, last = -1e9;
-    env.forEach((e, i) => {
-      low = Math.min(low, e.r);
-      const isPeak = e.r >= thr && e.r >= (env[i - 1]?.r ?? 0) && e.r > (env[i + 1]?.r ?? 0);
-      if (isPeak && e.t - last > 110 && e.r - low >= 0.25 * e.r) { s.peaks.push({t: e.t, r: e.r / max}); last = e.t; low = e.r; }
-    });
-    const first = s.peaks[0]?.t ?? 0, start = now() + 400;
-    s.peaks.forEach((p, j) => { p.at = start + p.t - first; at(p.at - now(), () => hit(j % 8, P.len, P.str * (0.5 + 0.5 * p.r))); });
-  };
-  const halt = s.halt = () => {
-    if (ended) return; ended = true;
-    clearInterval(iv); stream.getTracks().forEach(tr => tr.stop());
-    s.rec = false; s.halt = null; if (cur === EXPS.find(e => e.id === 'voice')) renderHead();
-    if (recDone) play(); else try { rec.stop(); } catch (e) { recDone = true; play(); }   // 認識の終わり（onend）で打つ
-  };
-  if (rec) {
-    // 認識は話し終えると自分で終わる。結果が届いたら録音も止め、終わったら打つ
-    rec.lang = 'ja-JP'; rec.interimResults = false;
-    rec.maxAlternatives = 5;   // 候補のうち、かなで打てる文字がいちばん多いもの（「今日は」より「こんにちは」）
-    rec.onresult = e => {
-      const alts = [...e.results[0]].map(a => a.transcript);
-      const typable = str => toMora(str).filter(m => m.keys).length;
-      s.heard = alts.reduce((best, a) => typable(a) > typable(best) ? a : best, alts[0]);
-      halt();
-    };
-    rec.onerror = e => status('音声認識: ' + e.error, 4000);
-    rec.onend = () => { recDone = true; if (ended) play(); else halt(); };
-    rec.start();
-  }
-}
-const optMemory = {}, textMemory = {};
-function select(id) {
+const optMemory = {};
+function select() {
   cur?.stop?.(s);
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
   stopAll(); clearTimers();
-  cur = EXPS.find(e => e.id === id) || EXPS[0];
-  const o = optMemory[cur.id] ||= Object.fromEntries(Object.entries(cur.opts || {}).map(([k, v]) => [k, cur.defaults?.[k] ?? v[0]]));
-  s = {o, text: textMemory[cur.id] ?? cur.text};
+  cur = EXP;
+  const o = optMemory[cur.id] ||= Object.fromEntries(Object.entries(cur.opts || {}).map(([k, v]) => [k, v[0]]));
+  s = {o};
   if (!paused) cur.init(s);
-  history.replaceState(null, '', '#' + cur.id);
   renderHead();
 }
 function renderHead() {
-  $('name').textContent = cur.name; $('note').textContent = cur.note; $('use').textContent = cur.use;
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.id === cur.id));
   const box = $('opts'); box.innerHTML = '';
   Object.entries(cur.opts || {}).forEach(([k, vals]) => {
     const seg = document.createElement('div'); seg.className = 'seg';
-    vals.forEach(v => { const b = document.createElement('button'); b.textContent = v; b.className = s.o[k] === v ? 'on' : ''; b.onclick = () => { s.o[k] = v; cur.onOpt?.(s, k, v); select(cur.id); }; seg.append(b); });
+    vals.forEach(v => { const b = document.createElement('button'); b.textContent = v; b.className = s.o[k] === v ? 'on' : ''; b.onclick = () => { s.o[k] = v; select(); }; seg.append(b); });
     box.append(seg);
   });
   if (cur.actions) {
@@ -1645,31 +332,11 @@ function renderHead() {
     cur.actions.forEach(a => { const b = document.createElement('button'); b.textContent = a.label(s); b.onclick = () => { a.run(s); renderHead(); }; seg.append(b); });
     box.append(seg);
   }
-  if (cur.text != null) {
-    const inp = document.createElement('input'); inp.type = 'text'; inp.value = s.text;
-    inp.onchange = () => { textMemory[cur.id] = inp.value; select(cur.id); };
-    box.append(inp);
-  }
 }
 function setPaused(p) {
   paused = p; $('status').textContent = p ? '一時停止中' : '';
-  if (p) { stopAll(); clearTimers(); paused = true; } else { if (tour) tour.until = now() + TOUR_MS; select(cur.id); }
+  if (p) { stopAll(); clearTimers(); } else select();
 }
-// 通し：10/20 の議事録の順に、体験を TOUR_MS ずつ自動で切り替える（一覧から選ぶと止まる）
-const TOUR = ['intro', 'lineup', 'dot', 'meet', 'type', 'line', 'walk', 'steps', 'mole', 'lanes', 'voice',
-  'onbeat', 'offbeat', 'oddbeat', 'amadare', 'shishi', 'burst', 'dontpush', 'search', 'wario', 'gradient', 'ghost'];
-const TOUR_MS = 20000;
-let tour = null;
-function tourGo(i) { tour = {i: (i + TOUR.length) % TOUR.length, until: now() + TOUR_MS}; select(TOUR[tour.i]); tourUI(); }
-function tourUI() { const b = $('tour'); b.textContent = tour ? `通しを止める（${tour.i + 1}/${TOUR.length}）` : '議事録の順に通す（各20秒）'; b.classList.toggle('on', !!tour); }
-{ const h = document.createElement('h2'); h.textContent = '通し'; $('list').append(h);
-  const b = document.createElement('button'); b.id = 'tour'; b.onclick = () => { if (tour) { tour = null; tourUI(); } else tourGo(0); }; $('list').append(b); }
-let lastGroup = '';
-EXPS.forEach(e => {
-  if (e.group !== lastGroup) { const h = document.createElement('h2'); h.textContent = lastGroup = e.group; $('list').append(h); }
-  const b = document.createElement('button'); b.textContent = e.name; b.dataset.id = e.id; b.onclick = () => { if (tour) { tour = null; tourUI(); } select(e.id); }; $('list').append(b);
-});
-tourUI();
 ['spd', 'str', 'len'].forEach(id => {
   const inp = $(id), out = inp.nextElementSibling, fmt = {spd: v => v.toFixed(2) + '×', str: v => v + '%', len: v => v + 'ms'}[id];
   try { const v = localStorage.getItem('keycap-lab-' + id); if (v != null) inp.value = v; } catch (e) {}
@@ -1679,20 +346,14 @@ tourUI();
 addEventListener('pointerdown', () => audio(), {once: true});
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
-  if (e.code === 'Space') { e.preventDefault(); setPaused(!paused); return; }
-  if (e.key === 'Escape') { stopAll(); clearTimers(); setPaused(true); return; }
-  const k = 'asdfjkl;'.indexOf(e.key.toLowerCase()), k2 = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon'].indexOf(e.code);
-  const i = k2 >= 0 ? k2 : k;
-  if (i < 0 || e.repeat) return;
-  if (cur.input) firePress(i);
-  else { const was = paused; paused = false; hit(i, e.shiftKey ? 600 : P.len); paused = was; }
+  if (e.code === 'Space') { e.preventDefault(); setPaused(!paused); }
 });
-addEventListener('keyup', e => {
-  const i = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon'].indexOf(e.code);
-  if (i >= 0 && cur.input) fireRelease(i);
-});
+// 全画面：シナリオの画面だけを画面いっぱいに出す（下の帯は隠れる。Esc で戻る）
+$('fsBtn').onclick = () => { $('fsBtn').blur(); document.documentElement.requestFullscreen?.().catch(e => status('全画面にできません: ' + e.message, 4000)); };
+document.addEventListener('fullscreenchange', layout);
 document.addEventListener('visibilitychange', () => { if (document.hidden && !paused) setPaused(true); });
 addEventListener('resize', layout);
+new ResizeObserver(layout).observe($('bar'));   // 下の帯の高さが変わったとき（投稿の結果の行が出たときなど）も、画面を合わせ直す
 
 // ---- ループ ----
 let prev = now();
@@ -1700,12 +361,11 @@ function loop() {
   const t = now(), dt = Math.min(50, t - prev); prev = t;
   g.clearRect(0, 0, W, H);
   if (!paused) cur.draw(s, t, dt);
-  if (tour && !paused && t > tour.until) tourGo(tour.i + 1);
   drawKeys(t, dt);
   requestAnimationFrame(loop);
 }
 layout(); connUI();
-select(location.hash.slice(1) || 'dot');
+select();
 requestAnimationFrame(loop);
 </script>
 </body>
