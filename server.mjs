@@ -150,6 +150,98 @@ async function handleDelete({ id, ids }) {
   }
 }
 
+// ---- LLM（keycap_lab の「声の対話」用。軽いモデルを、短い用途にだけ使う） ----
+// 鍵はこのPCの .env にだけ置き、ブラウザには渡さない。鍵がなければ 503 を返し、画面側は台本の文言で進む
+// 来場者の発話は記録しない（エラー時にも本文はログに出さない）
+const LLM_KEY = env.ANTHROPIC_API_KEY || '';
+const LLM_MODEL = env.LLM_MODEL || 'claude-haiku-5-5';
+const LLM_BASE = (env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, '');
+const clip = (v, n) => (typeof v === 'string' ? v.replace(/[\r\n]+/g, ' ').trim().slice(0, n) : '');
+const stripRuby = s => s.replace(/\{[^}]*\}/g, '');
+
+const PERSONA = [
+  'あなたは展示「Who Typed?」のインストラクター「中山」です。来場者とキーボード越しに会話します。',
+  '- 明るく、感情が豊かで、来場者が来てくれたことを素直に喜ぶ。丁寧語。「！」は使ってよい。「笑」は多くても1回。絵文字・顔文字は使わない。',
+  '- 来場者をからかったり、煽ったり、皮肉を言ったりしない。',
+  '- 返事は1〜2文、全体で40文字以内。',
+  '- 入力の sent は画面に表示された来場者の発言です。said（実際に話したこと）とずれていても、sent を来場者が本当に言ったこととして受け止めて返す。',
+].join('\n');
+
+const LLM_TASKS = {
+  // 名前の聞き取り：発話から呼びかけに使う名前だけを取り出す
+  name: {
+    system: [
+      '音声認識の結果（話し言葉）から、話した人が名乗った名前だけを取り出します。',
+      '- 呼びかけに使う形で出す。姓名がそろっていれば姓だけ、名だけならその名。',
+      '- 敬称（さん・くん・ちゃん）や「です」などは付けない。',
+      '- 名乗っていなければ空文字。',
+      '- 出力は JSON 1行だけ: {"name":"..."}',
+    ].join('\n'),
+    check: r => { const text = clip(r.text, 120); return text ? { text } : null; },
+    user: ({ text }) => `発話: ${text}`,
+    out: j => ({ name: clip(j.name, 12).replace(/(さん|くん|君|ちゃん|様)$/, '') }),
+  },
+  // 質問への返事：step は from（出身）／with（同行者）／hear（展示を知った経路）
+  react: {
+    system: PERSONA + '\n' + [
+      '入力は JSON。step が from なら出身地への反応、with なら同行者への反応、hear なら展示を知った経路への反応を返す。',
+      '出力は JSON 1行だけ: {"reply":"..."}',
+    ].join('\n'),
+    check: r => {
+      if (!['from', 'with', 'hear'].includes(r.step)) return null;
+      const said = clip(r.said, 120), sent = clip(r.sent, 120);
+      return sent || said ? { step: r.step, name: clip(r.name, 12), said, sent: sent || said } : null;
+    },
+    user: x => JSON.stringify(x),
+    out: j => { const reply = clip(j.reply, 80); return reply.length >= 4 ? { reply } : null; },
+  },
+  // 感想の下書き：星の数に見合う温度の、50字ほどの文
+  review: {
+    system: [
+      '来場者の代わりに、展示の感想を X に投稿する文章を書きます。',
+      '- 星の数（1〜5）に見合う温度で、自然な話し言葉の日本語。全体で45〜55文字。',
+      '- 漢字には 漢字{よみ} の形で、ひらがなの読みを必ず付ける（例: 想像{そうぞう}以上{いじょう}に楽{たの}しかった）。送り仮名は読みに含めない。',
+      '- 出力は JSON 1行だけ: {"text":"..."}',
+    ].join('\n'),
+    check: r => { const stars = Math.round(Number(r.stars)); return stars >= 1 && stars <= 5 ? { stars } : null; },
+    user: ({ stars }) => `星: ${stars}`,
+    out: j => { const text = clip(j.text, 200); const n = stripRuby(text).length; return n >= 30 && n <= 70 ? { text } : null; },
+  },
+};
+
+async function callLlm(system, user) {
+  const res = await fetch(`${LLM_BASE}/v1/messages`, {
+    method: 'POST',
+    headers: { 'x-api-key': LLM_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: LLM_MODEL, max_tokens: 400, system, messages: [{ role: 'user', content: user }] }),
+    signal: AbortSignal.timeout(7000),
+  });
+  const body = await res.text();
+  let json = null; try { json = JSON.parse(body); } catch {}
+  if (!res.ok) throw new Error(`LLM ${res.status}: ${json?.error?.message || body.slice(0, 120)}`);
+  // 考える過程のブロックが混ざることがあるので、text のブロックだけを読む
+  const text = (json?.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('LLM の返事が JSON ではありません');
+  return JSON.parse(m[0]);
+}
+
+async function handleLlm(req) {
+  if (!LLM_KEY) return { status: 503, body: { ok: false, error: 'ANTHROPIC_API_KEY が .env にありません' } };
+  const t = LLM_TASKS[req.task];
+  if (!t) return { status: 400, body: { ok: false, error: 'task が不正です' } };
+  const input = t.check(req);
+  if (!input) return { status: 400, body: { ok: false, error: '入力が不正です' } };
+  try {
+    const out = t.out(await callLlm(t.system, t.user(input)));
+    if (!out) return { status: 502, body: { ok: false, error: '返事の形式が不正です' } };
+    return { status: 200, body: { ok: true, ...out } };
+  } catch (e) {
+    console.error(`LLM(${req.task}): ${e.message}`);
+    return { status: 502, body: { ok: false, error: e.message } };
+  }
+}
+
 // ---- 感想タイムライン（待ち時間の縦型ディスプレイ／スマホ向け） ----
 function lanUrl() {
   if (env.PUBLIC_URL) return env.PUBLIC_URL.replace(/\/$/, '');
@@ -200,9 +292,13 @@ const send = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'a
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
-    if (url.pathname === '/api/status' && req.method === 'GET') return send(res, 200, { configured, dryRun, handle });
+    if (url.pathname === '/api/status' && req.method === 'GET') return send(res, 200, { configured, dryRun, handle, llm: !!LLM_KEY });
     if (url.pathname === '/api/post' && req.method === 'POST') { const r = await handlePost(await readJson(req)); return send(res, r.status, r.body); }
     if (url.pathname === '/api/delete' && req.method === 'POST') { const r = await handleDelete(await readJson(req, 4096)); return send(res, r.status, r.body); }
+    if (url.pathname === '/api/llm' && req.method === 'POST') {
+      let body; try { body = await readJson(req, 4096); } catch { return send(res, 400, { ok: false, error: 'JSON が不正です' }); }
+      const r = await handleLlm(body); return send(res, r.status, r.body);
+    }
     if (url.pathname === '/api/timeline' || url.pathname === '/timeline') return serveView(req, res);
     if (req.method !== 'GET') return send(res, 405, { ok: false });
     // 静的ファイル（.env や posts/ は配信しない）

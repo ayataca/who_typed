@@ -21,8 +21,10 @@
  *   Driver N uses outputs (2N-2, 2N-1): ON=(1,0), BRAKE=(1,1), OFF=(0,0).
  *
  * Two ways to move a key:
- *   push    P / F: the board drives the key (a strike, a tremble, a PWM
- *           level). Partial strength is PWM between ON and BRAKE; a key that
+ *   push    P / F: the board drives the key (a strike or a tremble), always
+ *           at full strength: there is no PWM, so the coils do not whine. The
+ *           duty values of P and F are still accepted (any duty above 0 means
+ *           full, 0 releases), so the host does not need to change. A key that
  *           stops is braked for 5 ms before it is released.
  *   listen  U: the key is kept up, and a finger pushing it down is reported
  *           (DOWN / UP). A key that has just risen must first read as
@@ -33,11 +35,11 @@
  *
  * Host -> board (one line each; key = 0..7 or a s d f j k l ;)
  *   P key ms [duty=100] [kick=0] [hz=0]
- *       push one key for ms (max 5000) at duty 0..100 %. The first kick ms
- *       are full strength; hz: on/off at hz after the kick (a tremble).
+ *       push one key for ms (max 5000). duty: above 0 = full strength (no
+ *       PWM), 0 = release. hz: on/off at hz after the first kick ms (a tremble).
  *   F ms kick d0 d1 d2 d3 d4 d5 d6 d7
  *       push all eight at once (a frame, for continuous motion): d > 0 keeps
- *       a key going for ms more at duty d (no new kick), d = 0 releases it.
+ *       a key going at full strength for ms more, d = 0 releases it.
  *   U mask      listen to the keys in mask (hex, bit 0 = A). Send it again at
  *               least every second, or the keys drop (TIMEOUT). U 0 drops them.
  *   X           stop: every key down, calibration cancelled
@@ -59,8 +61,7 @@
  *   SENSE tau/threshold x8 (0/0 = not listening)
  *   MODE PLAY|AUTO_CAL|MANUAL_CAL, AUTO ..., CAL ...  (as v10, key numbers)
  *
- * Heat guard: each key collects heat while driven (duty-weighted; a
- * listening key counts as full) and loses it five times as fast while off.
+ * Heat guard: each key collects heat while driven and loses it five times as fast while off.
  * At 5 s of heat the key rests until it has cooled (5 s on -> 1 s off, as
  * v10), printing REST and AWAKE. A listening key comes back up by itself.
  *
@@ -94,8 +95,7 @@ constexpr uint8_t SER_PIN = 19;
 constexpr uint8_t SHIFT_CLOCK_PIN = 18;
 constexpr uint8_t LATCH_CLOCK_PIN = 17;
 
-// Push
-constexpr uint32_t PWM_PERIOD_US = 1000;  // 1 kHz; the keys are staggered
+// Push (full strength only: no PWM, so no coil whine)
 constexpr uint32_t MAX_DRIVE_MS = 5000;
 constexpr uint32_t VOICE_BRAKE_US = 5000;
 
@@ -162,7 +162,7 @@ enum Drive : uint8_t { DRIVE_OFF = 0, DRIVE_ON = 1, DRIVE_BRAKE = 3 };
 struct Voice {  // a push
   bool active;
   bool braking;
-  uint8_t duty;
+  uint8_t duty;     // 100 while pushing (kept for the heat guard)
   uint32_t startUs;
   uint32_t durUs;
   uint32_t kickUs;
@@ -244,7 +244,7 @@ inline void settle() {
   for (uint8_t i = 0; i < 8; ++i) asm volatile("nop");
 }
 
-// Fast bit-banged shiftOut (PWM edges come up to 16 times per ms).
+// Fast bit-banged shiftOut.
 void writeShiftRegisters(uint32_t value) {
   gpio_put(LATCH_CLOCK_PIN, 0);
   for (int8_t bit = 31; bit >= 0; --bit) {
@@ -290,10 +290,6 @@ Drive driveOf(uint8_t i, uint32_t nowUs) {
       bool on = true;
       if (elapsed >= v.kickUs) {
         if (v.halfUs) on = ((elapsed - v.kickUs) / v.halfUs) % 2 == 0;
-        if (on && v.duty < 100) {
-          const uint32_t phase = (nowUs + i * (PWM_PERIOD_US / KEY_COUNT)) % PWM_PERIOD_US;
-          on = phase < v.duty * PWM_PERIOD_US / 100;
-        }
       }
       return on ? DRIVE_ON : DRIVE_BRAKE;
     }
@@ -346,7 +342,7 @@ void startVoice(uint8_t i, uint32_t ms, uint32_t duty, uint32_t kickMs, uint32_t
   } else {
     v.durUs = (nowUs - v.startUs) + ms * 1000UL;
   }
-  v.duty = duty > 100 ? 100 : duty;
+  v.duty = 100;  // any duty above 0 is full strength (no PWM)
   v.active = true;
   v.braking = false;
 }
