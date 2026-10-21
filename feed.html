@@ -18,6 +18,7 @@
     --link: #1d9bf0;
     --media-bg: #16181c;
     --thread: #333639;
+    --banner: #333639;
   }
   [data-theme="light"] {
     --bg: #ffffff;
@@ -28,6 +29,7 @@
     --link: #1d9bf0;
     --media-bg: #f7f9f9;
     --thread: #cfd9de;
+    --banner: #cfd9de;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -41,6 +43,7 @@
     -webkit-font-smoothing: antialiased;
     -webkit-user-select: none;
     user-select: none;
+    touch-action: manipulation; /* ダブルタップで拡大しない */
     cursor: none;
   }
   #viewport {
@@ -81,7 +84,7 @@
 
   /* プロフィール */
   .profile { border-bottom: 1px solid var(--border); }
-  .banner { aspect-ratio: 3 / 1; background: #333639 center / cover no-repeat; }
+  .banner { aspect-ratio: 3 / 1; background: var(--banner) center / cover no-repeat; }
   .p-body { padding: 12px 16px 0; position: relative; }
   .p-avatar {
     width: 25%; min-width: 48px; max-width: 134px; aspect-ratio: 1;
@@ -153,7 +156,7 @@
   'use strict';
 
   const DEFAULTS = {
-    theme: 'dark',          // 'dark' | 'light'
+    theme: 'auto',          // 'auto'=スマホの設定に合わせる / 'dark' / 'light'（画面のダブルタップでも切り替えられる）
     speed: 40,              // スクロール速度（px/秒）
     pollSeconds: 5,         // 新しい投稿を確認する間隔（秒）
     onNewPost: 'jump',      // 'jump'=新着が来たら先頭に戻る / 'wait'=一周してから反映
@@ -438,9 +441,43 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
   document.addEventListener('pointerdown', keepAwake);
 
+  // ---- ダーク／ライトの切り替え ----
+  // 優先順位：ダブルタップで選んだもの（端末に保存）→ URL の theme → スマホの設定
+  const THEME_KEY = 'whoTypedFeedTheme';
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+  function savedTheme() {
+    try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; }
+  }
+  function currentTheme() {
+    const t = savedTheme() || cfg.theme;
+    if (t === 'dark' || t === 'light') return t;
+    return systemDark.matches ? 'dark' : 'light';
+  }
+  function applyTheme() {
+    const t = currentTheme();
+    document.documentElement.dataset.theme = t;
+    document.querySelector('meta[name="theme-color"]').content = t === 'light' ? '#ffffff' : '#000000';
+  }
+  function toggleTheme() {
+    const next = currentTheme() === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* 保存できない端末では、再読み込みまで有効 */ cfg.theme = next; }
+    applyTheme();
+  }
+  systemDark.addEventListener('change', applyTheme);
+  // ダブルタップ（0.35秒以内に近い場所を2回タップ）で切り替える
+  let lastTap = null;
+  document.addEventListener('pointerup', (e) => {
+    const now = performance.now();
+    if (lastTap && now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40) {
+      lastTap = null;
+      toggleTheme();
+    } else {
+      lastTap = { t: now, x: e.clientX, y: e.clientY };
+    }
+  });
+
   async function start() {
-    document.documentElement.dataset.theme = cfg.theme;
-    document.querySelector('meta[name="theme-color"]').content = cfg.theme === 'light' ? '#ffffff' : '#000000';
+    applyTheme();
     if (!cfg.showTopbar) $('topbar').style.display = 'none';
 
     for (;;) {
