@@ -157,7 +157,8 @@ function lanUrl() {
     for (const i of list || []) if (i.family === 'IPv4' && !i.internal) return `http://${i.address}:${VIEW_PORT}`;
   return `http://localhost:${VIEW_PORT}`;
 }
-function timeline(limit = 50) {
+// 成功した投稿（削除したものを除く）を古い順に返す
+function postedEntries() {
   if (!fs.existsSync(LOG)) return [];
   const rows = []; const removed = new Set();
   for (const line of fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean)) {
@@ -168,17 +169,67 @@ function timeline(limit = 50) {
     } catch {}
   }
   const seen = new Set();
-  return rows.filter(e => !(e.ids || [e.id]).some(x => x && removed.has(x)) && !seen.has(e.sessionId) && seen.add(e.sessionId))
-    .slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join('') }));
+  return rows.filter(e => !(e.ids || [e.id]).some(x => x && removed.has(x)) && !seen.has(e.sessionId) && seen.add(e.sessionId));
 }
-// 公開用（LANに出す）サーバー：感想の一覧だけを返し、投稿などのAPIは持たない
-const VIEW_FILES = { '/timeline': ['timeline.html', 'text/html; charset=utf-8'], '/qrcode.js': ['qrcode.js', 'text/javascript'] };
+function timeline(limit = 50) {
+  return postedEntries().slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join('') }));
+}
+
+// ---- 展示用フィード（スマホで X のプロフィール画面のように流す） ----
+// 1回の体験の投稿は最大10件のスレッドなので、ツイート単位に分けてスレッドの順に並べる
+const FEED_IMAGES = ['feed-avatar.png', 'feed-avatar.jpg', 'feed-banner.png', 'feed-banner.jpg'];
+function feedImage(name) {
+  const f = FEED_IMAGES.find(x => x.startsWith(name) && fs.existsSync(path.join(ROOT, x)));
+  return f ? '/' + f : '';
+}
+function feed(limitSessions = 300) {
+  const entries = postedEntries();
+  const posts = [];
+  for (const e of entries.slice(-limitSessions).reverse()) {
+    e.texts.forEach((text, i) => posts.push({
+      id: e.ids?.[i] || `${e.sessionId}-${i}`,
+      at: e.at,
+      text,
+      hasPrev: i > 0,
+      hasNext: i < e.texts.length - 1,
+    }));
+  }
+  return {
+    profile: {
+      name: env.X_DISPLAY_NAME || handle.slice(1) || 'Who Typed?',
+      handle: handle.length > 1 ? handle : '',
+      avatar: feedImage('feed-avatar'),
+      banner: feedImage('feed-banner'),
+      bio: env.X_BIO || '',
+    },
+    total: entries.reduce((n, e) => n + e.texts.length, 0),
+    posts,
+  };
+}
+// 中身が変わっていなければ 304 だけを返し、スマホの通信量を抑える
+function sendCached(req, res, body) {
+  const json = JSON.stringify(body);
+  const etag = '"' + crypto.createHash('sha1').update(json).digest('base64url') + '"';
+  if (req.headers['if-none-match'] === etag) { res.writeHead(304, { ETag: etag, 'Cache-Control': 'no-cache' }); return res.end(); }
+  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', ETag: etag, 'Cache-Control': 'no-cache' });
+  res.end(json);
+}
+
+// 公開用（LANに出す）サーバー：感想の一覧とフィードだけを返し、投稿などのAPIは持たない
+const VIEW_FILES = {
+  '/timeline': ['timeline.html', 'text/html; charset=utf-8'],
+  '/feed': ['feed.html', 'text/html; charset=utf-8'],
+  '/qrcode.js': ['qrcode.js', 'text/javascript'],
+  ...Object.fromEntries(FEED_IMAGES.map(f => ['/' + f, [f, f.endsWith('.png') ? 'image/png' : 'image/jpeg']])),
+};
+const isViewPath = p => p === '/api/timeline' || p === '/api/feed' || (p !== '/' && p in VIEW_FILES);
 function serveView(req, res) {
   const url = new URL(req.url, 'http://localhost');
   if (req.method !== 'GET') return send(res, 405, { ok: false });
   if (url.pathname === '/api/timeline') return send(res, 200, { url: lanUrl() + '/timeline', items: timeline() });
+  if (url.pathname === '/api/feed') return sendCached(req, res, feed());
   const f = VIEW_FILES[url.pathname === '/' ? '/timeline' : url.pathname];
-  if (!f) { res.writeHead(404); return res.end('not found'); }
+  if (!f || !fs.existsSync(path.join(ROOT, f[0]))) { res.writeHead(404); return res.end('not found'); }
   res.writeHead(200, { 'Content-Type': f[1], 'Cache-Control': 'no-cache' });
   fs.createReadStream(path.join(ROOT, f[0])).pipe(res);
 }
@@ -203,7 +254,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/status' && req.method === 'GET') return send(res, 200, { configured, dryRun, handle });
     if (url.pathname === '/api/post' && req.method === 'POST') { const r = await handlePost(await readJson(req)); return send(res, r.status, r.body); }
     if (url.pathname === '/api/delete' && req.method === 'POST') { const r = await handleDelete(await readJson(req, 4096)); return send(res, r.status, r.body); }
-    if (url.pathname === '/api/timeline' || url.pathname === '/timeline') return serveView(req, res);
+    if (isViewPath(url.pathname)) return serveView(req, res);
     if (req.method !== 'GET') return send(res, 405, { ok: false });
     // 静的ファイル（.env や posts/ は配信しない）
     const rel = decodeURIComponent(url.pathname === '/' ? '/who-typed-exhibition-scenario.html' : url.pathname);
@@ -230,7 +281,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   // このPCからだけ接続できるようにする
   const viewServer = http.createServer((req, res) => { try { serveView(req, res); } catch (e) { send(res, 500, { ok: false }); } });
   viewServer.on('error', e => console.error(`感想タイムライン用ポート ${VIEW_PORT} を開けません: ${e.message}`));
-  viewServer.listen(VIEW_PORT, '0.0.0.0', () => console.log(`感想タイムライン（QRの行き先）: ${lanUrl()}/timeline`));
+  viewServer.listen(VIEW_PORT, '0.0.0.0', () => {
+    console.log(`感想タイムライン（QRの行き先）: ${lanUrl()}/timeline`);
+    console.log(`展示用フィード（スマホで開く）: ${lanUrl()}/feed`);
+  });
   server.listen(PORT, '127.0.0.1', () => {
     console.log(`Who Typed? サーバー: http://localhost:${PORT}`);
     console.log(configured ? (dryRun ? '投稿モード: 模擬（DRY_RUN=1。Xには投稿しません）' : `投稿モード: 本番（${handle} に投稿します）`) : '投稿モード: 模擬（.env に X の鍵が未設定）');
