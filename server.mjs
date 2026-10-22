@@ -322,6 +322,9 @@ const VIEW_FILES = {
   '/timeline': ['timeline.html', 'text/html; charset=utf-8'],
   '/feed': ['feed.html', 'text/html; charset=utf-8'],
   '/qrcode.js': ['qrcode.js', 'text/javascript'],
+  '/fullscreen.js': ['fullscreen.js', 'text/javascript'],
+  '/timeline.webmanifest': ['timeline.webmanifest', 'application/manifest+json'],
+  '/feed.webmanifest': ['feed.webmanifest', 'application/manifest+json'],
   ...Object.fromEntries(FEED_IMAGES.map(f => ['/' + f, [f, f.endsWith('.png') ? 'image/png' : 'image/jpeg']])),
 };
 const PHOTO_RE = /^\/photo\/([\w-]{8,64})\.jpg$/;

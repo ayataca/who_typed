@@ -1,0 +1,9 @@
+{
+  "name": "Who Typed? 感想タイムライン",
+  "short_name": "Who Typed?",
+  "start_url": "./timeline",
+  "scope": "./",
+  "display": "fullscreen",
+  "background_color": "#000000",
+  "theme_color": "#000000"
+}

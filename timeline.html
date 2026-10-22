@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- ホーム画面に追加すると、アドレスバーなしで開く（iPhone はこの方法で全画面にする） -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Who Typed?">
+<link rel="manifest" href="/timeline.webmanifest">
 <title>Who Typed? 感想タイムライン</title>
 <style>
 /* X と同じ見た目（feed.html と同じ色と組み方）。ダーク／ライトは ?theme=dark|light（なければ端末の設定） */
@@ -56,6 +62,7 @@ main::-webkit-scrollbar{display:none}
 </header>
 <main id="list" class="col"><div class="empty"><b>まだ感想はありません</b>展示で投稿されると、ここに表示されます</div></main>
 <script src="/qrcode.js"></script>
+<script src="/fullscreen.js"></script>
 <script>
 'use strict';
 const q = new URLSearchParams(location.search), isPhone = q.has('m');

@@ -1,0 +1,9 @@
+{
+  "name": "Who Typed? フィード",
+  "short_name": "Who Typed?",
+  "start_url": "./feed",
+  "scope": "./",
+  "display": "fullscreen",
+  "background_color": "#000000",
+  "theme_color": "#000000"
+}
