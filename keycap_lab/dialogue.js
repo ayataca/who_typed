@@ -7,7 +7,7 @@
 // キーが動くのは、来場者のターン（文字を打つ・送信の Enter・下書きの消去）と、待機の鼓動だけ。
 // 来場者が選ぶ場面（3択。星だけは1択）：選択肢を3秒見せてから、5秒だけキー（S D F）を上げて押してもらう。
 //   同時に上げるキーは3本まで（電源の都合）。上げるのは5秒まで（ソレノイドは10秒をこえると発熱する）。
-//   選んだものは黄緑に光る。勝手に決められる場面では、選んだものが黄緑に光ったあと赤で取り消され、光が決められた方へ移る。
+//   選んだものは黄緑に光る。勝手に決められる場面でも、画面では選んだものが光るだけで、場面は決められた方へ進む。
 // 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script><script src="dialogue.js"></script>。
 //   本体の道具（hit・at・toMora・fingerOf・interKey・KC_INPUT…）は、体験が動くときに参照する。
 // 文言・順番・間・触覚の割り当ては、このファイルの上のほう（台本）にまとめた。
@@ -36,10 +36,9 @@ const TX = {
   xInfo: 'あなたの姿の一部の写真と共に、実際にXに投稿されます。展示のあとで、ご自身のスマートフォンから確認できます。',
   askStars: '星5つで、投稿しますか？',
 };
-const OVERRIDE = 'こちらのほうがいいですよ。';   // 選び直すときの、インストラクターのひとこと
 
 // 選ぶ場面：読む時間（ms）と、キーを上げて待つ時間（ms。5秒まで）
-const CHOICE = {readMs: 3000, selectMs: 5000, pickMs: 600, cancelMs: 900, moveMs: 700, finalMs: 600};
+const CHOICE = {readMs: 3000, selectMs: 5000, pickMs: 600, finalMs: 600};
 const CHOICE_KEYS = 'sdf';   // 3択に使うキー（左手の薬指・中指・人さし指）
 
 // ---- ブラウジング：映画を見たかっただけなのに、選ばされるうちに危ないサイトの奥へ ----
@@ -435,11 +434,7 @@ async function choose(S, {options, keys = CHOICE_KEYS, forced = null, label = ''
     C.final = forced ?? Math.floor(Math.random() * options.length);
   } else {
     st('picked'); await wait(S, CHOICE.pickMs);
-    if (forced != null && picked !== forced) {   // 選んだものが、赤で取り消される → 光が forced へ移る
-      st('cancel'); await wait(S, CHOICE.cancelMs);
-      st('move', CHOICE.moveMs); await wait(S, CHOICE.moveMs);
-    }
-    C.final = forced ?? picked;
+    C.final = forced ?? picked;   // 勝手に決められる場面でも、画面では選んだものが光ったまま。場面は決められた方へ進む
   }
   st('final'); await wait(S, CHOICE.finalMs);
   st('out'); KI.guide(0);
@@ -447,15 +442,12 @@ async function choose(S, {options, keys = CHOICE_KEYS, forced = null, label = ''
   S.choice = null;
   return {picked, final: C.final};
 }
-// カード j の、いまの見え方：lime（黄緑の光 0..1）・cancel（赤の取り消し 0..1）
+// カード j の、いまの見え方：lime（黄緑の光 0..1）。押したものが光る（時間切れのときは、代わりに選ばれたもの）
 function cardLook(C, j, t) {
-  const e = clamp((t - C.t0) / 250, 0, 1), sel = C.stage === 'final' || C.stage === 'out' ? C.final : C.picked;
-  const look = {lime: 0, cancel: 0};
+  const e = clamp((t - C.t0) / 250, 0, 1), sel = C.picked >= 0 ? C.picked : C.final;
+  const look = {lime: 0};
   if (C.stage === 'picked' && j === C.picked) look.lime = e;
-  if ((C.stage === 'cancel' || C.stage === 'move') && j === C.picked) { look.lime = C.stage === 'cancel' ? 1 : 1 - clamp((t - C.t0) / C.dur, 0, 1); look.cancel = C.stage === 'cancel' ? e : 1; }
-  if (C.stage === 'move' && j === C.forced) look.lime = clamp((t - C.t0) / C.dur, 0, 1);
   if ((C.stage === 'final' || C.stage === 'out') && j === sel) look.lime = 1;
-  if ((C.stage === 'final' || C.stage === 'out') && j === C.picked && j !== C.final) look.cancel = 1;
   return look;
 }
 
@@ -645,14 +637,9 @@ async function sceneBrowse(S) {
   await pointTo(S, B, 'fsend', 600); await clickIt(S, B);
   B.sent = now();
   await beat(S, 2600);   // そのあいだも、ポップアップとタブが増えていく
-  // 7. 暗転（カメラは、X の場面で撮る）
+  // 7. 暗転して、ブラウジングは終わり（カメラは、X の場面で撮る）
   B.black = now();
   await beat(S, 1400);
-  // 8. 振り返り：暗転が明けると、閲覧履歴（新しい順。下から上へ流れる）
-  B.pops = []; B.tabs = [{t: '履歴', bad: false}]; B.tab = 0;
-  Object.assign(B, {url: 'chrome-history', page: 'history', histT: now(), scroll: 0, sc: null, ptr: null});
-  B.black = -now();   // 明ける
-  await beat(S, 6500);
 }
 
 // 下書きが、deleteキー（右小指）の連打で消される。1打ごとに消える量が増える
@@ -795,7 +782,7 @@ async function stepTitle(S) {
 
 // ================= 進行 =================
 // 各場面の始まりの目安（ms）。ふつうの進み方の値。これより8秒以上遅れていたら、打つテンポと間を少し速める（16秒以上なら、もう少し）
-const DUE = {hello: 600, toLine: 9800, line: 15100, toBrowse: 80100, browse: 84100, toX: 157200, x: 175800};   // 通しの実測（10/23。選ぶ場面で、すぐ押したとき）
+const DUE = {hello: 600, toLine: 9800, line: 15200, toBrowse: 79100, browse: 83900, toX: 160400, x: 178900};   // 通しの実測（10/23。選ぶ場面で、すぐ押したとき）
 const LATE = [8000, 16000];
 const mark = (S, name) => S.tl.push([name, Math.round(now() - S.t0)]);
 function phase(S, p) {
@@ -1053,28 +1040,16 @@ function drawChoice(S, C, t, pb) {
       g.save(); g.globalAlpha = A * look.lime; g.shadowColor = LIME; g.shadowBlur = fs * 0.7;
       g.fillStyle = LIME; rr(p.tx - fs * 0.1, last + p.lh * 0.5, p.tw + fs * 0.2, Math.max(3, fs * 0.13), 2); g.fill(); g.restore();
     }
-    g.globalAlpha = A * (look.cancel > 0.5 ? 0.4 : 1);
+    g.globalAlpha = A;
     g.fillStyle = INK; g.font = `600 ${size}px ${FONT}`; g.textAlign = 'left'; g.textBaseline = 'middle';
     p.lines.forEach((ln, i) => g.fillText(ln, p.tx, p.ty + i * p.lh));
     g.globalAlpha = A;
-    if (look.cancel > 0) {   // 赤い線で取り消す
-      g.strokeStyle = RED; g.lineWidth = Math.max(2.5, fs * 0.09);
-      p.lines.forEach((ln, i) => { const y = p.ty + i * p.lh; g.beginPath(); g.moveTo(p.tx - fs * 0.1, y); g.lineTo(p.tx - fs * 0.1 + (textW(ln) + fs * 0.2) * look.cancel, y); g.stroke(); });
-    }
   });
-  if (C.stage === 'move' && C.forced != null) {   // 黄緑の下線が、決められた方へ移る
-    const a = spots[C.picked], b = spots[C.forced], e = ease3(clamp((t - C.t0) / C.dur, 0, 1));
-    const ya = a.ty + (a.lines.length - 1) * a.lh + a.lh * 0.5, yb = b.ty + (b.lines.length - 1) * b.lh + b.lh * 0.5;
-    g.save(); g.shadowColor = LIME; g.shadowBlur = fs * 0.7; g.fillStyle = LIME;
-    rr(a.tx + (b.tx - a.tx) * e - fs * 0.1, ya + (yb - ya) * e, (a.tw + (b.tw - a.tw) * e) + fs * 0.2, Math.max(3, fs * 0.13), 2); g.fill(); g.restore();
-  }
-  // 中央：いま何をするか（インストラクターの台詞と同じ出方）。選び直すときは、インストラクターのひとこと
-  const over = C.picked >= 0 && C.forced != null && C.picked !== C.forced;
-  const msg = {read: '選択肢を読んでください', select: '選んでください', picked: '選びました', cancel: '取り消されました',
-    move: OVERRIDE, final: over ? OVERRIDE : '決まりました', timeout: '代わりに選びました', out: over ? OVERRIDE : C.picked < 0 ? '代わりに選びました' : '決まりました'}[C.stage];
+  // 中央：いま何をするか（インストラクターの台詞と同じ出方）
+  const after = C.picked < 0 ? '代わりに選びました' : '選びました';
+  const msg = {read: '選択肢を読んでください', select: '選んでください', picked: '選びました', timeout: '代わりに選びました', final: after, out: after}[C.stage];
   if (!msg) { g.globalAlpha = 1; return; }
-  const msgY = pb - fs * 4.2, color = C.stage === 'cancel' ? RED : INK, t0 = C.stage === 'final' && over ? (C.moveT ??= C.t0) : C.stage === 'out' ? -1e9 : C.t0;
-  if (C.stage === 'move') C.moveT = C.t0;
+  const msgY = pb - fs * 4.2, color = INK, t0 = C.stage === 'final' || C.stage === 'out' ? -1e9 : C.t0;   // 「選びました」は出たまま
   floatLine(msg, W / 2, msgY, fs * 1.05, color, t0, t, A);
   if (C.stage === 'select') {   // 入力受付中：赤い点が脈打つ
     g.font = `600 ${fs * 0.55}px ${FONT}`; const w = textW('入力受付中'), x = W / 2 - (w + fs * 0.55) / 2, y = msgY - fs * 1.2;
@@ -1279,7 +1254,6 @@ function chipRow(S, B, items, x, y, w, t, prefix) {   // 「関連する検索�
     txt(`${MOVIE} `, cx + h * 1.0, cy + h / 2, fs * 0.55, B_URL, 500);
     const pw = textW(`${MOVIE} `);
     txt(it, cx + h * 1.0 + pw, cy + h / 2, fs * 0.55, B_URL, 700);
-    if (look && look.cancel > 0) { g.strokeStyle = RED; g.lineWidth = 3; g.beginPath(); g.moveTo(cx + h, cy + h / 2); g.lineTo(cx + h + (cw - h * 1.4) * look.cancel, cy + h / 2); g.stroke(); }
     if (look && look.badge) badge(cx + cw - h * 0.95, cy + h * 0.15, h * 0.7, look.k);
     setHit(B, prefix + j, cx, cy, cw, h, {ax: 0.3});
   });
@@ -1354,7 +1328,6 @@ function drawResults(S, B, t, top, pb) {
       magnifier(x + fs * 0.75, yy + h / 2, fs * 0.42);
       txt(`${MOVIE} 映画 `, x + fs * 1.5, yy + h / 2, fs * 0.6, B_URL, 500);
       txt(sg, x + fs * 1.5 + textW(`${MOVIE} 映画 `), yy + h / 2, fs * 0.6, B_URL, 700);
-      if (look && look.cancel > 0) { g.strokeStyle = RED; g.lineWidth = 3; g.beginPath(); g.moveTo(x + fs * 1.5, yy + h / 2); g.lineTo(x + fs * 1.5 + bw * 0.5 * look.cancel, yy + h / 2); g.stroke(); }
       if (look && look.badge) badge(x + bw - fs * 1.2, yy + h * 0.15, h * 0.7, look.k);
       setHit(B, 'sug' + j, x, yy, bw, h, {ax: 0.25});
     });
@@ -1441,7 +1414,6 @@ function drawInstallDialog(S, B, t, top, pb) {   // アプリをインストー�
     g.fillStyle = look && look.lime > 0 ? LIME_BG : j === 0 ? '#0b5ed7' : '#f1f3f4'; rr(bx, by, bw, fs * 1.2, 8); g.fill();
     if (look && look.lime > 0) { g.strokeStyle = LIME; g.lineWidth = 2 + 3 * look.lime; rr(bx, by, bw, fs * 1.2, 8); g.stroke(); }
     txt(s, bx + bw / 2, by + fs * 0.6, fs * 0.55, look && look.lime > 0 ? INK : j === 0 ? '#fff' : B_URL, 700, 'center');
-    if (look && look.cancel > 0) { g.strokeStyle = RED; g.lineWidth = 3; g.beginPath(); g.moveTo(bx + fs * 0.3, by + fs * 0.6); g.lineTo(bx + fs * 0.3 + (bw - fs * 0.6) * look.cancel, by + fs * 0.6); g.stroke(); }
     if (look && look.badge) badge(bx - fs * 0.2, by - fs * 0.5, fs * 0.75, look.k);
     setHit(B, 'inst' + j, bx, by, bw, fs * 1.2);
   });
