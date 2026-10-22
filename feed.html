@@ -126,6 +126,8 @@
   .handle, .dot, .time { color: var(--sub); flex: none; }
   .handle { overflow: hidden; text-overflow: ellipsis; flex-shrink: 2; min-width: 0; }
   .text { margin-top: 2px; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
+  .media { margin-top: 12px; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--media-bg); }
+  .media img { display: block; width: 100%; max-height: 510px; object-fit: cover; }
   .hl { color: var(--link); }
   .actions { display: flex; justify-content: space-between; margin-top: 12px; max-width: 425px; color: var(--sub); font-size: 13px; }
   .act { display: flex; align-items: center; gap: 4px; min-width: 40px; }
@@ -286,6 +288,13 @@
     const text = el('div', 'text');
     appendHighlighted(text, p.text);
     main.appendChild(text);
+    if (p.photo) {   // 手元写真（スレッドの1件目）
+      const media = el('div', 'media');
+      const img = el('img');
+      img.src = p.photo; img.alt = ''; img.decoding = 'async';
+      media.appendChild(img);
+      main.appendChild(media);
+    }
 
     const acts = el('div', 'actions');
     for (const n of ['reply', 'repost', 'like', 'views']) acts.appendChild(action(n));

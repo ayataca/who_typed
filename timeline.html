@@ -5,63 +5,158 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Who Typed? 感想タイムライン</title>
 <style>
-*{box-sizing:border-box}
-html,body{margin:0;height:100%;background:#0b0b10;color:#eee;font-family:system-ui,"Hiragino Sans",sans-serif}
-body{display:flex;flex-direction:column}
-header{padding:3vh 4vw 2vh;border-bottom:1px solid #333;display:flex;align-items:center;gap:4vw;flex:none}
-header h1{margin:0;font-size:clamp(20px,4.2vw,56px);line-height:1.2}
-header p{margin:.4em 0 0;color:#9aa;font-size:clamp(12px,1.9vw,26px)}
-#qr{margin-left:auto;text-align:center;font-size:clamp(10px,1.5vw,20px);color:#9aa;flex:none}
-#qr svg,#qr img{display:block;width:min(22vw,220px);height:auto;background:#fff;padding:6px;border-radius:6px;margin-bottom:.4em}
+/* X と同じ見た目（feed.html と同じ色と組み方）。ダーク／ライトは ?theme=dark|light（なければ端末の設定） */
+:root,[data-theme="dark"]{--bg:#000;--text:#e7e9ea;--sub:#71767b;--border:#2f3336;--link:#1d9bf0;--media-bg:#16181c;--thread:#333639;--new:#1d9bf01f}
+[data-theme="light"]{--bg:#fff;--text:#0f1419;--sub:#536471;--border:#eff3f4;--link:#1d9bf0;--media-bg:#f7f9f9;--thread:#cfd9de;--new:#1d9bf014}
+*{box-sizing:border-box;margin:0;padding:0}
+/* 縦型ディスプレイでも読めるよう、字の大きさは画面の幅に合わせる（スマホでは X と同じ 15px） */
+html{font-size:clamp(15px,2.2vw,30px)}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",Roboto,sans-serif;line-height:1.3125;-webkit-font-smoothing:antialiased}
+body{display:flex;flex-direction:column;align-items:center;overflow:hidden}
+.col{width:100%;max-width:40rem;border-left:1px solid var(--border);border-right:1px solid var(--border)}
+header{flex:none;display:flex;align-items:center;gap:1rem;padding:.9rem 1rem;border-bottom:1px solid var(--border)}
+header h1{font-size:1.35rem;font-weight:800;line-height:1.2}
+header p{color:var(--sub);font-size:.9rem;margin-top:.15rem}
+#qr{margin-left:auto;text-align:center;font-size:.75rem;color:var(--sub);flex:none}
+#qr svg{display:block;width:min(22vw,9rem,24vh);height:auto;background:#fff;padding:.3rem;border-radius:.4rem;margin-bottom:.3rem}
 .m #qr{display:none}
-main{flex:1;overflow-y:auto;padding:2vh 4vw;scrollbar-width:none}
+main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none}
 main::-webkit-scrollbar{display:none}
-.post{border:1px solid #2a2a35;border-radius:12px;padding:1.4vh 2vw;margin-bottom:2vh;background:#14141c;animation:in .6s ease}
-.post .meta{color:#789;font-size:clamp(11px,1.5vw,20px);margin-bottom:.4em}
-.post .body{font-size:clamp(14px,2.3vw,32px);line-height:1.6;white-space:pre-wrap;word-break:break-all;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
-.post.new{border-color:#e33}
-.empty{color:#789;text-align:center;margin-top:20vh;font-size:clamp(14px,2.2vw,28px)}
+/* ポスト：アイコン・名前・@ハンドル・時刻・本文・写真・アイコン列。スレッドの続きは、アイコンの下の縦線でつなぐ */
+.post{display:flex;gap:.55rem;padding:.8rem 1rem;border-bottom:1px solid var(--border);animation:in .6s ease}
+.post.has-next{border-bottom:0;padding-bottom:0}
+.post.has-prev{padding-top:.3rem}
+.post.new{background:var(--new)}
+.side{display:flex;flex-direction:column;align-items:center;flex:none;width:2.65rem}
+.side .line{flex:1;width:2px;background:var(--thread);margin-top:.25rem;min-height:.5rem}
+.avatar{width:2.65rem;height:2.65rem;border-radius:50%;background:var(--media-bg) center/cover no-repeat;flex:none}
+.main{flex:1;min-width:0}
+.post.has-next .main{padding-bottom:.8rem}
+.head{display:flex;gap:.25rem;align-items:baseline;white-space:nowrap;overflow:hidden}
+.name{font-weight:700;overflow:hidden;text-overflow:ellipsis;flex-shrink:1}
+.handle,.dot,.time{color:var(--sub);flex:none}
+.handle{overflow:hidden;text-overflow:ellipsis;flex-shrink:2;min-width:0}
+.text{margin-top:.15rem;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}
+.hl{color:var(--link)}
+.media{margin-top:.8rem;border:1px solid var(--border);border-radius:1rem;overflow:hidden;background:var(--media-bg)}
+.media img{display:block;width:100%;max-height:34rem;object-fit:cover}
+.actions{display:flex;justify-content:space-between;margin-top:.8rem;max-width:28rem;color:var(--sub);font-size:.85rem}
+.act{display:flex;align-items:center;gap:.25rem;min-width:2.6rem}
+.act svg{width:1.25rem;height:1.25rem;fill:currentColor}
+.empty{padding:3rem 2rem;text-align:center;color:var(--sub)}
+.empty b{display:block;color:var(--text);font-size:1.35rem;font-weight:800;margin-bottom:.5rem}
 @keyframes in{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body>
-<header>
+<header class="col">
   <div><h1>みんなの感想</h1><p>この展示で「勝手に」打たれた感想です</p></div>
-  <div id="qr"><div id="qrbox"></div>スマホで読み取る</div>
+  <div id="qr" hidden><div id="qrbox"></div><span id="qrlabel"></span></div>
 </header>
-<main id="list"><div class="empty">まだ感想はありません</div></main>
+<main id="list" class="col"><div class="empty"><b>まだ感想はありません</b>展示で投稿されると、ここに表示されます</div></main>
 <script src="/qrcode.js"></script>
 <script>
-const isPhone=new URLSearchParams(location.search).has('m');
-if(isPhone)document.body.classList.add('m');
-const list=document.getElementById('list');
-let known=new Set(),first=true,qrUrl='';
-function drawQr(url){
-  if(qrUrl===url||isPhone)return;qrUrl=url;
-  const q=qrcode(0,'M');q.addData(url+'?m=1');q.make();
-  document.getElementById('qrbox').innerHTML=q.createSvgTag({cellSize:4,margin:0,scalable:true});
+'use strict';
+const q = new URLSearchParams(location.search), isPhone = q.has('m');
+if (isPhone) document.body.classList.add('m');
+// ダーク／ライト：?theme=dark|light。なければ端末の設定に合わせる
+const sysDark = matchMedia('(prefers-color-scheme: dark)');
+const applyTheme = () => { const t = q.get('theme'); document.documentElement.dataset.theme = t === 'dark' || t === 'light' ? t : sysDark.matches ? 'dark' : 'light'; };
+applyTheme(); sysDark.addEventListener('change', applyTheme);
+
+const list = document.getElementById('list');
+let known = new Set(), first = true, qrUrl = '', profile = {name: '', handle: '', avatar: ''};
+// QR の行き先は、展示の X アカウント（https://x.com/ハンドル）。ハンドルが分からないときは QR を出さない
+function drawQr(handle) {
+  const url = handle ? 'https://x.com/' + handle.replace(/^@/, '') : '';
+  if (qrUrl === url || isPhone) return; qrUrl = url;
+  document.getElementById('qr').hidden = !url;
+  if (!url) return;
+  const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+  document.getElementById('qrbox').innerHTML = qr.createSvgTag({cellSize: 4, margin: 0, scalable: true});
+  document.getElementById('qrlabel').textContent = 'X で見る ' + handle;
 }
-function fmt(at){const d=new Date(at);return isNaN(d)?'':d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}
-async function refresh(){
-  try{
-    const r=await fetch('/api/timeline',{cache:'no-store'});const j=await r.json();
-    drawQr(j.url);
-    if(!j.items.length){list.replaceChildren();known=new Set();return}
-    const frag=document.createDocumentFragment();
-    for(const it of j.items){
-      const el=document.createElement('div');el.className='post'+(!first&&!known.has(it.id)?' new':'');
-      const meta=document.createElement('div');meta.className='meta';meta.textContent=fmt(it.at)+(it.rating?' ★'.repeat(0)+'':'' );
-      const body=document.createElement('div');body.className='body';body.textContent=it.text;
-      el.append(meta,body);frag.append(el);
+// 時刻は X の日本語表記（〇秒・〇分・〇時間・〇月〇日）
+function fmt(iso) {
+  const d = new Date(iso), now = new Date(), sec = Math.floor((now - d) / 1000);
+  if (isNaN(d)) return '';
+  if (sec < 60) return `${Math.max(sec, 1)}秒`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}分`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}時間`;
+  return d.getFullYear() === now.getFullYear() ? `${d.getMonth() + 1}月${d.getDate()}日` : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const DEFAULT_AVATAR = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#3a3f45"/><circle cx="50" cy="40" r="18" fill="#8b98a5"/><rect x="22" y="64" width="56" height="30" rx="15" fill="#8b98a5"/></svg>');
+// @メンションと#ハッシュタグを青字に
+const TAG_RE = /(@[A-Za-z0-9_]{1,15}|[#＃][^\s#＃!-\/:-@\[-^`{-~、。！？「」『』（）【】・…]+)/g;
+function highlighted(parent, str) {
+  let last = 0;
+  for (const m of str.matchAll(TAG_RE)) {
+    if (m.index > last) parent.append(str.slice(last, m.index));
+    parent.append(el('span', 'hl', m[0])); last = m.index + m[0].length;
+  }
+  if (last < str.length) parent.append(str.slice(last));
+}
+const ICONS = {
+  reply: 'M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.130 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z',
+  repost: 'M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z',
+  like: 'M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.340 6.052-4.640 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z',
+  views: 'M8.75 21V3h2v18h-2zM18 21V8.5h2V21h-2zM4 21l.004-10h2L6 21H4zm9.248 0v-7h2v7h-2z',
+};
+function post(item, text, i, n) {
+  const art = el('article', 'post' + (i < n - 1 ? ' has-next' : '') + (i > 0 ? ' has-prev' : '') + (!first && !known.has(item.id) ? ' new' : ''));
+  const side = el('div', 'side'), av = el('div', 'avatar');
+  av.style.backgroundImage = `url("${(profile.avatar || DEFAULT_AVATAR).replace(/"/g, '%22')}")`;
+  side.append(av); if (i < n - 1) side.append(el('div', 'line'));
+  const main = el('div', 'main'), head = el('div', 'head');
+  head.append(el('span', 'name', profile.name));
+  if (profile.handle) head.append(el('span', 'handle', profile.handle));
+  head.append(el('span', 'dot', '·'), el('span', 'time', fmt(item.at)));
+  const body = el('div', 'text'); highlighted(body, text);
+  main.append(head, body);
+  if (i === 0 && item.photo) {   // 手元写真（スレッドの1件目。X と同じ）
+    const media = el('div', 'media'), img = el('img');
+    img.src = item.photo; img.alt = ''; img.decoding = 'async';
+    media.append(img); main.append(media);
+  }
+  const acts = el('div', 'actions');
+  for (const k of ['reply', 'repost', 'like', 'views']) { const a = el('div', 'act'); a.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[k]}"/></svg>`; acts.append(a); }
+  main.append(acts);
+  art.append(side, main);
+  return art;
+}
+async function refresh() {
+  try {
+    const r = await fetch('/api/timeline', {cache: 'no-store'}), j = await r.json();
+    profile = {...profile, ...(j.profile || {})};
+    drawQr(profile.handle);
+    if (!j.items.length) return;
+    const frag = document.createDocumentFragment();
+    for (const it of j.items) {
+      const texts = it.texts?.length ? it.texts : [it.text];
+      texts.forEach((t, i) => frag.append(post(it, t, i, texts.length)));
     }
-    const keep=list.scrollTop;
-    list.replaceChildren(frag);list.scrollTop=keep;
-    known=new Set(j.items.map(i=>i.id));first=false;
-  }catch{}
+    const fresh = !first && j.items.some(i => !known.has(i.id));
+    const keep = list.scrollTop;
+    list.replaceChildren(frag);
+    // 新しい感想が来たら、先頭（最新）に戻って少し止まる。そうでなければ、いまの位置のまま
+    if (fresh) { list.scrollTop = 0; holdUntil = Date.now() + 6000; } else list.scrollTop = keep;
+    known = new Set(j.items.map(i => i.id)); first = false;
+  } catch {}
 }
-refresh();setInterval(refresh,5000);
-// 縦型ディスプレイ用：ゆっくり自動スクロールして、端まで来たら戻る
-if(!isPhone){let dir=1;setInterval(()=>{if(list.scrollHeight<=list.clientHeight)return;list.scrollTop+=dir;if(list.scrollTop+list.clientHeight>=list.scrollHeight-1)dir=-1;else if(list.scrollTop<=0)dir=1},40)}
+let holdUntil = Date.now() + 4000;
+refresh(); setInterval(refresh, 5000);
+// 表示用（プロジェクタ・縦型ディスプレイ）：先頭で少し止まってから、ゆっくり下へ。端まで来たら先頭へ戻る
+if (!isPhone) { let dir = 1; setInterval(() => {
+  if (Date.now() < holdUntil || list.scrollHeight <= list.clientHeight) return;
+  list.scrollTop += dir;
+  if (list.scrollTop + list.clientHeight >= list.scrollHeight - 1) dir = -1;
+  else if (list.scrollTop <= 0 && dir < 0) { dir = 1; holdUntil = Date.now() + 4000; }
+}, 40); }
+// 画面を消さない（対応している端末だけ。対応していなければ、端末の自動ロックをオフにする）
+let wakeLock = null;
+const keepAwake = async () => { try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch {} };
+keepAwake(); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
 </script>
 </body>
 </html>

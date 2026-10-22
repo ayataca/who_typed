@@ -263,8 +263,12 @@ function postedEntries() {
   const seen = new Set();
   return rows.filter(e => !(e.ids || [e.id]).some(x => x && removed.has(x)) && !seen.has(e.sessionId) && seen.add(e.sessionId));
 }
+// 手元写真：その回が実際に X に出たとき（模擬モードの間は、リハーサルの投稿も）だけ、LAN に出す。X と同じく、スレッドの1件目に付く
+const showable = e => dryRun || !e.dryRun;
+const photoPath = sessionId => path.join(POSTS_DIR, `${sessionId}.jpg`);
+function photoUrl(e) { return showable(e) && fs.existsSync(photoPath(e.sessionId)) ? `/photo/${e.sessionId}.jpg` : ''; }
 function timeline(limit = 50) {
-  return postedEntries().slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join('') }));
+  return postedEntries().slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join(''), texts: e.texts, photo: photoUrl(e) }));
 }
 
 // ---- 展示用フィード（スマホで X のプロフィール画面のように流す） ----
@@ -274,27 +278,32 @@ function feedImage(name) {
   const f = FEED_IMAGES.find(x => x.startsWith(name) && fs.existsSync(path.join(ROOT, x)));
   return f ? '/' + f : '';
 }
+// 表示名とアイコン（フィードと感想タイムラインで共通）
+function profile() {
+  return {
+    name: env.X_DISPLAY_NAME || handle.slice(1) || 'Who Typed?',
+    handle: handle.length > 1 ? handle : '',
+    avatar: feedImage('feed-avatar'),
+    banner: feedImage('feed-banner'),
+    bio: env.X_BIO || '',
+  };
+}
 function feed(limitSessions = 300) {
   // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない
-  const entries = postedEntries().filter(e => dryRun || !e.dryRun);
+  const entries = postedEntries().filter(showable);
   const posts = [];
   for (const e of entries.slice(-limitSessions).reverse()) {
     e.texts.forEach((text, i) => posts.push({
       id: e.ids?.[i] || `${e.sessionId}-${i}`,
       at: e.at,
       text,
+      photo: i === 0 ? photoUrl(e) : '',
       hasPrev: i > 0,
       hasNext: i < e.texts.length - 1,
     }));
   }
   return {
-    profile: {
-      name: env.X_DISPLAY_NAME || handle.slice(1) || 'Who Typed?',
-      handle: handle.length > 1 ? handle : '',
-      avatar: feedImage('feed-avatar'),
-      banner: feedImage('feed-banner'),
-      bio: env.X_BIO || '',
-    },
+    profile: profile(),
     total: entries.reduce((n, e) => n + e.texts.length, 0),
     posts,
   };
@@ -308,19 +317,27 @@ function sendCached(req, res, body) {
   res.end(json);
 }
 
-// 公開用（LANに出す）サーバー：感想の一覧とフィードだけを返し、投稿などのAPIは持たない
+// 公開用（LANに出す）サーバー：感想の一覧・フィード・その手元写真だけを返し、投稿などのAPIは持たない
 const VIEW_FILES = {
   '/timeline': ['timeline.html', 'text/html; charset=utf-8'],
   '/feed': ['feed.html', 'text/html; charset=utf-8'],
   '/qrcode.js': ['qrcode.js', 'text/javascript'],
   ...Object.fromEntries(FEED_IMAGES.map(f => ['/' + f, [f, f.endsWith('.png') ? 'image/png' : 'image/jpeg']])),
 };
-const isViewPath = p => p === '/api/timeline' || p === '/api/feed' || (p !== '/' && p in VIEW_FILES);
+const PHOTO_RE = /^\/photo\/([\w-]{8,64})\.jpg$/;
+const isViewPath = p => p === '/api/timeline' || p === '/api/feed' || PHOTO_RE.test(p) || (p !== '/' && p in VIEW_FILES);
 function serveView(req, res) {
   const url = new URL(req.url, 'http://localhost');
   if (req.method !== 'GET') return send(res, 405, { ok: false });
-  if (url.pathname === '/api/timeline') return send(res, 200, { url: lanUrl() + '/timeline', items: timeline() });
+  if (url.pathname === '/api/timeline') return send(res, 200, { url: lanUrl() + '/timeline', profile: profile(), items: timeline() });
   if (url.pathname === '/api/feed') return sendCached(req, res, feed());
+  const pm = PHOTO_RE.exec(url.pathname);
+  if (pm) {   // 一覧に出ている回の写真だけを返す（posts/ のほかのファイルや、削除・公開中止した回の写真は返さない）
+    const e = postedEntries().find(x => x.sessionId === pm[1]);
+    if (!e || !photoUrl(e)) { res.writeHead(404); return res.end('not found'); }
+    res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
+    return fs.createReadStream(photoPath(e.sessionId)).pipe(res);
+  }
   const f = VIEW_FILES[url.pathname === '/' ? '/timeline' : url.pathname];
   if (!f || !fs.existsSync(path.join(ROOT, f[0]))) { res.writeHead(404); return res.end('not found'); }
   res.writeHead(200, { 'Content-Type': f[1], 'Cache-Control': 'no-cache' });
@@ -379,7 +396,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const viewServer = http.createServer((req, res) => { try { serveView(req, res); } catch (e) { send(res, 500, { ok: false }); } });
   viewServer.on('error', e => console.error(`感想タイムライン用ポート ${VIEW_PORT} を開けません: ${e.message}`));
   viewServer.listen(VIEW_PORT, '0.0.0.0', () => {
-    console.log(`感想タイムライン（QRの行き先）: ${lanUrl()}/timeline`);
+    console.log(`感想タイムライン（スマホで開いてプロジェクタへ）: ${lanUrl()}/timeline`);
     console.log(`展示用フィード（スマホで開く）: ${lanUrl()}/feed`);
   });
   server.listen(PORT, '127.0.0.1', () => {
