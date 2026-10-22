@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>押下ビューア</title>
+<style>
+  :root { --ink: #111; --red: #d0021b; --line: #d8d8d8; --dim: #8a8a8a; --bg: #fff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 -apple-system, "Hiragino Sans", "Helvetica Neue", sans-serif; }
+  header { display: flex; align-items: center; gap: 12px 16px; padding: 16px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  button { font: inherit; padding: 6px 14px; border: 1px solid var(--ink); background: none; color: var(--ink); border-radius: 4px; cursor: pointer; }
+  button:disabled { opacity: .35; cursor: default; }
+  label { display: inline-flex; align-items: center; gap: 4px; }
+  input[type=number] { width: 64px; font: inherit; }
+  #status { color: var(--dim); }
+  #status.err { color: var(--red); }
+  .bar { display: flex; gap: 10px 18px; align-items: center; flex-wrap: wrap; padding: 10px 24px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .pick label { font-weight: 600; margin-right: 10px; }
+  main { padding: 0 24px 24px; }
+  .key { display: grid; grid-template-columns: 90px 1fr; gap: 20px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .key.off { opacity: .35; }
+  .cap { text-align: center; }
+  .letter { font-size: 52px; line-height: 1; font-weight: 700; transition: color .25s; }
+  .letter.hit { color: var(--red); transition: none; }
+  .count { font-size: 12px; color: var(--dim); margin-top: 4px; }
+  .meta { display: flex; gap: 16px; font-size: 13px; margin-bottom: 2px; flex-wrap: wrap; }
+  .meta .phase { font-weight: 600; }
+  .meta .phase.pressed { color: var(--red); }
+  .meta .phase.dim { color: var(--dim); font-weight: 400; }
+  .meta .hid { color: var(--dim); }
+  .meta .hid.miss { color: var(--red); }
+  canvas { width: 100%; height: 84px; display: block; }
+  .legend { font-size: 12px; color: var(--dim); margin-top: 10px; }
+  .legend b { color: var(--red); font-weight: 400; }
+  #log { margin-top: 14px; font: 13px/1.6 ui-monospace, Menlo, monospace; max-height: 160px; overflow: auto; }
+  @media (max-width: 560px) {
+    header, .bar { padding-left: 16px; padding-right: 16px; }
+    main { padding: 0 16px 16px; }
+    .key { grid-template-columns: 56px 1fr; gap: 12px; }
+    .letter { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>押下ビューア（KEYCAP-LAB-v3）</h1>
+  <button id="connect">基板につなぐ</button>
+  <button id="disconnect" disabled>切断</button>
+  <span id="status">keycap_lab.ino（KEYCAP-LAB-v3）を書き込んだ Pico をつないでください（Chrome）</span>
+</header>
+<div class="bar">
+  <span class="pick" id="pick">上げるキー：</span>
+  <label>しきい値 = σ ×<input type="number" id="sigmas" min="2" max="30" step="0.5" value="6"></label>
+  <label>最小<input type="number" id="minma" min="0.1" max="50" step="0.1" value="1.0">mA</label>
+  <button id="learn">揺れを測り直す</button>
+  <label><input type="checkbox" id="hid" checked> キーボードとして打つ</label>
+</div>
+<main>
+  <div id="keys"></div>
+  <p class="legend">黒の線：電流の揺れ（速い平均 − 遅い平均, mA）。<b>赤の破線</b>：しきい値。赤い縦線：押下と判定した瞬間。表示は直近 6 秒。
+    「キー入力」は、押下がこのページにキーボード入力（keydown）として届いたかどうか。</p>
+  <div id="log"></div>
+</main>
+<script>
+const NAMES = ['A', 'S', 'D', 'F', 'J', 'K', 'L', ';'];
+const CODES = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon'];
+const PHASE = ['下がっています', '上がったところ（読まない）', '揺れを測定中（触らない）', '落ち着くのを待っています', '押せます', '押下中'];
+const WINDOW = 600;               // samples shown (10 ms each = 6 s)
+let want = 0b1110;                // S D F
+try { const v = localStorage.getItem('press-viewer-mask'); if (v != null) want = +v; } catch (e) {}
+const pick = document.getElementById('pick');
+const keys = NAMES.map((name, i) => {
+  const lab = document.createElement('label');
+  lab.innerHTML = `<input type="checkbox"${want & 1 << i ? ' checked' : ''}>${name}`;
+  lab.firstChild.onchange = e => { want = e.target.checked ? want | 1 << i : want & ~(1 << i); row.classList.toggle('off', !(want & 1 << i)); try { localStorage.setItem('press-viewer-mask', want); } catch (er) {} beat(); };
+  pick.appendChild(lab);
+  const row = document.createElement('div');
+  row.className = 'key' + (want & 1 << i ? '' : ' off');
+  row.innerHTML = `<div class="cap"><div class="letter">${name}</div><div class="count">0 回</div></div>
+    <div><div class="meta"><span class="phase dim">下がっています</span><span class="ma"></span><span class="thr"></span><span class="hid"></span></div><canvas></canvas></div>`;
+  document.getElementById('keys').appendChild(row);
+  return { name, bit: 1 << i, row, letter: row.querySelector('.letter'), count: row.querySelector('.count'),
+           phase: row.querySelector('.phase'), ma: row.querySelector('.ma'), thr: row.querySelector('.thr'), hid: row.querySelector('.hid'),
+           canvas: row.querySelector('canvas'), bumps: [], thrs: [], marks: [], n: 0, hitTimer: 0, typedAt: -1e9 };
+});
+const statusEl = document.getElementById('status'), logEl = document.getElementById('log');
+const btnC = document.getElementById('connect'), btnD = document.getElementById('disconnect');
+let port = null, reader = null, writer = null, sample = 0, lastLine = 0, beatTimer = 0;
+
+function setStatus(text, err = false) { statusEl.textContent = text; statusEl.className = err ? 'err' : ''; }
+function log(text) {
+  const t = new Date(), line = document.createElement('div');
+  line.textContent = `${t.toLocaleTimeString('ja-JP')}.${String(t.getMilliseconds()).padStart(3, '0')}  ${text}`;
+  logEl.prepend(line);
+  while (logEl.childNodes.length > 200) logEl.lastChild.remove();
+}
+
+function onPress(i, bump, thr) {
+  const k = keys[i], t = performance.now();
+  k.n++; k.count.textContent = `${k.n} 回`;
+  k.marks.push(sample);
+  k.letter.classList.add('hit'); clearTimeout(k.hitTimer);
+  k.hitTimer = setTimeout(() => k.letter.classList.remove('hit'), 300);
+  log(`${k.name}  揺れ ${bump} mA（しきい値 ${thr}）`);
+  setTimeout(() => {   // キーボード入力として届いたか
+    const ok = k.typedAt >= t - 500;
+    k.hid.textContent = ok ? 'キー入力 届いた' : (document.getElementById('hid').checked ? 'キー入力 届いていない' : 'キー入力 なし（オフ）');
+    k.hid.className = 'hid' + (ok || !document.getElementById('hid').checked ? '' : ' miss');
+  }, 500);
+}
+
+function onStream(p) {
+  const mask = parseInt(p[1], 16);
+  sample++;
+  keys.forEach((k, i) => {
+    const b = +p[2 + i * 4], thr = +p[3 + i * 4], ph = +p[4 + i * 4], ma = +p[5 + i * 4], up = !!(mask & k.bit);
+    k.bumps.push(up ? b : NaN); k.thrs.push(thr);
+    if (k.bumps.length > WINDOW) { k.bumps.shift(); k.thrs.shift(); }
+    k.marks = k.marks.filter(s => s > sample - WINDOW);
+    if (sample % 10 === 0) {       // text 10 times a second
+      k.row.classList.toggle('off', !(want & k.bit));
+      k.phase.textContent = up ? PHASE[ph] || '' : (want & k.bit ? '下がっています（熱の保護で休み中か、上がる順番待ち）' : '下がっています');
+      k.phase.className = 'phase' + (ph === 5 ? ' pressed' : up ? '' : ' dim');
+      k.ma.textContent = up ? `電流 ${ma} mA` : '';
+      k.thr.textContent = `しきい値 ${thr.toFixed(2)} mA`;
+    }
+  });
+}
+
+function onLine(line) {
+  line = line.trim();
+  if (!line) return;
+  lastLine = performance.now();
+  let m;
+  if (line.startsWith('S ')) { const p = line.split(/\s+/); if (p.length >= 34) onStream(p); return; }
+  if ((m = line.match(/^DOWN (\d) (\S+) (\S+)/))) { onPress(+m[1], m[2], m[3]); return; }
+  if ((m = line.match(/^(?:READY|VERSION) (.+)$/))) {
+    if (!/KEYCAP-LAB-v3/.test(m[1])) setStatus(`基板は ${m[1]} です。keycap_lab.ino（KEYCAP-LAB-v3）を書き込んでください`, true);
+    else setStatus('接続中（' + m[1] + '）');
+    return;
+  }
+  if (/^(LEARNED|TIMEOUT|REST|AWAKE|MODE|SIGMAS|MINMA|LEARN|HID|SENSE|ERROR)/.test(line)) {
+    if ((m = line.match(/^(LEARNED|REST|AWAKE) (\d)(.*)$/))) log(`${m[1]} ${NAMES[+m[2]]}${m[3]}`);
+    else log(line);
+  }
+}
+
+function draw() {
+  const dpr = window.devicePixelRatio || 1;
+  for (const k of keys) {
+    const c = k.canvas, w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== w * dpr || c.height !== h * dpr) { c.width = w * dpr; c.height = h * dpr; }
+    const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const thr = k.thrs.length ? k.thrs[k.thrs.length - 1] : 1;
+    let top = thr * 2;
+    for (const b of k.bumps) if (Math.abs(b) > top) top = Math.abs(b);
+    const zero = h * 0.6, scale = (h * 0.55) / top;
+    const x = i => w - (k.bumps.length - 1 - i) * (w / WINDOW);
+    g.strokeStyle = '#d8d8d8'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, zero); g.lineTo(w, zero); g.stroke();
+    g.strokeStyle = '#d0021b'; g.lineWidth = 1;
+    for (const s of k.marks) { const xi = x(k.bumps.length - 1 - (sample - s)); g.beginPath(); g.moveTo(xi, 0); g.lineTo(xi, h); g.stroke(); }
+    g.setLineDash([5, 4]); g.beginPath();
+    k.thrs.forEach((t, i) => { const y = zero - t * scale; i ? g.lineTo(x(i), y) : g.moveTo(x(i), y); }); g.stroke(); g.setLineDash([]);
+    g.strokeStyle = '#111'; g.lineWidth = 1.4; g.beginPath(); let pen = false;
+    k.bumps.forEach((b, i) => { if (isNaN(b)) { pen = false; return; } const y = zero - b * scale; pen ? g.lineTo(x(i), y) : g.moveTo(x(i), y); pen = true; });
+    g.stroke();
+    g.fillStyle = '#8a8a8a'; g.font = '11px -apple-system, sans-serif'; g.fillText(`${top.toFixed(1)} mA`, 4, zero - top * scale + 11);
+  }
+  if (port && performance.now() - lastLine > 1500) setStatus('データが届いていません。keycap_lab.ino（KEYCAP-LAB-v3）を書き込んだか確認してください', true);
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+async function send(text) { if (writer) try { await writer.write(new TextEncoder().encode(text + '\n')); } catch (e) {} }
+function beat() { send(`U ${want.toString(16)}`); }   // 心拍：200 ms ごとに送らないと、0.5 秒で全部下がる
+
+async function connect() {
+  if (!('serial' in navigator)) { setStatus('このブラウザは Web Serial に対応していません。Chrome で開いてください', true); return; }
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+  } catch (e) { port = null; setStatus('つなげませんでした：' + e.message + '（keycap_lab のページや Arduino のシリアルモニタを閉じてください）', true); return; }
+  writer = port.writable.getWriter();
+  btnC.disabled = true; btnD.disabled = false;
+  setStatus('接続中');
+  lastLine = performance.now();
+  readLoop();
+  await send('V');
+  await send('STREAM 1');
+  await send(`SIGMAS ${document.getElementById('sigmas').value}`);
+  await send(`MINMA ${document.getElementById('minma').value}`);
+  await send(`HID ${document.getElementById('hid').checked ? 1 : 0}`);
+  beat(); beatTimer = setInterval(beat, 200);
+}
+
+async function readLoop() {
+  const dec = new TextDecoder(); let buf = '';
+  while (port && port.readable) {
+    reader = port.readable.getReader();
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let n; while ((n = buf.indexOf('\n')) >= 0) { onLine(buf.slice(0, n)); buf = buf.slice(n + 1); }
+        if (statusEl.className === 'err' && port && /データが届いて/.test(statusEl.textContent)) setStatus('接続中');
+      }
+    } catch (e) { setStatus('読み取りが止まりました：' + e.message, true); break; }
+    finally { reader.releaseLock(); reader = null; }
+  }
+}
+
+async function disconnect() {
+  clearInterval(beatTimer);
+  try { await send('STREAM 0'); await send('X'); } catch {}
+  const p = port; port = null;
+  try { await reader?.cancel(); } catch {}
+  try { writer?.releaseLock(); } catch {}
+  writer = null;
+  try { await p?.close(); } catch {}
+  btnC.disabled = false; btnD.disabled = true;
+  setStatus('切断しました');
+}
+
+btnC.onclick = connect;
+btnD.onclick = disconnect;
+document.getElementById('sigmas').onchange = e => send(`SIGMAS ${e.target.value}`);
+document.getElementById('minma').onchange = e => send(`MINMA ${e.target.value}`);
+document.getElementById('hid').onchange = e => send(`HID ${e.target.checked ? 1 : 0}`);
+document.getElementById('learn').onclick = () => { send('LEARN'); log('揺れを測り直します：上がったキーに触れないでください'); };
+navigator.serial?.addEventListener('disconnect', () => { if (port) { clearInterval(beatTimer); port = null; writer = null; btnC.disabled = false; btnD.disabled = true; setStatus('基板が外れました', true); } });
+document.addEventListener('keydown', e => {   // 基板が打ったキー（a s d f j k l ;）
+  const i = CODES.indexOf(e.code);
+  if (i < 0 || e.repeat || e.target.tagName === 'INPUT' && e.target.type === 'number') return;
+  e.preventDefault();
+  keys[i].typedAt = performance.now();
+});
+</script>
+</body>
+</html>
