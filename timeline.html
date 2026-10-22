@@ -10,21 +10,29 @@
 <meta name="apple-mobile-web-app-title" content="Who Typed?">
 <link rel="manifest" href="/timeline.webmanifest">
 <title>Who Typed? 感想タイムライン</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
 <style>
-/* X と同じ見た目（feed.html と同じ色と組み方）。ダーク／ライトは ?theme=dark|light（なければ端末の設定） */
-:root,[data-theme="dark"]{--bg:#000;--text:#e7e9ea;--sub:#71767b;--border:#2f3336;--link:#1d9bf0;--media-bg:#16181c;--thread:#333639;--new:#1d9bf01f}
-[data-theme="light"]{--bg:#fff;--text:#0f1419;--sub:#536471;--border:#eff3f4;--link:#1d9bf0;--media-bg:#f7f9f9;--thread:#cfd9de;--new:#1d9bf014}
+/* タイムラインは X と同じ見た目（feed.html と同じ色と組み方）。ダーク／ライトは ?theme=dark|light（なければ端末の設定）
+   下の帯（作品名・見出し・QR）は展示の案内なので、X の画面とは分ける：展示画面の紙色と墨色を、タイムラインと反転させて使う */
+:root,[data-theme="dark"]{--bg:#000;--text:#e7e9ea;--sub:#71767b;--border:#2f3336;--link:#1d9bf0;--media-bg:#16181c;--thread:#333639;--new:#1d9bf01f;
+  --cap-bg:#f3f6f9;--cap-ink:#18212b;--cap-sub:#68727d}
+[data-theme="light"]{--bg:#fff;--text:#0f1419;--sub:#536471;--border:#eff3f4;--link:#1d9bf0;--media-bg:#f7f9f9;--thread:#cfd9de;--new:#1d9bf014;
+  --cap-bg:#18212b;--cap-ink:#f3f6f9;--cap-sub:#a3adb8}
 *{box-sizing:border-box;margin:0;padding:0}
 /* 縦型ディスプレイでも読めるよう、字の大きさは画面の幅に合わせる（スマホでは X と同じ 15px） */
 html{font-size:clamp(15px,2.2vw,30px)}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",Roboto,sans-serif;line-height:1.3125;-webkit-font-smoothing:antialiased}
 body{display:flex;flex-direction:column;align-items:center;overflow:hidden}
 .col{width:100%;max-width:40rem;border-left:1px solid var(--border);border-right:1px solid var(--border)}
-header{flex:none;display:flex;align-items:center;gap:1rem;padding:.9rem 1rem;border-bottom:1px solid var(--border)}
-header h1{font-size:1.35rem;font-weight:800;line-height:1.2}
-header p{color:var(--sub);font-size:.9rem;margin-top:.15rem}
-#qr{margin-left:auto;text-align:center;font-size:.75rem;color:var(--sub);flex:none}
-#qr svg{display:block;width:min(22vw,9rem,24vh);height:auto;background:#fff;padding:.3rem;border-radius:.4rem;margin-bottom:.3rem}
+/* 下の帯：画面の端から端まで（タイムラインの列とは揃えない）。中身だけ列の幅に合わせて中央に置く */
+.caption{flex:none;width:100%;background:var(--cap-bg);color:var(--cap-ink)}
+.caption-in{max-width:40rem;margin:0 auto;display:flex;align-items:center;gap:1.2rem;padding:1.1rem 1rem}
+.work{font-family:"Poppins",-apple-system,"Segoe UI",sans-serif;font-weight:600;font-size:.8rem;letter-spacing:.04em;color:var(--cap-sub)}
+.caption h1{font-size:1.35rem;font-weight:800;line-height:1.2;margin-top:.2rem}
+.caption p{color:var(--cap-sub);font-size:.85rem;margin-top:.3rem}
+#qr{margin-left:auto;text-align:center;font-size:.7rem;color:var(--cap-sub);flex:none}
+#qr svg{display:block;width:min(22vw,7.5rem,18vh);height:auto;background:#fff;padding:.35rem;border-radius:.4rem;margin:0 auto .35rem}
 .m #qr{display:none}
 main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;transition:opacity .6s ease}
 main.fade{opacity:0}
@@ -56,11 +64,13 @@ main::-webkit-scrollbar{display:none}
 </style>
 </head>
 <body>
-<header class="col">
-  <div><h1>みんなの感想</h1><p>この展示で「勝手に」打たれた感想です</p></div>
-  <div id="qr" hidden><div id="qrbox"></div><span id="qrlabel"></span></div>
-</header>
 <main id="list" class="col"><div class="empty"><b>まだ感想はありません</b>展示で投稿されると、ここに表示されます</div></main>
+<footer class="caption">
+  <div class="caption-in">
+    <div><div class="work">Who typed?</div><h1>みんなの感想</h1><p>この展示で「勝手に」打たれた感想です</p></div>
+    <div id="qr" hidden><div id="qrbox"></div><span id="qrlabel"></span></div>
+  </div>
+</footer>
 <script src="/qrcode.js"></script>
 <script src="/fullscreen.js"></script>
 <script>
