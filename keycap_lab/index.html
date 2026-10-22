@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Keycap Lab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700&family=Poppins:wght@300;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0e0f11;--panel:#141518;--fg:#e8e6e1;--dim:#7d7a74;--line:#26272b;--acc:#ffb547}
+:root{--bg:#0e0f11;--panel:#141518;--fg:#e8e6e1;--dim:#7d7a74;--line:#26272b;--acc:#9ecbff}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.5 "Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
 body{display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden}
@@ -34,34 +34,29 @@ html.fs #bar{display:none}
 #keys{margin-left:auto}
 #status{color:var(--acc)}
 
-/* ===== Xへの投稿のあとの画面（本編 who-typed-exhibition-scenario.html と同じ見た目。post.js） ===== */
-#post{position:absolute;left:0;top:0;display:none;overflow:hidden;background:#f3f6f9;
-  --ink:#2b3445;--ink-2:#5b6270;--gray:#c7c9cc;--rule:#e1e2e4;--cap:#f6f5f1;--cap-edge:#dcdad3;--paper:#f3f6f9;--text:#1a2330;
-  --x-bg:#000;--x-panel:#16181c;--x-line:#2f3336;--x-ink:#e7e9ea;--x-sub:#71767b;--x-blue:#1d9bf0}
+/* ===== 投稿のあとの画面（本編 who-typed-exhibition-scenario.html と同じ組み方。X の部分は白地。post.js） ===== */
+#post{position:absolute;left:0;top:0;display:none;overflow:hidden;background:#fff;
+  --ink:#2b3445;--ink-2:#5b6270;--gray:#c7c9cc;--rule:#e1e2e4;--paper:#fff;--text:#1a2330;
+  --x-ink:#0f1419;--x-sub:#536471;--x-line:#cfd9de;--x-panel:#f7f9f9;--x-blue:#1d9bf0}
 #post.on{display:block}
-#post.x{background:#000}
 #post .terminal{position:absolute;left:50%;top:50%;width:1180px;height:720px;transform-origin:50% 50%}
 #post .stage{width:1180px;height:720px;display:grid;place-items:center;padding:36px 54px 110px;position:relative;overflow:hidden;background:var(--paper);color:var(--text);
   font-family:"Poppins","Noto Sans JP",-apple-system,"Hiragino Sans",sans-serif;word-break:keep-all;overflow-wrap:anywhere;line-break:strict}
 #post .stage:has(.compact){padding:24px 54px 100px}
-#post.x .stage{background:var(--x-bg);color:var(--x-ink);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Segoe UI",sans-serif}
 #post .card{width:min(980px,100%)}
 #post .card:has(.ask){width:100%}
 #post .eyebrow{font:500 20px/1.6 "Noto Sans JP",sans-serif;color:var(--ink-2);letter-spacing:.04em;margin-bottom:18px}
-#post.x .eyebrow{font-family:inherit;color:var(--x-sub);font-weight:600;font-size:24px;letter-spacing:.08em}
 #post .card h1{font:700 40px/1.45 "Noto Sans JP",sans-serif;letter-spacing:.03em;margin:0 0 18px;text-wrap:pretty}
-#post.x .card h1{font-family:inherit;letter-spacing:0}
 #post .card.compact h1{font-size:32px;margin-bottom:4px}
 #post .card.compact .eyebrow{margin-bottom:10px}
 #post .lead{font-size:22px;line-height:1.9;color:#4e5964;text-wrap:pretty}
-#post.x .lead{color:#8b98a5}
 #post .center{text-align:center}
-#post .thread{border:1px solid var(--x-line);border-radius:16px;padding:16px 18px 6px;max-width:640px;margin:18px auto 0;background:#000;color:var(--x-ink)}
+#post .thread{border:1px solid var(--x-line);border-radius:16px;padding:16px 18px 6px;max-width:640px;margin:18px auto 0;background:#fff;color:var(--x-ink)}
 #post .thread.scroll{max-height:400px;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 26px,#000 calc(100% - 56px),transparent);mask-image:linear-gradient(to bottom,transparent 0,#000 26px,#000 calc(100% - 56px),transparent)}
 #post .tw{display:grid;grid-template-columns:42px 1fr;gap:12px;position:relative}
 #post .tw+.tw{margin-top:18px}
 #post .tw:not(:last-child)::before{content:'';position:absolute;left:20px;top:50px;bottom:-14px;width:2px;background:var(--x-line)}
-#post .avatar{width:42px;height:42px;background:#e7e9ea;color:#000;border-radius:50%;display:grid;place-items:center;font-family:"Poppins",sans-serif;font-weight:600}
+#post .avatar{width:42px;height:42px;background:#0f1419;color:#fff;border-radius:50%;display:grid;place-items:center;font-family:"Poppins",sans-serif;font-weight:600}
 #post .tw-head{display:flex;align-items:center;gap:6px;font-size:17px}
 #post .handle,#post .tw .when{color:var(--x-sub);font-size:15px}
 #post .tw-head .xm{margin-left:auto;width:18px;height:18px;color:var(--x-ink)}
@@ -72,8 +67,8 @@ html.fs #bar{display:none}
 #post .tw-act span{display:inline-flex;align-items:center;gap:6px}
 #post .tw-act svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 #post .action{position:absolute;bottom:46px;left:50%;transform:translateX(-50%);margin:0}
-#post .primary{border:0;border-radius:999px;background:#eff3f4;color:#0f1419;padding:14px 34px;font:700 20px/1.2 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
-#post .primary.pressed{background:var(--x-blue);color:#fff;transform:translateY(2px);box-shadow:0 0 0 7px #1d9bf055}
+#post .primary{border:0;border-radius:999px;background:#0f1419;color:#fff;padding:14px 34px;font:700 20px/1.2 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+#post .primary.pressed{background:var(--x-blue);transform:translateY(2px);box-shadow:0 0 0 7px #1d9bf040}
 #post .spinner{width:58px;height:58px;border:6px solid var(--x-line);border-top-color:var(--x-blue);border-radius:50%;margin:0 auto 30px;animation:kp-spin .9s linear infinite}
 @keyframes kp-spin{to{transform:rotate(360deg)}}
 #post .ask{display:grid;grid-template-columns:1fr 470px;gap:40px;align-items:stretch}
@@ -81,19 +76,11 @@ html.fs #bar{display:none}
 #post .ask .who{font:700 56px/1.45 "Noto Sans JP",sans-serif;letter-spacing:.04em;margin:0;color:var(--ink)}
 #post .ask .rule{width:120px;height:1px;background:var(--gray);margin:0 0 26px}
 #post .ask .thread{margin:0;max-height:560px;align-self:center}
-#post .kcap{position:relative;display:grid;place-items:center;padding-bottom:7px;border-radius:14px;background:linear-gradient(170deg,#fff,var(--cap) 60%,#ebe9e3);box-shadow:inset 0 -7px 0 var(--cap-edge),inset 0 0 0 1px #e6e4de,0 14px 22px -10px #2b344566,0 3px 4px -2px #2b344522;font:500 34px/1 "Poppins",sans-serif;color:var(--ink)}
-#post .title-wipe{position:absolute;inset:0;z-index:10;background:#fff;display:grid;place-items:center;transform:translateX(-102%);transition:transform .8s cubic-bezier(.65,0,.25,1);box-shadow:24px 0 60px -20px #2b344540}
-#post .title-wipe.in{transform:none}
-#post .title-keys{position:relative;height:300px}
-#post .title-wipe .title-keys{width:540px;height:292px;transform:scale(calc(var(--k,1) * 1.35))}
-#post .title-keys .kcap{position:absolute;width:76px;height:76px;font-size:36px;opacity:0;transform:translateY(-14px) rotate(var(--r)) scale(1.06)}
-#post .title-keys .kcap.on{opacity:1;transform:rotate(var(--r));transition:opacity .12s,transform .22s cubic-bezier(.3,1.5,.6,1)}
 #post .thanks .qr{width:210px;height:210px;margin:0 auto 12px;display:block;image-rendering:pixelated;box-shadow:0 0 0 1px var(--rule)}
 #post .thanks .final-link{font:500 15px/1 "Poppins",sans-serif;color:var(--ink-2);word-break:break-all}
 #post .thanks .rule{width:120px;height:1px;background:var(--gray);margin:30px auto 26px}
 #post .thanks h1{font-size:44px;margin:0 0 16px}
 #post .thanks .lead{font-size:19px;color:var(--ink-2);line-height:1.9}
-@media (prefers-reduced-motion:reduce){#post .title-keys .kcap,#post .title-wipe{transition:none!important}}
 </style>
 </head>
 <body>
@@ -242,8 +229,8 @@ function layout() {
 }
 const kx = i => KX[i];
 
-// ---- 画面のキー（橙は、機械が押し上げているキー） ----
-const ACC = '#ffb547';
+// ---- 画面のキー（白く光るのは、機械が押し上げているキー） ----
+const ACC = '#e6e8eb';   // 押し上げられたキーの色（白に近い灰）
 function alpha(c, a) { const n = parseInt(c.slice(1), 16); return `rgba(${n >> 16},${n >> 8 & 255},${n & 255},${a})`; }
 function drawKeys(t, dt) {
   const ks = STEP * 0.74;

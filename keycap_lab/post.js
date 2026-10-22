@@ -1,5 +1,5 @@
 // Xへの投稿と、そのあとの画面（ポストの確認 → 公開中 → 問いかけ → 終了）— keycap_lab の声の対話の最後
-// 本編（who-typed-exhibition-scenario.html）の仕組みと画面をそのまま使う：
+// 本編（who-typed-exhibition-scenario.html）の仕組みと画面を使う（X の画面は白地のまま）：
 //   server.mjs の /api/post に、本文（125字ごとのスレッド）と手元写真を送る。鍵はブラウザに置かない。同じセッションの再送は、サーバーが最初の結果を返す
 //   画面は本編と同じ 1180×720 の大きさで組み、シナリオの画面（キーの上）に収まるよう拡大縮小する
 // 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script>。下の帯の #realConsent・#publicSession などを使う
@@ -15,7 +15,6 @@ const CONFIG = {
   previewMs: 8000,    // ポストの確認を見せる時間
   postingMs: 4500,    // 投稿中（くるくる）の表示時間
   askMs: 9000,        // 「この投稿を書いたのは、誰…？」を見せる時間
-  titleMs: 4500,      // 問いかけの上に「who typed?」の画面がスライドしてきて、タイトルを回収する時間
   endMs: 25000,       // 終了画面を見せてから、待機に戻るまで（次のお客さんへ）
 };
 const $ = id => document.getElementById(id);
@@ -44,7 +43,7 @@ function breakStage(root) {
 }
 
 // ---- 画面（シナリオの画面の上に重ねる） ----
-// n は本編の場面の番号：7 ポストの確認・8 公開中（Xの世界。黒地）、9 問いかけ・10 終了（白地）
+// n は本編の場面の番号：7 ポストの確認・8 公開中・9 問いかけ・10 終了。X の画面も白地のまま（本編の黒地にはしない）
 let root = null, stage = null;
 function mount() {
   if (root) return;
@@ -55,18 +54,15 @@ function mount() {
 function show(n, html, cls = '') {
   mount();
   root.classList.add('on');
-  root.classList.toggle('x', n >= 6 && n <= 8);
-  root.querySelectorAll('.title-wipe').forEach(w => w.remove());
   stage.innerHTML = '<div class="card ' + cls + '">' + html + '</div>';
   breakStage(stage);
 }
-function hide() { if (!root) return; root.classList.remove('on', 'x'); stage.innerHTML = ''; root.querySelectorAll('.title-wipe').forEach(w => w.remove()); }
+function hide() { if (!root) return; root.classList.remove('on'); stage.innerHTML = ''; }
 // シナリオの画面（キーより上）の大きさ w × h に、1180×720 の画面を収める
 function place(w, h) {
   if (!root || !root.classList.contains('on')) return;
   const k = Math.min(w / 1180, h / 720);
   Object.assign(root.style, {width: w + 'px', height: h + 'px'});
-  root.style.setProperty('--k', k);
   root.firstChild.style.transform = `translate(-50%,-50%) scale(${k})`;
 }
 
@@ -100,20 +96,6 @@ function autoScroll(el, ms) {
   const t0 = performance.now();
   (function step(t) { const k = Math.min(1, (t - t0) / ms); el.scrollTop = max * k; if (k < 1 && el.isConnected) requestAnimationFrame(step); })(t0);
 }
-// 最後に打たれる作品名のキー [文字, x, y, 角度]。リサーチパネルのように、ゆるく散らばった2列
-const TITLE_KEYS = [['w', 6, 14, -14], ['h', 92, 44, 9], ['o', 178, 20, -5], ['t', 30, 160, 12], ['y', 116, 192, -9], ['p', 202, 166, 6], ['e', 288, 204, -15], ['d', 374, 172, 10], ['?', 462, 214, -20]];
-// タイトル回収：白い画面が左からスライドしてきて、作品名のキーが1つずつ打たれる（キーが打たれるたびに onKey(文字)）。
-// 白い画面は、シナリオの画面いっぱいに出す（1180×720 の外まで）
-async function titleWipe(sleep, onKey) {
-  const w = document.createElement('div'); w.className = 'title-wipe';
-  w.innerHTML = `<div class="title-keys" aria-label="who typed?">${TITLE_KEYS.map(([c, x, y, r]) => `<span class="kcap" style="left:${x}px;top:${y}px;--r:${r}deg">${c}</span>`).join('')}</div>`;
-  root.appendChild(w);
-  void w.offsetWidth; w.classList.add('in');
-  const t1 = performance.now(); await sleep(900);
-  for (const k of w.querySelectorAll('.kcap')) { k.classList.add('on'); onKey?.(k.textContent); await sleep(110 + Math.random() * 80); }
-  await sleep(Math.max(0, CONFIG.titleMs - (performance.now() - t1)));
-}
-
 // ---- 手元のカメラ（投稿の写真） ----
 async function startCamera() {
   try {
@@ -189,6 +171,6 @@ function initControls() {
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initControls); else initControls();
 
-window.KC_POST = {CONFIG, show, hide, place, buildPosts, threadHTML, fillThread, autoScroll, titleWipe, phraseBreak,
+window.KC_POST = {CONFIG, show, hide, place, buildPosts, threadHTML, fillThread, autoScroll, phraseBreak,
   startCamera, capture, hasCamera: () => !!stream, submitPost, showPostResult, wantPost, canStart, newSession};
 })();
