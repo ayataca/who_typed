@@ -46,10 +46,10 @@
 </head>
 <body>
 <header>
-  <h1>押下ビューア（KEYCAP-LAB-v3）</h1>
+  <h1>押下ビューア（KEYCAP-LAB-v4）</h1>
   <button id="connect">基板につなぐ</button>
   <button id="disconnect" disabled>切断</button>
-  <span id="status">keycap_lab.ino（KEYCAP-LAB-v3）を書き込んだ Pico をつないでください（Chrome）</span>
+  <span id="status">keycap_lab.ino（KEYCAP-LAB-v4）を書き込んだ Pico をつないでください（Chrome）</span>
 </header>
 <div class="bar">
   <span class="pick" id="pick">上げるキー：</span>
@@ -57,6 +57,13 @@
   <label>最小<input type="number" id="minma" min="0.1" max="50" step="0.1" value="1.0">mA</label>
   <button id="learn">揺れを測り直す</button>
   <label><input type="checkbox" id="hid" checked> キーボードとして打つ</label>
+</div>
+<div class="bar">
+  <button id="knockBtn">鼓動テスト（F）を始める</button>
+  <label>押さえている = ふだんとの差が ばらつき ×<input type="number" id="ksigmas" min="1" max="50" step="0.5" value="5"></label>
+  <label>かつ<input type="number" id="kminma" min="0.5" max="200" step="0.5" value="6">mA 以上</label>
+  <button id="klearn">ふだんの形を覚え直す</button>
+  <span id="knockState"></span>
 </div>
 <main>
   <div id="keys"></div>
@@ -138,11 +145,20 @@ function onLine(line) {
   if (line.startsWith('S ')) { const p = line.split(/\s+/); if (p.length >= 34) onStream(p); return; }
   if ((m = line.match(/^DOWN (\d) (\S+) (\S+)/))) { onPress(+m[1], m[2], m[3]); return; }
   if ((m = line.match(/^(?:READY|VERSION) (.+)$/))) {
-    if (!/KEYCAP-LAB-v3/.test(m[1])) setStatus(`基板は ${m[1]} です。keycap_lab.ino（KEYCAP-LAB-v3）を書き込んでください`, true);
+    if (!/KEYCAP-LAB-v4/.test(m[1])) setStatus(`基板は ${m[1]} です。keycap_lab.ino（KEYCAP-LAB-v4）を書き込んでください`, true);
     else setStatus('接続中（' + m[1] + '）');
     return;
   }
-  if (/^(LEARNED|TIMEOUT|REST|AWAKE|MODE|SIGMAS|MINMA|LEARN|HID|SENSE|ERROR)/.test(line)) {
+  if ((m = line.match(/^KNOCK (\d) (\w+)\s*([\d.]*)\s*(.*)$/))) {
+    const label = {LEARN: 'ふだんの形を覚えています', FREE: 'ふつう', HELD: '押さえている', REST: '休み中'}[m[2]] || m[2];
+    const ks = document.getElementById('knockState');
+    ks.textContent = `${label}　差 ${m[3] || '-'}（1 以上で押さえている）　電流 ${m[4]} mA`;
+    ks.style.color = m[2] === 'HELD' ? 'var(--red)' : '';
+    log(`鼓動 ${NAMES[+m[1]]}：${label} ${m[3]}　${m[4]}`);
+    if (m[2] === 'HELD') onPress(+m[1], m[3], '1.00');
+    return;
+  }
+  if (/^(LEARNED|TIMEOUT|REST|AWAKE|MODE|SIGMAS|MINMA|LEARN|HID|SENSE|ERROR|KSIGMAS|KMINMA|KLEARN)/.test(line)) {
     if ((m = line.match(/^(LEARNED|REST|AWAKE) (\d)(.*)$/))) log(`${m[1]} ${NAMES[+m[2]]}${m[3]}`);
     else log(line);
   }
@@ -169,13 +185,14 @@ function draw() {
     g.stroke();
     g.fillStyle = '#8a8a8a'; g.font = '11px -apple-system, sans-serif'; g.fillText(`${top.toFixed(1)} mA`, 4, zero - top * scale + 11);
   }
-  if (port && performance.now() - lastLine > 1500) setStatus('データが届いていません。keycap_lab.ino（KEYCAP-LAB-v3）を書き込んだか確認してください', true);
+  if (port && performance.now() - lastLine > 1500) setStatus('データが届いていません。keycap_lab.ino（KEYCAP-LAB-v4）を書き込んだか確認してください', true);
   requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);
 
 async function send(text) { if (writer) try { await writer.write(new TextEncoder().encode(text + '\n')); } catch (e) {} }
-function beat() { send(`U ${want.toString(16)}`); }   // 心拍：200 ms ごとに送らないと、0.5 秒で全部下がる
+let knocking = 0;
+function beat() { send(`U ${(knocking ? want & ~0b1000 : want).toString(16)}`); }   // 鼓動テスト中は F を上げない   // 心拍：200 ms ごとに送らないと、0.5 秒で全部下がる
 
 async function connect() {
   if (!('serial' in navigator)) { setStatus('このブラウザは Web Serial に対応していません。Chrome で開いてください', true); return; }
@@ -214,7 +231,7 @@ async function readLoop() {
 }
 
 async function disconnect() {
-  clearInterval(beatTimer);
+  clearInterval(beatTimer); clearInterval(knocking); knocking = 0; document.getElementById('knockBtn').textContent = '鼓動テスト（F）を始める';
   try { await send('STREAM 0'); await send('X'); } catch {}
   const p = port; port = null;
   try { await reader?.cancel(); } catch {}
@@ -230,6 +247,16 @@ btnD.onclick = disconnect;
 document.getElementById('sigmas').onchange = e => send(`SIGMAS ${e.target.value}`);
 document.getElementById('minma').onchange = e => send(`MINMA ${e.target.value}`);
 document.getElementById('hid').onchange = e => send(`HID ${e.target.checked ? 1 : 0}`);
+document.getElementById('knockBtn').onclick = e => {
+  if (knocking) { clearInterval(knocking); knocking = 0; e.target.textContent = '鼓動テスト（F）を始める'; beat(); return; }
+  send(`KSIGMAS ${document.getElementById('ksigmas').value}`); send(`KMINMA ${document.getElementById('kminma').value}`);
+  knocking = setInterval(() => send('K 3'), 2000); beat(); send('K 3');
+  e.target.textContent = '鼓動テストを止める';
+  log('鼓動テスト：F が2秒ごとに鳴ります。最初の3回はふだんの形を覚えるので、触れないでください');
+};
+document.getElementById('ksigmas').onchange = e => send(`KSIGMAS ${e.target.value}`);
+document.getElementById('kminma').onchange = e => send(`KMINMA ${e.target.value}`);
+document.getElementById('klearn').onclick = () => { send('KLEARN'); log('ふだんの形を覚え直します：次の3回は触れないでください'); };
 document.getElementById('learn').onclick = () => { send('LEARN'); log('揺れを測り直します：上がったキーに触れないでください'); };
 navigator.serial?.addEventListener('disconnect', () => { if (port) { clearInterval(beatTimer); port = null; writer = null; btnC.disabled = false; btnD.disabled = true; setStatus('基板が外れました', true); } });
 document.addEventListener('keydown', e => {   // 基板が打ったキー（a s d f j k l ;）

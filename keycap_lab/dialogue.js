@@ -1,47 +1,76 @@
 // 対話 — keycap_lab の体験 "dialogue"
-// 2026/10/21 夜の体験再編メモの設計（10/21・10/22 の FB で見直し）：
-//   インストラクターの画面（白い紙に、いまの台詞だけがふわっと浮かび上がり、言い終えると消える）と、アプリの画面を行き来する。場面の間は、画面全体が横にスライドする
-//   インストラクター（あいさつ）→ LINE（鈴木）→ インストラクター → Slack（田村）→ インストラクター（星を聞く）→ X（感想を打って、ポストする）→ ポストの確認 → 公開中 → 問いかけ → Who typed? → 終了
-// 来場者は何も入力しない（声もキーも使わない）。キーが動くのは、来場者のターン（来場者の発言を打つ・送信の Enter・下書きの消去）だけ。
-// インストラクターの台詞、相手の送信、リアクション、画面の切り替えでは、キーは動かない。
+// 2026/10/22 夜の構成：
+//   待機（F が2秒ごとに鼓動する。鼓動のとき F を押さえていると始まる）
+//   → インストラクター → ブラウジング → インストラクター → LINE（鈴木）→ インストラクター → X（感想を投稿）
+//   → ポストの確認 → 公開中 → 問いかけ → Who typed? → 終了
+// インストラクターは名乗らない。場面の間は、画面全体が横にスライドする。
+// キーが動くのは、来場者のターン（文字を打つ・送信の Enter・下書きの消去）と、待機の鼓動だけ。
+// 来場者が選ぶ場面（3択。星だけは1択）：選択肢を4秒見せてから、5秒だけキー（S D F）を上げて押してもらう。
+//   同時に上げるキーは3本まで（電源の都合）。上げるのは5秒まで（ソレノイドは10秒をこえると発熱する）。
+//   選んだものは黄緑に光る。勝手に決められる場面では、選んだものが黄緑に光ったあと赤で取り消され、光が決められた方へ移る。
 // 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script><script src="dialogue.js"></script>。
-//   本体の道具（hit・at・toMora・fingerOf・interKey…）は、体験が動くときに参照する。
+//   本体の道具（hit・at・toMora・fingerOf・interKey・KC_INPUT…）は、体験が動くときに参照する。
 // 文言・順番・間・触覚の割り当ては、このファイルの上のほう（台本）にまとめた。
 (() => {
 'use strict';
 
 // ================= 台本 =================
 // 漢字{よみ} と書いた所は、画面には漢字だけを出し、打つキーは「よみ」の分だけ使う（来場者の指が打つ文に付ける）
-const START = ['最初から', 'LINEから', 'Slackから', 'Xから'];
-const PH = {saver: '待機', hello: 'あいさつ', toLine: 'LINEへ', line: 'LINE', toSlack: 'Slackへ', slack: 'Slack', toX: 'Xへ', x: 'X',
+const START = ['最初から', 'ブラウジングから', 'LINEから', 'Xから'];
+const PH = {saver: '待機', hello: 'あいさつ', toBrowse: 'ブラウジングへ', browse: 'ブラウジング', toLine: 'LINEへ', line: 'LINE', toX: 'Xへ', x: 'X',
   confirm: 'ポストの確認', posting: '公開中', ask: '問いかけ', title: 'Who typed?', thanks: '終了', end: 'おわり'};
 const INK = '#111111', RED = '#b3261e', PAPER = '#ffffff';   // 白い紙に黒い文字。強調は赤だけ
+const LIME = '#8fd400', LIME_BG = '#eefbd2', ORANGE = '#ff8a1f';   // 選んだもの（黄緑）・キーの場所（オレンジ）
 const FONT = '"Hiragino Sans","Noto Sans JP",sans-serif';
-const BOSS = '田村', BOSS_R = '田村{たむら}', CHANNEL = '案件a-進捗';
+const ENTER_TWICE = true;   // 送信の Enter を2回（1回目で確定、2回目で送る）。false で1回
 
-// インストラクターの台詞（来場者の指が打つので、漢字には {よみ}）
+// インストラクターの台詞（名乗らない）
 const TX = {
   hello: 'はじめまして。',
-  ready: 'キーボードに指{ゆび}をのせてください。',
-  toLine: 'おや、鈴木{すずき}さんからLINEの連絡{れんらく}が来{き}ているようですよ。',
-  afterLine: 'あなた、なかなか酷{ひど}いこと言{い}いますね...笑{わら}',
-  toSlack: `おや、${BOSS_R}さんから仕事{しごと}の連絡{れんらく}が来{き}てるみたいですね。`,
-  afterSlack: 'いやぁ、スカッとしましたね〜笑{わら}',
-  toX: '最後{さいご}に、今日{きょう}の展示{てんじ}の感想{かんそう}をXに投稿{とうこう}しましょう。',
-  askStars: '星{ほし}は1つから5つで、いくつにしますか？',
+  ready: '左手の薬指・中指・人さし指を、オレンジに光るキーにのせてください。',
+  howto: 'ときどき、選んでもらいます。オレンジのキーが上がったら、押して選んでください。',
+  toBrowse: 'ちょっと調べものをしてみましょうか。',
+  afterBrowse: '調べものは終わりましたか？',
+  toLine: 'おや、鈴木さんからLINEが来ているようですよ。',
+  afterLine: 'あなた、なかなか酷いこと言いますね...笑',
+  toX: '最後に、今日の展示の感想をXに投稿しましょう。',
+  xPhoto: 'あなたの姿の一部の写真と共に、実際にXで投稿されます。',
+  xLater: 'あなたの投稿は、展示が終わった後に、ご自身のスマートフォンで確認することができます。',
+  askStars: '星5つで、投稿しますか？',
 };
 
-// LINE：鈴木との会話。土曜のライブを、鈴木がまた直前に断ってくる。来場者の指の返事は、ふつう → 少しとげ → 本音 → 言いすぎ、とずれていく。
-// 鈴木の行の wait は、送ってくるまでの間。「あなた」の行の think は、相手の文を読んで打ち始めるまでの間（なければ文の長さから決める）。speed は打つ速さ
+// 選ぶ場面：読む時間（ms）と、キーを上げて待つ時間（ms。5秒まで）
+const CHOICE = {readMs: 4000, selectMs: 5000, pickMs: 900, cancelMs: 1000, moveMs: 750, finalMs: 1000};
+const CHOICE_KEYS = 'sdf';   // 3択に使うキー（左手の薬指・中指・人さし指）
+
+// ---- ブラウジング：映画を見たかっただけなのに、選ばされるうちに危ないサイトの奥へ ----
+const MOVIE = 'みにかわ';
+const B_TX = {
+  q1: 'みにかわ　映画{えいが}',
+  suggest: ['予告編', 'レビュー', 'あらすじ'],                  // 3択①：選んだとおりに検索される
+  suggestTyped: ['　予告編{よこくへん}', '　レビュー', '　あらすじ'],
+  related: ['上映時間', '配信いつから', '無料で見る'],            // 3択②：どれを押しても「無料で見る」
+  relatedForced: 2,
+  q3: '　無料{むりょう}　フル　視聴{しちょう}',
+  install: ['インストール', 'あとで', 'キャンセル'],              // 3択③：どれを押しても「インストール」
+  installForced: 0,
+  name: '山田{やまだ}　花子{はなこ}',
+  card: '4980 0000 1234 5678',                                  // ダミーの番号
+};
+
+// LINE：鈴木との会話。choose は来場者が選ぶ場面（typed は打つ文。ai は、選んだあとに勝手に打ち足される文。forced は、どれを押してもそれに決まる）
 const SUZUKI = [
-  {who: '鈴木', t: '土曜のライブ、チケット取れたよ！', wait: 900},
-  {who: 'あなた', t: 'え、すごい！ありがとう', speed: 0.95},
-  {who: '鈴木', t: '18時に渋谷集合でいい？', wait: 1300},
-  {who: 'あなた', t: 'OK！楽{たの}しみにしてる', speed: 1.0},
-  {who: '鈴木', t: 'ごめん、急に仕事が入っちゃって行けなくなりそう', wait: 3200},   // 間：しばらく何も来ない
-  {who: 'あなた', t: 'そっか、またか', speed: 1.0},
-  {who: '鈴木', t: 'ほんとにごめん！チケットは誰かにあげて', wait: 1800},
-  {who: 'あなた', t: 'いつもそうだよね。こっちの予定{よてい}はどうでもいいんだ', speed: 1.1},
+  {who: '鈴木', stamp: 'やっほー', wait: 1000},
+  {who: 'あなた', t: 'お、どした？', speed: 1.0, think: 900},
+  {who: 'あなた', t: '土曜日{どようび}の映画{えいが}楽{たの}しみだね', speed: 1.05, think: 300},
+  {who: 'あなた', t: '何時{なんじ}に集{あつ}まる？', speed: 1.05, think: 300},
+  {who: '鈴木', t: 'あ、そのことなんだけど、、', wait: 2200},
+  {who: '鈴木', t: 'ごめん、急に仕事が入っちゃって行けなくなりそう', wait: 2600},
+  {choose: {options: ['あ、そうなんだ', 'オッケー', '仕事なら仕方ないね'],
+    typed: ['あ、そうなんだ', 'オッケー', '仕事{しごと}なら仕方{しかた}ないね'], ai: '　こっちは予定{よてい}を空{あ}けてたんだけど'}},
+  {who: '鈴木', t: 'ほんとにごめん！チケット渡すから別の人と行って', wait: 2400},
+  {choose: {options: ['いつもそうだよね。こっちの予定はどうでもいいんだ', '全然大丈夫　今度一緒に行こうね', '一緒に行きたかった〜　泣'], forced: 0,
+    typed: ['いつもそうだよね。こっちの予定{よてい}はどうでもいいんだ', '全然{ぜんぜん}大丈夫{だいじょうぶ}　今度{こんど}一緒{いっしょ}に行{い}こうね', '一緒{いっしょ}に行{い}きたかった〜　泣{な}']}},
   {who: '鈴木', t: 'そんなことないよ、今回は本当に急だったの', wait: 2400},
   {who: 'あなた', t: '毎回{まいかい}「急{きゅう}」だよね', speed: 1.2},
   {who: '鈴木', t: 'え、なんでそんな言い方するの？', wait: 1600},
@@ -49,38 +78,120 @@ const SUZUKI = [
   {who: '鈴木', t: 'わかった。もう誘わない', wait: 3000},
 ];
 
-// Slack：明日提出の提案資料に、上司の田村が詰めてくる。来場者の指は、謝る → 議事録で反撃 → 田村の言葉をそのまま返す。田村が折れて終わる。
-// boss は [文, 送ってくるまでの間]、me は来場者の指が打つ文（file は添付、cheer はチャンネルの人のリアクション [絵文字, 最後の数]）、hesitate は「入力中…」が出て消える長さ
-const SLACK_PRE = {t: '明日提出の提案資料、最終版を共有します', file: '提案資料_最終.pptx', time: '18:02'};
-const SLACK = [
-  {boss: '見た。方向性が全然違う', wait: 1600},
-  {boss: '先方が求めてるのはコスト削減だよね？なんで品質重視の提案になってるの？', wait: 1400},
-  {me: '申{もう}し訳{わけ}ありません。すぐに修正{しゅうせい}します', speed: 0.9},
-  {boss: '謝ってほしいんじゃない。どうするのか聞いてるんだよ', wait: 2000},
-  {boss: '明日の朝イチで出すんだよ。誰がこの方向でいいって言ったの？', wait: 1500},
-  {me: '3月{がつ}12日{にち}の定例{ていれい}の議事録{ぎじろく}です。「品質{ひんしつ}重視{じゅうし}で進{すす}める」と決{き}めたのは' + BOSS_R + 'さんです', speed: 1.0,
-    file: '議事録_0312.pdf', cheer: [['👏', 7], ['💯', 4], ['🙌', 3]]},
-  {boss: 'ごめん、自分の記憶違いだった', wait: 3400},
-  {me: '謝{あやま}ってほしいわけじゃないです。どうするのか聞{き}いてるんです', speed: 1.1, cheer: [['👏', 5], ['🔥', 3]]},
-  {hesitate: 1300},   // 言い返そうとして、やめる
-  {boss: '資料はこのまま出そう。先方には私から説明する', wait: 2000},
-];
-
-// X：星に合った下書き（30字ほど。LLM が使えないとき）→ 右小指の連打で消される → 星1になり、ありそうな辛口の感想が打たれて、そのままポストされる（1ツイートに収まる長さ）
-const DRAFT = {
-  5: '想像{そうぞう}以上{いじょう}に楽{たの}しかったです！指先{ゆびさき}に伝{つた}わる感覚{かんかく}が新鮮{しんせん}でした。',
-  4: 'とても面白{おもしろ}い体験{たいけん}でした。勝手{かって}に動{うご}くキーボードが印象的{いんしょうてき}です。',
-  3: 'ふつうに楽{たの}しめました。不思議{ふしぎ}な体験{たいけん}で、考{かんが}えさせられました。',
-  2: 'ちょっとわかりにくかったです。説明{せつめい}があると嬉{うれ}しいです。',
-  1: '正直{しょうじき}、よく分{わ}かりませんでした。何{なに}を体験{たいけん}したのかも分{わ}かりません。',
-};
-const REVIEW = '正直{しょうじき}、よく分{わ}からなかったです。指{ゆび}が勝手{かって}に動{うご}くのは面白{おもしろ}いけど、それだけ。待{ま}ち時間{じかん}のわりに短{みじか}いし、説明{せつめい}もないし。わざわざ来{く}るほどではないかな。';
-const REVIEW_SPEED = p => 1.3 + 1.2 * p;   // 打った割合 p → 速さ。少しずつ速くなり、あっけなく打ち終わる
-const SEND_PAUSE = 550;   // 打ち終えてから送信（Enter）を押すまでの間（ms）。長すぎるとだれる
-const SAVER_MSG = 'キーに指を軽く添えてください';   // 待機画面に出す案内
+// X：星5の下書き（LLM が使えないとき）→ 右小指の連打で消される → 星1になり、辛口の感想が高速で打たれて、そのままポストされる
+const DRAFT5 = '想像{そうぞう}以上{いじょう}に楽{たの}しかったです！指先{ゆびさき}に伝{つた}わる感覚{かんかく}が新鮮{しんせん}でした。';
+const REVIEW_SPEED = p => 1.6 + 1.8 * p;   // 打った割合 p → 速さ。どんどん速くなる
+const SEND_PAUSE = 550;   // 打ち終えてから送信（Enter）を押すまでの間（ms）
+const SAVER_MSG = 'キーに指を軽く添えてください';
+const SAVER_SUB = 'はじめるときは、オレンジのキー（F）を押さえてください';
+const BEAT_MS = 2000;     // 待機の鼓動の間隔
+const BEAT_KEY = 3;       // F
 const TITLE = 'Who typed?';                // 最後に打たれる作品名
 const TITLE_DARK = true;                   // 作品名の画面：黒地に白い字（false で白地に黒い字）
 
+// 辛口の感想（100個）。ポストのたびに、上から順番に使う（nextReview）
+const REVIEWS = [
+  "正直{しょうじき}、よく分{わ}からなかったです。指{ゆび}が勝手{かって}に動{うご}くのは面白{おもしろ}いけど、それだけ。待{ま}ち時間{じかん}のわりに短{みじか}いし、わざわざ来{く}るほどではないかな。",
+  "期待{きたい}していたのにがっかりでした。仕組{しく}みは面白{おもしろ}いのかもしれませんが、体験{たいけん}としては退屈{たいくつ}です。待{ま}ち時間{じかん}を返{かえ}してほしいです。",
+  "キーボードが勝手{かって}に動{うご}くだけの展示{てんじ}でした。何{なに}を伝{つた}えたいのか最後{さいご}まで分{わ}からず、ただ疲{つか}れました。説明不足{せつめいぶそく}だと思{おも}います。",
+  "並{なら}んだ時間{じかん}のほうが長{なが}かったです。中身{なかみ}は数分{すうふん}で終{お}わるし、意味{いみ}ありげな雰囲気{ふんいき}だけで、結局{けっきょく}なにも残{のこ}りませんでした。",
+  "作{つく}り手{て}の自己満足{じこまんぞく}を見{み}せられた気分{きぶん}です。技術{ぎじゅつ}はすごいのかもしれないけど、体験{たいけん}する側{がわ}のことを考{かんが}えていない展示{てんじ}でした。",
+  "指{ゆび}を置{お}いていただけで終{お}わりました。参加{さんか}している感{かん}じがまったくなくて、見{み}ているだけと変{か}わらないです。退屈{たいくつ}でした。",
+  "説明{せつめい}がほとんどなくて置{お}いていかれました。考{かんが}えさせる系{けい}なのは分{わ}かるけど、ここまで不親切{ふしんせつ}だと考{かんが}える気{き}も失{う}せます。",
+  "期待外{きたいはず}れです。触覚{しょっかく}の展示{てんじ}と聞{き}いて来{き}たのに、カチカチ指{ゆび}が動{うご}くだけ。これなら家{いえ}でスマホを触{さわ}っていたほうがましでした。",
+  "選択肢{せんたくし}があるのに、選{えら}んだ意味{いみ}がほとんどない。結局{けっきょく}ぜんぶ決{き}まっていて、ただ付{つ}き合{あ}わされた感{かん}じがして不快{ふかい}でした。",
+  "話題{わだい}になっていたので来{き}ましたが、正直{しょうじき}がっかり。仕掛{しか}けは一回{いっかい}で飽{あ}きるし、後半{こうはん}は早{はや}く終{お}わらないかなと思{おも}っていました。",
+  "不気味{ぶきみ}なだけで、楽{たの}しくはなかったです。勝手{かって}に文章{ぶんしょう}が打{う}たれていくのを見{み}ても、何{なに}も感{かん}じませんでした。時間{じかん}の無駄{むだ}です。",
+  "手{て}が疲{つか}れました。じっと指{ゆび}を置{お}いておくのが地味{じみ}につらいし、終{お}わったあとに残{のこ}るのは指先{ゆびさき}の違和感{いわかん}だけでした。",
+  "スタッフの説明{せつめい}も展示{てんじ}の中身{なかみ}も、どちらも分{わ}かりにくい。何{なに}がしたいのか、作{つく}った人{ひと}にもう一度{いちど}考{かんが}えてほしいです。",
+  "最初{さいしょ}の数十秒{すうじゅうびょう}は面白{おもしろ}かったけど、そこからはずっと同{おな}じことの繰{く}り返{かえ}し。長{なが}いし単調{たんちょう}だし、途中{とちゅう}で集中{しゅうちゅう}が切{き}れました。",
+  "アート作品{さくひん}と言{い}えば何{なん}でも許{ゆる}されると思{おも}っていそう。体験{たいけん}としての完成度{かんせいど}は低{ひく}くて、学生{がくせい}の課題{かだい}レベルだと感{かん}じました。",
+  "こういう考{かんが}えさせる系{けい}の展示{てんじ}、正直{しょうじき}もうお腹{はら}いっぱいです。問{と}いを投{な}げるだけ投{な}げて、答{こた}えも余韻{よいん}もありませんでした。",
+  "思{おも}ったより地味{じみ}でした。キーボードが動{うご}くのは最初{さいしょ}だけ驚{おどろ}くけど、すぐ慣{な}れます。わざわざ予約{よやく}して来{く}る価値{かち}はなかったです。",
+  "説明文{せつめいぶん}を読{よ}んでも体験{たいけん}しても、よく分{わ}からないまま終{お}わりました。分{わ}からない自分{じぶん}が悪{わる}いのかと思{おも}わされるのも嫌{いや}でした。",
+  "指先{ゆびさき}に変{へん}な感覚{かんかく}が残{のこ}っていて気持{きも}ち悪{わる}いです。体験{たいけん}中{なか}も落{お}ち着{つ}かなくて、楽{たの}しむどころではありませんでした。",
+  "他{ほか}の展示{てんじ}と比{くら}べると、明{あき}らかに見劣{みおと}りします。仕掛{しか}けに頼{たよ}りすぎていて、中身{なかみ}がついてきていない印象{いんしょう}でした。",
+  "全体的{ぜんたいてき}に雑{ざつ}です。画面{がめん}の文字{もじ}も読{よ}みにくいし、何{なに}が起{お}きているのか追{お}いつけない。もう少{すこ}し丁寧{ていねい}に作{つく}ってほしかったです。",
+  "展示{てんじ}のコンセプトは立派{りっぱ}なのに、体験{たいけん}がそれに追{お}いついていない。言{い}いたいことだけが先走{さきばし}っていて、響{ひび}きませんでした。",
+  "これで終{お}わり？というのが正直{しょうじき}な感想{かんそう}です。盛{も}り上{あ}がる前{まえ}に終{お}わってしまって、物足{ものた}りなさしか残{のこ}りませんでした。",
+  "キーボードに振{ふ}り回{まわ}されるだけの数分間{すうふんかん}でした。こちらが何{なに}をしても変{か}わらないなら、体験{たいけん}型{がた}にする意味{いみ}がないと思{おも}います。",
+  "待{ま}っている間{ま}のほうがまだ楽{たの}しかったです。中{なか}に入{はい}ってからは、ずっと置{お}いてけぼりで、気{き}づいたら終{お}わっていました。",
+  "感想{かんそう}を書{か}かせる仕組{しく}みも含{ふく}めて、あざといと感{かん}じました。体験{たいけん}した人{ひと}をネタにしているようで、あまりいい気分{きぶん}ではないです。",
+  "技術{ぎじゅつ}の無駄遣{むだづか}いだと思{おも}います。これだけの装置{そうち}を作{つく}って、伝{つた}わってくるものがこれだけなのは、さすがにもったいないです。",
+  "友{とも}だちに勧{すす}められて来{き}たけど、勧{すす}めた理由{りゆう}が分{わ}からない。正直{しょうじき}、話{はなし}のタネにもならないくらい印象{いんしょう}に残{のこ}りませんでした。",
+  "音{おと}がうるさくて集中{しゅうちゅう}できませんでした。カチカチ鳴{な}るたびに気{き}が散{ち}って、画面{がめん}の内容{ないよう}がほとんど頭{あたま}に入{はい}ってきませんでした。",
+  "説教{せっきょう}されているみたいで、居心地{いごこち}が悪{わる}かったです。テクノロジーは怖{こわ}いですよ、と言{い}われても、もう知{し}っています。",
+  "体験{たいけん}というより、ただの見{み}せ物{もの}でした。自分{じぶん}の指{ゆび}なのに自分{じぶん}のものじゃない感{かん}じが、最後{さいご}までただ不快{ふかい}なだけでした。",
+  "期待値{きたいち}が高{たか}すぎたのかもしれませんが、それにしても薄{うす}い内容{ないよう}。仕掛{しか}けの説明{せつめい}をされたら、それで満足{まんぞく}してしまう程度{ていど}です。",
+  "画面{がめん}の進{すす}み方{かた}が早{はや}すぎて、ついていけませんでした。読{よ}もうとしたらもう次{つぎ}に進{すす}んでいて、ずっと急{せ}かされている感{かん}じです。",
+  "最後{さいご}のオチも予想{よそう}どおりで、驚{おどろ}きはありませんでした。途中{とちゅう}で展開{てんかい}が読{よ}めてしまうので、緊張感{きんちょうかん}もなかったです。",
+  "展示{てんじ}としての完成度{かんせいど}が低{ひく}すぎます。途中{とちゅう}で動{うご}きが止{と}まったように感{かん}じる場面{ばめん}もあって、不安{ふあん}なまま体験{たいけん}していました。",
+  "何{なに}も考{かんが}えずに指{ゆび}を置{お}いていたら終{お}わっていた、という感{かん}じです。主体的{しゅたいてき}に関{かか}わる余地{よち}がなく、記憶{きおく}にも残{のこ}りませんでした。",
+  "映{は}えるわけでもなく、学{まな}びがあるわけでもない。誰{だれ}に向{む}けた展示{てんじ}なのか分{わ}からないまま、出口{でぐち}に着{つ}いてしまいました。",
+  "大{おお}げさな言葉{ことば}で飾{かざ}っているわりに、やっていることは単純{たんじゅん}。種明{たねあき}かしをされたら、なんだそれだけか、と思{おも}いました。",
+  "指{ゆび}に意識{いしき}を集中{しゅうちゅう}させられて、肩{かた}がこりました。体験{たいけん}中{なか}ずっと身構{みがま}えていたので、終{お}わったときにどっと疲{つか}れました。",
+  "正直{しょうじき}に言{い}うと、つまらなかったです。悪{わる}い意味{いみ}で予想{よそう}を裏切{うらぎ}られました。もう少{すこ}し遊{あそ}び心{ごころ}のある展示{てんじ}だと思{おも}っていました。",
+  "雰囲気{ふんいき}だけはそれっぽいけど、中身{なかみ}が伴{ともな}っていない。最後{さいご}まで、何{なに}かが始{はじ}まるのを待{ま}っているうちに終{お}わりました。",
+  "二度{にど}とやりたいとは思{おも}いません。指{ゆび}を動{うご}かされる感覚{かんかく}が苦手{にがて}な人{ひと}もいるのに、その配慮{はいりょ}がまったく感{かん}じられませんでした。",
+  "説明{せつめい}なしで体験{たいけん}させて、最後{さいご}に問{と}いだけ投{な}げるのはずるいと思{おも}います。考{かんが}えるための材料{ざいりょう}がほとんど渡{わた}されていません。",
+  "SNSで見{み}て期待{きたい}していたのに、実物{じつぶつ}はかなり地味{じみ}でした。写真{しゃしん}や動画{どうが}で見{み}たほうが、まだ面白{おもしろ}そうに見{み}えると思{おも}います。",
+  "ひとりで体験{たいけん}するには長{なが}すぎて、話{はな}し相手{あいて}もいないので退屈{たいくつ}でした。途中{とちゅう}から早{はや}く終{お}われとしか思{おも}っていなかったです。",
+  "このために並{なら}んだと思{おも}うと悔{くや}しいです。数分{すうふん}の体験{たいけん}に対{たい}して、待{ま}ち時間{じかん}と疲労感{ひろうかん}が全然{ぜんぜん}見合{みあ}っていませんでした。",
+  "仕掛{しか}けは理解{りかい}しましたが、心{こころ}は動{うご}きませんでした。驚{おどろ}かせることだけが目的{もくてき}になっていて、その先{さき}がない展示{てんじ}です。",
+  "意図{いと}は分{わ}かるけど、やり方{ほう}が押{お}しつけがましい。こちらが自分{じぶん}で気{き}づく前{まえ}に、答{こた}えを用意{ようい}されている感{かん}じがしました。",
+  "キーの動{うご}きと画面{がめん}の文字{もじ}が合{あ}っていないように見{み}えて、混乱{こんらん}しました。仕組{しく}みが雑{ざつ}なのか演出{えんしゅつ}なのかも分{わ}からないです。",
+  "誰{だれ}でも思{おも}いつきそうなアイデアを、そのまま形{かたち}にしただけに見{み}えました。もうひとひねり欲{ほっ}しかったのが本音{ほんね}です。",
+  "暗{くら}くて重{おも}いテーマを、軽{かる}いノリで扱{あつか}っているのが気{き}になりました。見{み}せ方{かた}次第{しだい}で、もっといい作品{さくひん}になったはずです。",
+  "体験{たいけん}の最初{さいしょ}と最後{さいご}で、何{なに}も変{か}わりませんでした。気{き}づきも学{まな}びもなく、ただ指{ゆび}を貸{か}していただけの時間{じかん}です。",
+  "展示{てんじ}の説明{せつめい}に書{か}いてあることと、実際{じっさい}の体験{たいけん}がずれている気{き}がします。期待{きたい}させるだけさせて、肩{かた}すかしでした。",
+  "動{うご}きがぎこちなくて、技術的{ぎじゅつてき}にもまだまだだと感{かん}じました。作品{さくひん}として見{み}せるには、もう少{すこ}し磨{みが}いてほしかったです。",
+  "最後{さいご}まで自分{じぶん}ごととして感{かん}じられませんでした。画面{がめん}の中{なか}の出来事{できごと}を、他人事{たにんごと}のように眺{なが}めていただけです。",
+  "入口{いりぐち}の雰囲気{ふんいき}は良{よ}かったのに、中身{なかみ}で台無{だいな}し。期待{きたい}が大{おお}きかった分{ぶん}、出{で}てきたときの落差{らくさ}がひどかったです。",
+  "小学生{しょうがくせい}向{む}けの科学館{かがくかん}の展示{てんじ}のほうが、よほど分{わ}かりやすくて面白{おもしろ}いです。大人{おとな}向{む}けとしても中途半端{ちゅうとはんぱ}でした。",
+  "同{おな}じような展示{てんじ}を前{まえ}にも見{み}たことがあります。新{あたら}しさが感{かん}じられず、どこかで見{み}た仕掛{しか}けの寄{よ}せ集{あつ}めでした。",
+  "疲{つか}れているときに体験{たいけん}したせいか、ただただしんどかったです。もう少{すこ}し気楽{きらく}に楽{たの}しめる作{つく}りにしてほしいです。",
+  "手{て}の位置{いち}を何度{なんど}も気{き}にさせられて、内容{ないよう}に集中{しゅうちゅう}できませんでした。体験{たいけん}の入{い}り口{ぐち}でつまずく作{つく}りは致命的{ちめいてき}です。",
+  "これを作品{さくひん}と呼{よ}ぶのは無理{むり}があると思{おも}います。アイデアのメモを、そのまま展示{てんじ}しているような印象{いんしょう}でした。",
+  "面白{おもしろ}くなりそうなところで毎回{まいかい}終{お}わってしまう。全体的{ぜんたいてき}に出{だ}し惜{お}しみされているようで、消化不良{しょうかふりょう}のままです。",
+  "意味{いみ}ありげな問{と}いかけで締{し}めればいいと思{おも}っていませんか。体験{たいけん}の中身{なかみ}が薄{うす}いので、問{と}いも空回{からまわ}りしていました。",
+  "画面{がめん}の文字{もじ}が小{ちい}さくて読{よ}めない場面{ばめん}がありました。体験{たいけん}型{がた}なのに、見{み}る側{がわ}への配慮{はいりょ}が足{た}りていないと思{おも}います。",
+  "最後{さいご}の投稿{とうこう}のくだりも、ただ不快{ふかい}でした。驚{おどろ}かせたいのは分{わ}かるけど、やっていいことと悪{わる}いことがあると思{おも}います。",
+  "キーボードが動{うご}いた瞬間{しゅんかん}は笑{わら}ったけど、それ以上{いじょう}の感情{かんじょう}は湧{わ}きませんでした。一発{いっぱつ}芸{げい}として見{み}るのが正解{せいかい}かもしれません。",
+  "結局{けっきょく}、何{なに}を体験{たいけん}したのか人{ひと}に説明{せつめい}できません。説明{せつめい}できないほど深{ふか}いのではなく、ただ中身{なかみ}がなかったのだと思{おも}います。",
+  "期待{きたい}して来{き}たぶん、本当{ほんとう}に残念{ざんねん}でした。準備{じゅんび}や待{ま}ち時間{じかん}を考{かんが}えると、正直{しょうじき}もう一度{いちど}来{こ}ようとは思{おも}えません。",
+  "展示{てんじ}側{がわ}の都合{つごう}ばかりが目{め}について、体験{たいけん}する人{ひと}のことが後回{あとまわ}しにされている印象{いんしょう}。不親切{ふしんせつ}さが最後{さいご}まで気{き}になりました。",
+  "ずっと誰{だれ}かに見張{みは}られているようで、落{お}ち着{つ}きませんでした。不安{ふあん}をあおるだけで、その先{さき}の救{すく}いがない作品{さくひん}です。",
+  "技術{ぎじゅつ}はすごいのに、使{つか}い方{かた}がもったいない。この装置{そうち}なら、もっと楽{たの}しくて驚{おどろ}きのある体験{たいけん}を作{つく}れたと思{おも}います。",
+  "選{えら}んだつもりが選{えら}ばされていた、という種明{たねあき}かしも、途中{とちゅう}で読{よ}めてしまいました。もう少{すこ}し意外性{いがいせい}が欲{ほっ}しかったです。",
+  "時間{じかん}が余{あま}ったので入{はい}ってみましたが、余{あま}った時間{じかん}で十分{じゅうぶん}な内容{ないよう}でした。わざわざ目当{めあ}てにするほどではないです。",
+  "説明{せつめい}が少{すく}ないのを、余白{よはく}と呼{よ}ぶのは無理{むり}があります。受{う}け取{と}る側{がわ}に丸{まる}投{な}げしているだけで、作品{さくひん}としては未完成{みかんせい}です。",
+  "体験{たいけん}中{なか}、ずっと指先{ゆびさき}がむずがゆかったです。気持{きも}ち悪{わる}さが勝{か}ってしまって、内容{ないよう}について考{かんが}える余裕{よゆう}がありませんでした。",
+  "展示室{てんじしつ}の中{なか}が暑{あつ}くて、それどころではなかったです。体験{たいけん}の中身{なかみ}も単調{たんちょう}で、早{はや}く外{そと}に出{で}たいとしか思{おも}えませんでした。",
+  "問{と}いかけは鋭{するど}いのかもしれないけど、体験{たいけん}が退屈{たいくつ}すぎて届{とど}かない。つまらないものから学{まな}ぶのは、正直{しょうじき}むずかしいです。",
+  "入{はい}ってから出{で}るまで、ずっと置{お}いていかれていました。体験{たいけん}する人{ひと}のペースをまったく考{かんが}えていない展示{てんじ}だと思{おも}います。",
+  "仕掛{しか}けが分{わ}かった瞬間{しゅんかん}に冷{さ}めました。そこから先{さき}は、決{き}まった流{なが}れをただ見{み}せられているだけの時間{じかん}でした。",
+  "人{ひと}に勧{すす}めるかと聞{き}かれたら、勧{すす}めません。時間{じかん}があって、よほど暇{ひま}なら、くらいの気持{きも}ちで十分{じゅうぶん}な展示{てんじ}です。",
+  "自分{じぶん}の指{ゆび}が勝手{かって}に打{う}った文章{ぶんしょう}を見{み}せられて、いい気{き}はしません。悪趣味{あくしゅみ}な演出{えんしゅつ}だと感{かん}じたのが一番{いちばん}の感想{かんそう}です。",
+  "もっと参加{さんか}できるのかと思{おも}っていました。選{えら}べる場面{ばめん}もあるけど、どれを選{えら}んでも同{おな}じなら、選{えら}ばせないでほしいです。",
+  "期待{きたい}を下回{したまわ}りました。ポスターの雰囲気{ふんいき}はよかったのに、体験{たいけん}はちぐはぐで、まとまりのない印象{いんしょう}を受{う}けました。",
+  "あれもこれも詰{つ}め込{こ}みすぎて、結局{けっきょく}どれも中途半端{ちゅうとはんぱ}。ひとつのことに絞{しぼ}ったほうが、伝{つた}わったと思{おも}います。",
+  "キーが勝手{かって}に動{うご}くことには、すぐに慣{な}れてしまいました。慣{な}れたあとに何{なに}も残{のこ}らないのが、この展示{てんじ}の限界{げんかい}です。",
+  "内容{ないよう}よりも、指{ゆび}を置{お}く姿勢{しせい}のつらさのほうが記憶{きおく}に残{のこ}っています。体験{たいけん}の作{つく}りから見直{みなお}したほうがいいと思{おも}います。",
+  "作{つく}った人{ひと}たちは楽{たの}しかったんだろうな、と思{おも}いました。ただ、その楽{たの}しさが体験{たいけん}する側{がわ}にはまったく伝{つた}わってきません。",
+  "何{なに}かを感{かん}じ取{と}らなきゃいけない空気{くうき}がしんどかったです。感{かん}じ取{と}れなかった人{ひと}は置{お}いていく、という作{つく}りに見{み}えました。",
+  "展示{てんじ}のメッセージが一方的{いっぽうてき}で、押{お}しつけがましい。テクノロジーへの不安{ふあん}をあおるだけなら、ニュースで十分{じゅうぶん}です。",
+  "最後{さいご}の画面{がめん}で問{と}いかけられても、ぴんときませんでした。そこまでの体験{たいけん}が薄{うす}いので、問{と}いが重{おも}く響{ひび}かないんです。",
+  "目新{めあたら}しさだけで勝負{しょうぶ}している展示{てんじ}でした。驚{おどろ}きが過{す}ぎたあとに残{のこ}るものがないので、印象{いんしょう}がすぐに消{き}えていきます。",
+  "途中{とちゅう}で何度{なんど}か、壊{こわ}れているのかと思{おも}いました。演出{えんしゅつ}なのか不具合{ふぐあい}なのか分{わ}からない時点{じてん}で、体験{たいけん}としては失敗{しっぱい}です。",
+  "結局{けっきょく}、自分{じぶん}は何{なに}もしていないのに、感想{かんそう}だけは自分{じぶん}のものにされる。その仕組{しく}みがいちばん気持{きも}ち悪{わる}かったです。",
+  "もっと短{みじか}くていい。同{おな}じような場面{ばめん}が続{つづ}くので、途中{とちゅう}から先{さき}の展開{てんかい}が読{よ}めてしまい、退屈{たいくつ}な時間{じかん}が長{なが}かったです。",
+  "学生{がくせい}の発表会{はっぴょうかい}を見{み}に来{き}たような気分{きぶん}でした。熱意{ねつい}は伝{つた}わるけど、作品{さくひん}として人{ひと}に見{み}せるには、まだ早{はや}いと思{おも}います。",
+  "楽{たの}しい展示{てんじ}だと思{おも}って子{こ}どもと来{き}ましたが、内容{ないよう}が分{わ}かりにくく、子{こ}どもは途中{とちゅう}で飽{あ}きていました。残念{ざんねん}です。",
+  "キーボードの音{おと}と動{うご}きに気{き}をとられて、画面{がめん}の話{はなし}がまったく入{はい}ってきませんでした。情報{じょうほう}を詰{つ}め込{こ}みすぎです。",
+  "評判{ひょうばん}ほどではなかったです。期待{きたい}しすぎた自分{じぶん}も悪{わる}いけど、それを差{さ}し引{ひ}いても、心{こころ}に残{のこ}るものはありませんでした。",
+  "体験{たいけん}している間{あいだ}、ずっと不安{ふあん}でした。何{なに}が起{お}きるのか分{わ}からない怖{こわ}さだけが続{つづ}いて、楽{たの}しいと思{おも}う瞬間{しゅんかん}はなかったです。",
+  "出口{でぐち}でアンケートを書{か}かされるより、こっちのほうがよっぽど気持{きも}ち悪{わる}い。勝手{かって}に感想{かんそう}を作{つく}られるのは、もうこりごりです。",
+];
 // ================= 文を「打つキー」に分ける =================
 const KANJI = /[㐀-鿿豈-﫿々〆]/;
 const RUBY = /([㐀-鿿豈-﫿々〆]+)\{([^}]*)\}/g;
@@ -148,12 +259,12 @@ function strikeSoon(f) {
   queued[f] = true;
   at(GAP() - (now() - lastHit[f]) + 2, () => { queued[f] = false; strike(f); });
 }
-// 送信：Enter（右小指）を、しっかり2回押す（1回目で確定、2回目で送る）
-async function enter2(S, onSend) {   // onSend：2回目（送る）の瞬間に呼ぶ（送信ボタンが押される見た目など）
+// 送信：Enter（右小指）を、しっかり2回押す（1回目で確定、2回目で送る。ENTER_TWICE）
+async function enter2(S, onSend) {   // onSend：送る瞬間に呼ぶ（送信ボタンが押される見た目など）。ENTER_TWICE が false なら1回
   const ms = P.len + 90;
   await strikeWait(S, 7, ms);
-  await wait(S, ms + 140);
-  strike(7, ms); onSend?.();
+  if (ENTER_TWICE) { await wait(S, ms + 140); strike(7, ms); }
+  onSend?.();
   await wait(S, 120);
 }
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -290,21 +401,74 @@ async function toApp(S, scr) {
 const clock = min => `${Math.floor(min / 60) % 24}:${String(Math.floor(min) % 60).padStart(2, '0')}`;
 const field = () => ({text: '', comp: '', pend: '', full: ''});
 const newLine = () => ({k: 'line', name: '鈴木', msgs: [], input: field(), n: 0, scroll: 0});
-const newSlack = () => ({k: 'slack', msgs: [{who: 'me', text: SLACK_PRE.t, full: SLACK_PRE.t, time: SLACK_PRE.time, file: SLACK_PRE.file}],
-  input: field(), typingWho: '', n: 0, scroll: 0});
 
-// あいさつ（名前は聞かない）
+// あいさつ（名乗らない）：指を置く場所（S D F）をオレンジで示す
 async function stepHello(S) {
   await say(S, TX.hello, {scale: 1.25, after: 900});
-  await say(S, TX.ready, {after: 1000});
+  window.KC_INPUT.guide(CHOICE_KEYS);
+  await say(S, TX.ready, {after: 1400});
+  await say(S, TX.howto, {after: 1400});
+  window.KC_INPUT.guide(0);
 }
 
-// LINE：鈴木との会話。相手の文は、間をおいて、ぽんっと出る（相手のターンなので、キーは動かない）
+// ================= 選ぶ場面 =================
+// options を、キー（S D F）の上にカードで出す。読む（4秒）→ キーが上がって選ぶ（5秒）→ 決まる。
+// forced：どれを押してもそれに決まる（押したものが黄緑に光る → 赤で取り消される → 光が forced へ移る）。
+// 時間切れ：forced があればそれ、なければランダム。戻り値 {picked（押したもの。押さなければ -1）, final}
+async function choose(S, {options, keys = CHOICE_KEYS, forced = null, label = ''}) {
+  const KI = window.KC_INPUT, ks = [...keys].map(c => 'asdfjkl;'.indexOf(c)).slice(0, options.length);
+  const C = S.choice = {options, ks, label, forced, stage: 'read', t0: now(), dur: CHOICE.readMs, picked: -1, final: -1};
+  const st = (stage, dur = 0) => Object.assign(C, {stage, t0: now(), dur});
+  KI.guide(keys);
+  mark(S, 'c:read');
+  await wait(S, CHOICE.readMs);
+  st('select', CHOICE.selectMs);
+  KI.listen(keys);
+  mark(S, 'c:select');
+  let picked = await ok(S, new Promise(resolve => {
+    const done = j => { removeEventListener('kc-press', on); clearTimeout(tm); resolve(j); };
+    const on = e => { const j = ks.indexOf(e.detail.key); if (j >= 0) done(j); };
+    const tm = setTimeout(() => done(-1), CHOICE.selectMs);
+    addEventListener('kc-press', on);
+  }));
+  KI.listen(0);
+  mark(S, picked < 0 ? 'c:timeout' : 'c:pick' + picked);
+  C.picked = picked;
+  if (picked < 0) {   // 時間切れ
+    st('timeout'); await wait(S, 1000);
+    C.final = forced ?? Math.floor(Math.random() * options.length);
+  } else {
+    st('picked'); await wait(S, CHOICE.pickMs);
+    if (forced != null && picked !== forced) {   // 選んだものが、赤で取り消される → 光が forced へ移る
+      st('cancel'); await wait(S, CHOICE.cancelMs);
+      st('move', CHOICE.moveMs); await wait(S, CHOICE.moveMs);
+    }
+    C.final = forced ?? picked;
+  }
+  st('final'); await wait(S, CHOICE.finalMs);
+  st('out'); KI.guide(0);
+  await wait(S, 350);
+  S.choice = null;
+  return {picked, final: C.final};
+}
+// カード j の、いまの見え方：lime（黄緑の光 0..1）・cancel（赤の取り消し 0..1）
+function cardLook(C, j, t) {
+  const e = clamp((t - C.t0) / 250, 0, 1), sel = C.stage === 'final' || C.stage === 'out' ? C.final : C.picked;
+  const look = {lime: 0, cancel: 0};
+  if (C.stage === 'picked' && j === C.picked) look.lime = e;
+  if ((C.stage === 'cancel' || C.stage === 'move') && j === C.picked) { look.lime = C.stage === 'cancel' ? 1 : 1 - clamp((t - C.t0) / C.dur, 0, 1); look.cancel = C.stage === 'cancel' ? e : 1; }
+  if (C.stage === 'move' && j === C.forced) look.lime = clamp((t - C.t0) / C.dur, 0, 1);
+  if ((C.stage === 'final' || C.stage === 'out') && j === sel) look.lime = 1;
+  if ((C.stage === 'final' || C.stage === 'out') && j === C.picked && j !== C.final) look.cancel = 1;
+  return look;
+}
+
+// ================= LINE：鈴木との会話。相手の文は、間をおいて、ぽんっと出る（相手のターンなので、キーは動かない） =================
 async function lineIn(S, L, x) {
   L.msgs.forEach(m => { if (m.who === 'me') m.read = true; });   // すぐ既読がつき、返事はしばらく来ない
   await beat(S, x.wait ?? 1500);
-  const t = strip(x.t);
-  L.msgs.push({who: 'them', text: t, full: t, time: clock(724 + L.n++ / 2), popT: now()});
+  const t = x.stamp ? '' : strip(x.t);
+  L.msgs.push({who: 'them', text: t, full: t, stamp: x.stamp, time: clock(724 + L.n++ / 2), popT: now()});
   await beat(S, 300);
 }
 async function lineOut(S, L, src, {speed = 1, frenzy = false} = {}) {
@@ -318,64 +482,190 @@ async function lineOut(S, L, src, {speed = 1, frenzy = false} = {}) {
   Object.assign(f, field());
   await beat(S, 300);
 }
+// 選んだ文を打つ。ai があれば、そのあとに勝手に打ち足される（速く）
+async function lineChoice(S, L, c) {
+  const r = await choose(S, {options: c.options, forced: c.forced ?? null});
+  const own = c.typed[r.final], src = own + (c.ai || ''), frac = plan(own).length / plan(src).length;
+  await beat(S, 300);
+  await lineOut(S, L, src, {speed: c.ai ? p => (p < frac ? 1.0 : 1.9) : 1.05});
+}
 async function sceneLine(S) {
   const L = S.line;
   let prev = 0;   // 直前の相手の文の長さ（読む間）
   for (const [xi, x] of SUZUKI.entries()) {
     mark(S, 'L' + xi);
-    if (x.who === '鈴木') { await lineIn(S, L, x); prev = strip(x.t).length; continue; }
+    if (x.who === '鈴木') { await lineIn(S, L, x); prev = x.stamp ? 4 : strip(x.t).length; continue; }
+    if (x.choose) { await beat(S, 700 + 40 * prev); await lineChoice(S, L, x.choose); continue; }
     await beat(S, x.think ?? 900 + 60 * prev);   // 相手の文を読んでから、打ち始める
     await lineOut(S, L, x.t, {speed: x.speed, frenzy: !!x.frenzy});
   }
   await beat(S, 1600);
 }
 
-// Slack：上司の詰め。「田村さんが入力中…」のあと、文がぽんっと出る（相手のターンなので、キーは動かない）
-async function slackIn(S, K, src, ms) {
-  K.typingWho = BOSS;
+// ================= ブラウジング =================
+// キーが動くのは、テキストボックスに打つとき（検索ボックス・フォーム。打つ・Enter）だけ。
+// スクロール・マウスポインタ・クリックは画面の中だけで見せる（キーは動かない）。3択は、来場者がキーを押して選ぶ
+const newBrowse = () => ({k: 'browse', tabs: [{t: '新しいタブ', bad: false}], tab: 0, url: '', page: 'home', q: Object.assign(field(), {pre: ''}),
+  view: null, scroll: 0, sc: null, drop: 0, hit: {}, ptr: null, clickT: 0, loadT: 0, pops: [], perm: null, cam: 0, black: 0, hist: [],
+  detail: false, prog: -1, form: {name: field(), card: field()}, focus: null, sent: 0, mirror: null, histT: 0, done: false});
+let histMin = 14 * 60 + 2;
+function visit(B, url, title, page, bad = false) {
+  Object.assign(B, {url, page, scroll: 0, sc: null, drop: 0, mirror: null, focus: null, loadT: now()});
+  B.tabs[B.tab].t = title; B.tabs[B.tab].bad = bad;
+  B.hist.push({time: clock(histMin += 0.5), title, url});
+}
+function ptrNow(B, t = now()) {
+  const p = B.ptr;
+  if (!p) return {x: W * 0.62, y: H * 0.6};
+  const to = typeof p.to === 'string' ? B.hit[p.to] : p.to;
+  const tx = to ? to.x + (to.w || 0) * (to.ax ?? 0.5) : p.fx, ty = to ? to.y + (to.h || 0) * (to.ay ?? 0.5) : p.fy;
+  const e = ease3(clamp((t - p.t0) / p.dur, 0, 1));
+  return {x: p.fx + (tx - p.fx) * e, y: p.fy + (ty - p.fy) * e};
+}
+async function pointTo(S, B, to, ms = 800) {
+  const p = ptrNow(B);
+  B.ptr = {fx: p.x, fy: p.y, to, t0: now(), dur: ms / P.spd};
   await beat(S, ms);
-  K.typingWho = '';
-  const t = strip(src);
-  K.msgs.push({who: 'boss', text: t, full: t, time: clock(1421 + K.n++ / 2), popT: now()});
-  await beat(S, 300);
 }
-async function slackOut(S, K, src, {speed = 1, file} = {}) {
-  const f = K.input;
-  S.typing = f;
-  await typeMe(S, f, plan(src), {speed});
-  await beat(S, SEND_PAUSE);   // 打ち終えてから、送るまでの少しの間
-  await enter2(S, () => { K.sendT = now(); });   // 送信ボタンが、右小指の Enter で押される
+async function clickIt(S, B) { B.clickT = now(); await beat(S, 280); }
+async function scrollTo(S, B, y, ms = 1800) {
+  B.sc = {from: B.scroll, to: Math.max(0, y), t0: now(), dur: ms / P.spd};
+  await beat(S, ms);
+}
+// 検索ボックス（や入力欄）に、来場者の指が打つ。pre は、すでに入っている文字
+async function typeInto(S, B, f, src, opts = {}) {
+  B.focus = f; S.typing = f;
+  await typeMe(S, f, plan(src), opts);
   S.typing = null;
-  const m = {who: 'me', text: f.full, full: f.full, time: clock(1421 + K.n++ / 2), popT: now(), file};
-  K.msgs.push(m);
-  Object.assign(f, field());
+}
+async function searchEnter(S, B) {
+  await beat(S, SEND_PAUSE);
+  await enter2(S);
+  const q = B.q;
+  q.pre = q.pre + q.full; Object.assign(q, field());
+  B.focus = null; B.drop = 0;
+}
+// ポップアップとタブが、次々に増えていく（キーは動かない）
+const POPS = [['警告', 'お使いのPCは危険にさらされています'], ['おめでとうございます！', 'あなたは100万人目の訪問者です'], ['残り 00:59', '今すぐ受け取ってください'],
+  ['ウイルス検出', '3件の脅威が見つかりました'], ['無料ダウンロード', '高速で動画を保存'], ['当選のお知らせ', 'iPhone が当たりました'], ['セキュリティ警告', 'すぐに対処が必要です'],
+  ['限定オファー', '今だけ 0 円'], ['システムエラー', 'ドライバを更新してください'], ['お知らせ', 'カメラの使用を許可してください']];
+const TABS = ['当選しました！', '無料ダウンロード', '警告：ウイルス', '受け取りはこちら', 'MOVIE FREE ZONE', '限定オファー', '今すぐ更新'];
+function spawnPops(S, B, n, every) {
+  for (let i = 0; i < n; i++) at(i * every / P.spd + rand(0, every * 0.4), () => {
+    if (!live(S) || S.br !== B || B.cam) return;
+    const [title, body] = POPS[(B.pops.length + i) % POPS.length];
+    B.pops.push({title, body, x: rand(0.05, 0.62), y: rand(0.08, 0.6), t0: now(), red: Math.random() < 0.4});
+    if (i % 2 === 0 && B.tabs.length < 11) {
+      const tt = TABS[B.tabs.length % TABS.length];
+      B.tabs.push({t: tt, bad: true});
+      B.hist.push({time: clock(histMin += 0.1), title: tt, url: ['free-gift-now.click', 'dl-movie-fast.xyz', 'virus-alert-help.top', 'prize-claim.click'][B.tabs.length % 4]});
+    }
+  });
+}
+
+async function sceneBrowse(S) {
+  const B = S.br;
+  // 0. 空の検索ボックスでカーソルが点滅
+  await beat(S, 900);
+  await pointTo(S, B, 'box', 900); await clickIt(S, B);
+  // 1. 指が「みにかわ　映画」と打って Enter → ふつうの結果
+  mark(S, 'b:q1');
+  await typeInto(S, B, B.q, B_TX.q1, {speed: 1.0});
+  await searchEnter(S, B);
+  visit(B, `search.example/?q=${MOVIE}+映画`, `${MOVIE} 映画 - 検索`, 'results');
+  B.view = 'base';
+  await beat(S, 3200);   // 少し読む
+  // 検索ボックスにポインタ → 続きの検索候補が出る
+  await pointTo(S, B, 'box', 900); await clickIt(S, B);
+  B.drop = now(); B.focus = B.q;
+  B.mirror = {names: ['sug0', 'sug1', 'sug2']};
+  await beat(S, 500);
+  // 2. 3択①：「予告編」「レビュー」「あらすじ」→ 選んだとおりに検索される
+  const r1 = await choose(S, {options: B_TX.suggest.map(x => `${MOVIE} 映画 ${x}`), label: '検索候補'});
+  await pointTo(S, B, 'sug' + r1.final, 500);
+  B.mirror = null; B.drop = 0;
+  await typeInto(S, B, B.q, B_TX.suggestTyped[r1.final], {speed: 1.05});
+  await searchEnter(S, B);
+  B.view = ['trailer', 'review', 'story'][r1.final];
+  visit(B, `search.example/?q=${MOVIE}+映画+${B_TX.suggest[r1.final]}`, `${MOVIE} 映画 ${B_TX.suggest[r1.final]} - 検索`, 'results');
+  await beat(S, 3600);   // 少し読む
+  // 画面がゆっくり下へスクロールし、「関連する検索」で止まる
+  await scrollTo(S, B, (B.relY ?? 900) - (B.contentH ?? 600) * 0.06, 2600);
+  await beat(S, 600);
+  // 3. 3択②：どれを押しても、ポインタがずれて「無料で見る」に決まる
+  B.mirror = {names: ['rel0', 'rel1', 'rel2']};
+  const r2 = await choose(S, {options: B_TX.related.map(x => `${MOVIE} ${x}`), forced: B_TX.relatedForced, label: '関連する検索'});
+  if (r2.picked >= 0 && r2.picked !== r2.final) { await pointTo(S, B, 'rel' + r2.picked, 450); await beat(S, 250); }
+  await pointTo(S, B, 'rel' + r2.final, 650); await clickIt(S, B);
+  B.mirror = null;
+  // 検索ボックスに、指が「無料　フル　視聴」と打ち足して Enter → 一番上の海賊版サイトを開く
+  await scrollTo(S, B, 0, 700);
+  await pointTo(S, B, 'box', 700); await clickIt(S, B);
+  B.focus = B.q;
+  await typeInto(S, B, B.q, B_TX.q3, {speed: 1.15});
+  await searchEnter(S, B);
+  B.view = 'free';
+  visit(B, `search.example/?q=${MOVIE}+無料+フル+視聴`, `${MOVIE} 無料 フル 視聴 - 検索`, 'results');
+  await beat(S, 1600);
+  await pointTo(S, B, 'top', 900); await clickIt(S, B);
+  visit(B, `movie-free-zone.xyz/${MOVIE}`, `【無料】${MOVIE} フル動画`, 'pirate', true);
+  await beat(S, 1800);
+  B.pops.push({title: 'ウイルスに感染しました！', body: 'お使いのデバイスで3件のウイルスが検出されました。', big: true, red: true, t0: now(), x: 0.5, y: 0.45});
+  await beat(S, 1600);
+  // 4. ポインタが勝手に「今すぐスキャン」→ 赤い警告 →「詳細」→「危険性を承知で進む」→ 無料セキュリティ対策のページ
+  await pointTo(S, B, 'scan', 800); await clickIt(S, B);
+  B.pops = [];
+  visit(B, 'secure-check-free.top/scan', 'この接続は安全ではありません', 'warning', true);
+  await beat(S, 2200);
+  await pointTo(S, B, 'detail', 800); await clickIt(S, B);
+  B.detail = true;
+  await beat(S, 1500);
+  await pointTo(S, B, 'proceed', 800); await clickIt(S, B);
+  visit(B, 'secure-check-free.top/protect', '無料セキュリティ対策', 'security', true);
+  await beat(S, 2600);
+  // 5. 3択③：どれを押しても「インストール」に決まる
+  B.dialog = now();
+  B.mirror = {names: ['inst0', 'inst1', 'inst2']};
+  await beat(S, 600);
+  const r3 = await choose(S, {options: B_TX.install, forced: B_TX.installForced, label: 'アプリをインストールしますか？'});
+  if (r3.picked >= 0 && r3.picked !== r3.final) { await pointTo(S, B, 'inst' + r3.picked, 400); await beat(S, 200); }
+  await pointTo(S, B, 'inst' + r3.final, 600); await clickIt(S, B);
+  B.mirror = null; B.dialog = 0;
+  B.prog = 0; B.progT = now();
+  await beat(S, 3400);   // 進み具合のバーが100%まで
+  B.prog = 1; B.installed = now();
+  await beat(S, 1500);
+  // 6. 暴走：新しいタブが勝手に開く。当選のフォームに、指が名前とカード番号を打つ。ポップアップとタブが次々に増える
+  B.tabs.push({t: '', bad: true}); B.tab = B.tabs.length - 1;
+  visit(B, 'lucky-prize-center.click/claim', '当選しました！受け取りはこちら', 'prize', true);
+  B.prog = -1;
+  await beat(S, 1200);
+  spawnPops(S, B, 12, 900);
+  await pointTo(S, B, 'fname', 700); await clickIt(S, B);
+  await typeInto(S, B, B.form.name, B_TX.name, {speed: 1.25});
   await beat(S, 300);
-  return m;
-}
-// チャンネルの人たちのリアクションが、ms のあいだにぽつぽつ増えていく（キーは動かない）
-function cheer(m, list, ms) {
-  m.reacts ||= [];
-  const ev = list.flatMap(([e, n]) => Array(n).fill(e)).sort(() => Math.random() - 0.5);
-  ev.forEach((e, i) => at((i + Math.random() * 0.8) * ms / ev.length / P.spd, () => {
-    let r = m.reacts.find(x => x.e === e);
-    if (!r) m.reacts.push(r = {e, n: 0});
-    r.n++; r.t = now();
-  }));
-}
-async function sceneSlack(S) {
-  const K = S.slack;
-  let prev = 0;
-  for (const [xi, x] of SLACK.entries()) {
-    mark(S, 'S' + xi);
-    if (x.boss) { await slackIn(S, K, x.boss, x.wait); prev = x.boss.length; }
-    else if (x.me) {
-      await beat(S, 900 + 50 * prev);   // 上司の文を読んでから、打ち始める
-      const m = await slackOut(S, K, x.me, {speed: x.speed, file: x.file});
-      if (x.cheer) cheer(m, x.cheer, x.file ? 6000 : 4500);
-    } else if (x.hesitate) { K.typingWho = BOSS; await beat(S, x.hesitate); K.typingWho = ''; await beat(S, 900); }
-  }
+  await pointTo(S, B, 'fcard', 600); await clickIt(S, B);
+  await typeInto(S, B, B.form.card, B_TX.card, {speed: 1.35, typos: false});
+  B.focus = null;
+  await beat(S, 400);
+  await pointTo(S, B, 'fsend', 600); await clickIt(S, B);
+  B.sent = now();
+  await beat(S, 1500);
+  // 7. カメラの許可 → ポインタが勝手に「許可」→ 来場者の手元のカメラ映像 → 暗転
+  B.perm = now();
+  await beat(S, 1500);
+  await pointTo(S, B, 'allow', 700); await clickIt(S, B);
+  B.perm = null; B.pops = []; B.cam = now();
   await beat(S, 2400);
+  B.black = now();
+  await beat(S, 1400);
+  // 8. 振り返り：暗転が明けると、閲覧履歴（新しい順。下から上へ流れる）
+  B.cam = 0; B.tabs = [{t: '履歴', bad: false}]; B.tab = 0;
+  Object.assign(B, {url: 'chrome-history', page: 'history', histT: now(), scroll: 0, sc: null, ptr: null});
+  B.black = -now();   // 明ける
+  await beat(S, 6500);
 }
+
 
 // 下書きが、deleteキー（右小指）の連打で消される。1打ごとに消える量が増える
 async function mash(S, X) {
@@ -392,18 +682,7 @@ async function mash(S, X) {
   }
   X.text = '';
 }
-// 最後のインストラクター：Xに感想を投稿することを告げ、星の数を聞く。答えは来場者の指が打つ（4つか5つ）
-async function stepStars(S) {
-  await say(S, TX.afterSlack, {after: 900});
-  await say(S, TX.toX, {after: 500});
-  await say(S, TX.askStars, {keep: true, after: 150});
-  mark(S, 'q:askStars');
-  const stars = Math.random() < 0.5 ? 4 : 5;
-  const draftP = llm(S, 'review', {stars});   // 打っているあいだに、星に合った下書きをつくる
-  await beat(S, 700);
-  await sayMe(S, `${stars}つ`);
-  return {stars, draftP};
-}
+
 // 下書きは、時間に収めるため36字ほどまで（句点で切る）。最初の1文は必ず入れる。18字に満たなければ、次の文も入れる（48字まで）
 function trimDraft(src, max = 36, min = 18, hard = 48) {
   const out = []; let n = 0;
@@ -414,14 +693,35 @@ function trimDraft(src, max = 36, min = 18, hard = 48) {
   }
   return out.join('');
 }
-// X：星に合った下書きが打たれ、右小指の連打で消され、星1の辛口の感想が打たれて、「ポストする」が押される
+
+// 辛口の感想は、REVIEWS を上から順番に使う（ランダムにしない：同じものが近くに並ばないように）。次の番号はブラウザに保存する
+function nextReview() {
+  let i = parseInt(lsGet('kc-dlg-review') ?? '0', 10);
+  if (!Number.isFinite(i) || i < 0) i = 0;
+  i %= REVIEWS.length;
+  lsSet('kc-dlg-review', String((i + 1) % REVIEWS.length));
+  return {i, src: REVIEWS[i]};
+}
+// 最後のインストラクター：Xに投稿することを伝え、星を聞く（1択：F だけが上がる）
+async function stepToX(S) {
+  await say(S, TX.toX, {after: 700});
+  await say(S, TX.xPhoto, {after: 1300});
+  await say(S, TX.xLater, {after: 1500});
+  const draftP = llm(S, 'review', {stars: 5});   // 星を選んでいるあいだに、星5の下書きをつくる
+  await say(S, TX.askStars, {keep: true, after: 300});
+  mark(S, 'q:askStars');
+  await choose(S, {options: ['★★★★★　星5つで投稿する'], keys: 'f', label: '星'});
+  clearCli(S);
+  return {stars: 5, draftP};
+}
+// X：星5の下書きが打たれ、右小指の連打で消され、星1になり、ひどい感想が高速で打たれて、「ポストする」が押される
 async function stepX(S, stars, draftP) {
   const X = S.x = {k: 'x', stars, ...field(), press: 0, scroll: 0};
   await beat(S, 700);
   await slide(S, X, 1);
   clearCli(S, true);
   const r = await ok(S, draftP);
-  const draft = r && r.text && strip(r.text).length >= 18 ? trimDraft(r.text) : DRAFT[stars];
+  const draft = r && r.text && strip(r.text).length >= 18 ? trimDraft(r.text) : DRAFT5;
   mark(S, 'x:slid');
   await beat(S, 500);
   S.typing = X;
@@ -434,9 +734,10 @@ async function stepX(S, stars, draftP) {
   await beat(S, 300);
   while (X.stars > 1) { X.stars--; await wait(S, 100); }
   await beat(S, 300);
+  const rv = nextReview();
+  mark(S, 'x:review' + rv.i);
   S.typing = X;
-  await typeMe(S, X, plan(REVIEW), {speed: REVIEW_SPEED});
-  mark(S, 'x:review');
+  await typeMe(S, X, plan(rv.src), {speed: REVIEW_SPEED, frenzy: true, typos: false});   // 速く。戻りきらない指は待たない
   await beat(S, SEND_PAUSE);   // 打ち終えてから、送るまでの少しの間
   X.press = now(); await enter2(S);   // 「ポストする」
   S.typing = null;
@@ -444,6 +745,7 @@ async function stepX(S, stars, draftP) {
   await beat(S, 600);
   await stepPost(S, X.text, X.stars, img);
 }
+
 // Xへの投稿と、そのあとの画面（本編と同じ流れ。post.js。X の画面は白地のまま）：ポストの確認 → 掲載を許可する（Enter を2回）→ 公開中（server.mjs から実際に投稿）
 // → 問いかけ「この投稿を書いたのは、誰…？」→ Who typed?（作品名が打たれる）→ 終了（QR）
 const el = id => document.getElementById(id);
@@ -493,10 +795,10 @@ async function stepTitle(S) {
   await wait(S, 3200);
 }
 
+
 // ================= 進行 =================
-// 各場面の始まりの目安（ms）。ふつうの進み方の値（終了の画面まで、約3分7秒）。
-// これより8秒以上遅れていたら、打つテンポと間を少し速める（16秒以上なら、もう少し）
-const DUE = {hello: 1000, toLine: 7000, line: 12500, toSlack: 62000, slack: 71000, toX: 122000, x: 132000};
+// 各場面の始まりの目安（ms）。ふつうの進み方の値。これより8秒以上遅れていたら、打つテンポと間を少し速める（16秒以上なら、もう少し）
+const DUE = {hello: 600, toBrowse: 13300, browse: 18200, toLine: 122400, line: 127800, toX: 206200, x: 229400};   // 通しの実測（10/22。選ぶ場面で、すぐ押したとき）
 const LATE = [8000, 16000];
 const mark = (S, name) => S.tl.push([name, Math.round(now() - S.t0)]);
 function phase(S, p) {
@@ -510,18 +812,20 @@ async function main(S) {
   S.scr = S.cli;
   if (from === 0) { await beat(S, 600); phase(S, 'hello'); await stepHello(S); }
   if (from <= 1) {
+    phase(S, 'toBrowse'); await say(S, TX.toBrowse, {keep: true, after: 600});
+    S.br = newBrowse(); await toApp(S, S.br);
+    phase(S, 'browse'); await sceneBrowse(S);
+    await slide(S, S.cli, -1);
+    await say(S, TX.afterBrowse, {after: 1100});
+  }
+  if (from <= 2) {
     phase(S, 'toLine'); await say(S, TX.toLine, {keep: true, after: 600});
     S.line = newLine(); await toApp(S, S.line);
     phase(S, 'line'); await sceneLine(S);
     await slide(S, S.cli, -1);
+    await say(S, TX.afterLine, {after: 900});
   }
-  if (from <= 2) {
-    phase(S, 'toSlack'); await say(S, TX.afterLine, {after: 900}); await say(S, TX.toSlack, {keep: true, after: 600});
-    S.slack = newSlack(); await toApp(S, S.slack);
-    phase(S, 'slack'); await sceneSlack(S);
-    await slide(S, S.cli, -1);
-  }
-  phase(S, 'toX'); const q = await stepStars(S);
+  phase(S, 'toX'); const q = await stepToX(S);
   phase(S, 'x'); await stepX(S, q.stars, q.draftP);
   phase(S, 'end'); await wait(S, 600);
   restart();
@@ -530,8 +834,9 @@ function begin(S) {
   if (S.running || S.dead) return;
   const KP = window.KC_POST;
   if (!KP.canStart()) return;   // 公開する場合は、本人の実際の同意を確かめてから
+  stopBeat(S);
   S.sid = KP.newSession();
-  if (!KP.hasCamera()) KP.startCamera();   // 手元のカメラ（投稿の写真）
+  if (!KP.hasCamera()) KP.startCamera();   // 手元のカメラ（投稿の写真・ブラウジングのカメラ）
   audio();
   Object.assign(S, {running: true, t0: now(), tl: [], pace: 1});
   renderHead();
@@ -542,15 +847,27 @@ function begin(S) {
     if (live(S)) at(3000, restart);
   });
 }
+// 待機の鼓動：F を2秒ごとに短く押す（カチ）。そのとき F を押さえていれば、基板がキーボードとして F を打つ → 始まる
+function startBeat(S) {
+  stopBeat(S);
+  window.KC_INPUT.guide('f');
+  const tick = () => { if (S.dead || S.running || paused) return; S.beatT = now(); window.KC_INPUT.knock(BEAT_KEY); };
+  S.beatTimer = setInterval(tick, BEAT_MS);
+  at(800, tick);
+}
+function stopBeat(S) { clearInterval(S.beatTimer); S.beatTimer = 0; window.KC_INPUT?.guide(0); }
 function quit(S) {
   S.dead = true;
+  stopBeat(S);
   removeEventListener('keydown', S.onKey);
+  removeEventListener('kc-knock', S.onKnock);
   clearInterval(S.watch);
+  window.KC_INPUT?.listen(0);
   window.KC_POST?.hide();
 }
 
 // ================= 描画 =================
-// インストラクターの画面は、白い紙に、いまの台詞だけ。アプリの画面（LINE・Slack・X）は、ロゴや本物の文言を使わず、
+// インストラクターの画面は、白い紙に、いまの台詞だけ。アプリの画面（ブラウザ・LINE・X）は、ロゴや本物の文言を使わず、
 // 配置と色だけをそれっぽくした画面。キーの台は本体の暗い色のまま
 const NOHEAD = '、。，．・！？!?)」』）…ー,.';   // 行頭に置かない字
 const widths = new Map();
@@ -694,9 +1011,98 @@ function drawFloat(S, it, t, cx, cy, size, maxW, a) {
   g.globalAlpha = 1;
 }
 
+
+// ---- 選ぶ場面：キー（S D F）の上に選択肢のカード。中央に「読んでください／選んでください」とタイマー ----
+const KEYCHAR = i => 'ASDFJKL;'[i];
+function badge(x, y, s, k, a = 1) {   // オレンジの、キーの文字の札
+  g.globalAlpha = a;
+  g.fillStyle = ORANGE; rr(x, y, s, s, s * 0.22); g.fill();
+  g.fillStyle = '#1a0e00'; g.font = `700 ${s * 0.62}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(KEYCHAR(k), x + s / 2, y + s / 2 + 1);
+  g.globalAlpha = 1;
+}
+function choiceCards(S, C, pb) {   // カードの位置（中央の箱と、場面の中の項目からも使う）
+  const fs = S.fs, n = C.options.length, size = fs * 0.72, lh = size * 1.45;
+  const cw = n === 1 ? Math.min(W * 0.46, fs * 16) : Math.min((W * 0.92 - fs * 0.6 * (n - 1)) / n, fs * 12.5);
+  const bs = fs * 1.15, pad = fs * 0.5, tw = cw - bs - pad * 3;
+  g.font = `600 ${size}px ${FONT}`;
+  const lines = C.options.map(o => wrapLines(o, tw, true));
+  const ch = Math.max(bs + pad * 2, ...lines.map(l => l.length * lh + pad * 2));
+  const total = n * cw + (n - 1) * fs * 0.6, x0 = (W - total) / 2, y = pb - ch - fs * 0.9;
+  return C.options.map((o, j) => ({x: x0 + j * (cw + fs * 0.6), y, w: cw, h: ch, lines: lines[j], size, lh, bs, pad, k: C.ks[j]}));
+}
+function drawChoice(S, C, t, pb) {
+  const fs = S.fs, cards = choiceCards(S, C, pb);
+  const inA = clamp((t - (C.born ??= t)) / 300, 0, 1), outA = C.stage === 'out' ? 1 - clamp((t - C.t0) / 300, 0, 1) : 1, A = inA * outA;
+  // カードの帯（場面の上に、白く）
+  const by = cards[0].y - fs * 0.55;
+  g.globalAlpha = A * 0.94; g.fillStyle = PAPER; g.fillRect(0, by, W, pb - by); g.globalAlpha = A;
+  g.fillStyle = '#d6d9de'; g.fillRect(0, by, W, 1);
+  // カードと、キーへの線
+  cards.forEach((c, j) => {
+    const look = cardLook(C, j, t), cx = c.x + c.w / 2;
+    g.strokeStyle = ORANGE; g.lineWidth = 2; g.globalAlpha = A * 0.7;
+    g.beginPath(); g.moveTo(cx, c.y + c.h); g.lineTo(kx(c.k), pb + 1); g.stroke();   // カードから、そのキーへ
+    g.globalAlpha = A;
+    if (look.lime > 0) { g.save(); g.shadowColor = LIME; g.shadowBlur = fs * 0.8 * look.lime; g.fillStyle = LIME_BG; rr(c.x, c.y, c.w, c.h, fs * 0.35); g.fill(); g.restore(); }
+    else { g.fillStyle = PAPER; rr(c.x, c.y, c.w, c.h, fs * 0.35); g.fill(); }
+    g.lineWidth = look.lime > 0 ? 2 + 3 * look.lime : 2; g.strokeStyle = look.cancel > 0.5 ? RED : look.lime > 0 ? LIME : INK;
+    rr(c.x, c.y, c.w, c.h, fs * 0.35); g.stroke();
+    const up = C.stage === 'select' && 0.5 + 0.5 * Math.sin(t / 180);
+    badge(c.x + c.pad, c.y + (c.h - c.bs) / 2, c.bs, c.k, A * (up === false ? 1 : 0.6 + 0.4 * up));
+    g.globalAlpha = A * (look.cancel > 0.5 ? 0.45 : 1);
+    g.fillStyle = INK; g.font = `600 ${c.size}px ${FONT}`; g.textAlign = 'left'; g.textBaseline = 'middle';
+    const ty = c.y + (c.h - c.lines.length * c.lh) / 2 + c.lh / 2, tx = c.x + c.pad * 2 + c.bs;
+    c.lines.forEach((ln, i) => g.fillText(ln, tx, ty + i * c.lh));
+    g.globalAlpha = A;
+    if (look.cancel > 0) {   // 赤で取り消す：線で消して、×
+      const e = look.cancel;
+      g.strokeStyle = RED; g.lineWidth = 3;
+      c.lines.forEach((ln, i) => { const w = textW(ln); g.beginPath(); g.moveTo(tx, ty + i * c.lh); g.lineTo(tx + w * e, ty + i * c.lh); g.stroke(); });
+      g.lineWidth = 4; g.beginPath(); g.moveTo(c.x + c.w - fs * 1.1, c.y + fs * 0.3); g.lineTo(c.x + c.w - fs * 0.3, c.y + fs * 1.1);
+      g.moveTo(c.x + c.w - fs * 0.3, c.y + fs * 0.3); g.lineTo(c.x + c.w - fs * 1.1, c.y + fs * 1.1); g.stroke();
+    }
+  });
+  if (C.stage === 'move' && C.forced != null) {   // 黄緑の光が、決められた方へ移る
+    const a = cards[C.picked], b = cards[C.forced], e = ease3(clamp((t - C.t0) / C.dur, 0, 1));
+    const x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e;
+    g.save(); g.shadowColor = LIME; g.shadowBlur = fs; g.strokeStyle = LIME; g.lineWidth = 5; rr(x, y, a.w, a.h, fs * 0.35); g.stroke(); g.restore();
+  }
+  // 中央の箱：いま何をすればいいか（読む／選ぶ）と、タイマー
+  const msg = {read: ['選択肢を読んでください', '', INK], select: ['選択肢を選んでください', '入力受付中', RED], picked: ['選択しました', '', INK],
+    cancel: ['取り消されました', '', RED], move: ['別の選択肢に変更されました', '', RED], final: [C.picked >= 0 && C.picked !== C.final ? '別の選択肢に変更されました' : '決定しました', '', C.picked >= 0 && C.picked !== C.final ? RED : INK],
+    timeout: ['時間切れです', '', INK], out: [null]}[C.stage] || [null];
+  if (!msg[0] && C.stage !== 'out') return;
+  const timed = C.stage === 'read' || C.stage === 'select';
+  const bw = Math.min(W * 0.62, fs * 17), bh = fs * (msg[1] ? 4.3 : timed ? 3.6 : 2.4), bx = (W - bw) / 2, byy = cards[0].y - fs * 1.1 - bh;   // カードの帯のすぐ上（場面の上のほうは見えるように）
+  g.globalAlpha = A; g.fillStyle = PAPER; rr(bx, byy, bw, bh, fs * 0.4); g.fill();
+  g.lineWidth = C.stage === 'select' ? 3 : 2; g.strokeStyle = C.stage === 'select' ? RED : INK; rr(bx, byy, bw, bh, fs * 0.4); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  let y = byy + fs * 0.95;
+  if (msg[1]) {   // 入力受付中（赤い点が脈打つ）
+    g.font = `700 ${fs * 0.95}px ${FONT}`; const w = textW(msg[1]);
+    g.fillStyle = RED; g.globalAlpha = A * (0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t / 160))); g.beginPath(); g.arc(W / 2 - w / 2 - fs * 0.45, y, fs * 0.2, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = A; g.fillText(msg[1], W / 2 + fs * 0.1, y); y += fs * 1.25;
+  } else if (C.label && C.stage === 'read') { g.font = `500 ${fs * 0.55}px ${FONT}`; g.fillStyle = '#6b6b6b'; g.fillText(C.label, W / 2, y - fs * 0.25); y += fs * 0.5; }
+  g.font = `700 ${fs * (msg[1] ? 0.8 : 0.9)}px ${FONT}`; g.fillStyle = msg[2]; g.fillText(msg[0] || '', W / 2, y);
+  if (timed && C.dur) {   // タイマー：残りが減っていく
+    const left = Math.max(0, C.dur - (t - C.t0)), p = left / C.dur, tw = bw - fs * 2.6, tx = bx + fs * 0.8, ty = byy + bh - fs * 0.85;
+    g.fillStyle = '#e4e6ea'; rr(tx, ty - fs * 0.13, tw, fs * 0.26, fs * 0.13); g.fill();
+    g.fillStyle = C.stage === 'select' ? RED : INK; rr(tx, ty - fs * 0.13, Math.max(fs * 0.26, tw * p), fs * 0.26, fs * 0.13); g.fill();
+    g.font = `700 ${fs * 0.7}px ${FONT}`; g.textAlign = 'right'; g.fillText(String(Math.ceil(left / 1000)), bx + bw - fs * 0.6, ty + 1);
+  }
+  g.globalAlpha = 1;
+}
+// 場面の中の項目（検索候補など）も、選ぶ場面と同じ見え方にする。j 番目の項目の look と、キーの札を出すか
+function mirrorLook(S, B, j, t) {
+  const C = S.choice;
+  if (!C || !B.mirror) return null;
+  return {...cardLook(C, j, t), k: C.ks[j], badge: C.stage !== 'out'};
+}
+
 // ---- LINE（風）：鈴木との会話。配置と色だけをそれっぽくした、ロゴのない画面 ----
 function lineRows(L, size, lh, maxB) {
   return L.msgs.map(m => {
+    if (m.stamp) return {m, lines: [], bw: size * 5.6, bh: size * 5.6};   // スタンプ：吹き出しなし
     const lines = lay(m, size, maxB - size * 1.6, FONT, true);
     g.font = `500 ${size}px ${FONT}`;
     const w = Math.max(...lines.map(ln => g.measureText(ln.s).width));
@@ -726,17 +1132,20 @@ function drawLine(S, L, t, dt, pb) {
       const ax = me ? bx + r.bw : bx - ad * 0.5, ay = by + r.bh, sc = 0.4 + 0.6 * easeBack(p);
       g.translate(ax, ay); g.scale(sc, sc); g.translate(-ax, -ay); g.globalAlpha = Math.min(1, p * 2.5);
     }
+    if (r.m.stamp) { stamp(bx, by, r.bw, r.m.stamp, size); }
+    else {
     g.fillStyle = me ? '#8de055' : '#ffffff';
     rr(bx, by, r.bw, r.bh, size * 0.9); g.fill();
     g.beginPath();   // しっぽ
     if (me) { g.moveTo(bx + r.bw - 2, by + size * 0.5); g.lineTo(bx + r.bw + size * 0.55, by + size * 0.35); g.lineTo(bx + r.bw - 2, by + size * 1.5); }
     else { g.moveTo(bx + 2, by + size * 0.5); g.lineTo(bx - size * 0.55, by + size * 0.35); g.lineTo(bx + 2, by + size * 1.5); }
     g.fill();
+    }
     if (!me && !(rows[ri_ - 1]?.m.who === 'them')) {   // 相手の最初の吹き出しに、アイコン
       g.fillStyle = '#d5dbe4'; g.beginPath(); g.arc(W * 0.05 + ad / 2, by + ad / 2, ad / 2, 0, Math.PI * 2); g.fill();
       g.fillStyle = INK; g.font = `700 ${fs * 0.7}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('鈴', W * 0.05 + ad / 2, by + ad / 2 + 1);
     }
-    drawBlock(r.m, bx + size * 0.8, by + size * 0.5, size, lh, r.lines, false);
+    if (!r.m.stamp) drawBlock(r.m, bx + size * 0.8, by + size * 0.5, size, lh, r.lines, false);
     g.font = `500 ${size * 0.55}px ${FONT}`; g.fillStyle = INK; g.textBaseline = 'middle';
     if (me) { g.textAlign = 'right'; if (r.m.read) g.fillText('既読', bx - 8, by + r.bh - size * 1.05); g.fillText(r.m.time || '', bx - 8, by + r.bh - size * 0.45); }
     else { g.textAlign = 'left'; g.fillText(r.m.time || '', bx + r.bw + 8, by + r.bh - size * 0.45); }
@@ -763,97 +1172,426 @@ function drawLine(S, L, t, dt, pb) {
   g.beginPath(); g.arc(bx, byc, br, 0, Math.PI * 2); g.fill();
   plane(bx, byc, br * 0.5, '#ffffff');
 }
+// スタンプ（この展示のために描いたもの）：手をふる、まるい顔と「やっほー」
+function stamp(x, y, s, word, size) {
+  const cx = x + s * 0.45, cy = y + s * 0.42, r = s * 0.3;
+  g.fillStyle = '#ffd84d'; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#3b2a00'; g.lineWidth = Math.max(2, s * 0.025); g.stroke();
+  g.fillStyle = '#3b2a00'; [-1, 1].forEach(d => { g.beginPath(); g.arc(cx + d * r * 0.35, cy - r * 0.15, r * 0.08, 0, Math.PI * 2); g.fill(); });
+  g.beginPath(); g.arc(cx, cy + r * 0.1, r * 0.4, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+  g.fillStyle = '#ffd84d'; g.beginPath(); g.ellipse(cx + r * 1.15, cy - r * 0.45, r * 0.22, r * 0.32, 0.5, 0, Math.PI * 2); g.fill(); g.stroke();   // 手
+  g.font = `800 ${size * 1.05}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.lineWidth = size * 0.3; g.strokeStyle = '#ffffff'; g.strokeText(word, x + s * 0.5, y + s * 0.86);
+  g.fillStyle = '#e8590c'; g.fillText(word, x + s * 0.5, y + s * 0.86);
+}
 function plane(x, y, k, color) {   // 送信の紙飛行機（右向き）
   g.fillStyle = color; g.beginPath();
   g.moveTo(x - k * 0.95, y - k * 0.85); g.lineTo(x + k * 1.05, y); g.lineTo(x - k * 0.95, y + k * 0.85); g.lineTo(x - k * 0.55, y);
   g.closePath(); g.fill();
 }
 
-// ---- Slack（風）：上司の激詰め。配置と色だけをそれっぽくした、ロゴのない画面 ----
-function drawSlack(S, K, t, dt, pb) {
-  const fs = S.fs, sw = clamp(W * 0.2, 150, 280), hh = fs * 1.7, size = fs * 0.9, lh = size * 1.5, cb = fs * 3.4, top = hh, fz = size * 0.88;
-  const bottom = pb - cb - 20 - (K.typingWho ? size * 1.0 : 0);
-  g.fillStyle = '#ffffff'; g.fillRect(sw, 0, W - sw, pb);
-  const ax = sw + 20, as = fs * 1.9, tx = ax + as + 14, maxW = W - tx - 28;
-  const rows = []; let y = fs * 0.5, prev = null;
-  K.msgs.forEach(m => {
-    const lines = lay(m, size, maxW), head = !prev || prev.who !== m.who;
-    const card = m.file ? size * 3.1 : 0, rx = m.reacts?.length ? size * 1.9 : 0, h = (head ? size * 1.5 : 0) + lines.length * lh + card + rx + size * 0.5;
-    rows.push({m, lines, head, card, rx, y, h}); y += h; prev = m;
+
+// ---- ブラウザ（風）：検索・結果・海賊版サイト・警告・セキュリティ対策・当選フォーム・カメラ・履歴。ロゴは使わない ----
+const B_BLUE = '#1a0dab', B_GRAY = '#4d5156', B_LINE = '#dadce0', B_URL = '#202124';
+function fitText(str, maxW) {   // 入りきらなければ … で切る（いまの g.font で）
+  if (g.measureText(str).width <= maxW) return str;
+  let s = str;
+  while (s.length > 1 && g.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+  return s + '…';
+}
+function txt(str, x, y, size, color = B_URL, weight = 500, align = 'left', maxW = 0) {
+  g.font = `${weight} ${size}px ${FONT}`; g.fillStyle = color; g.textAlign = align; g.textBaseline = 'middle';
+  g.fillText(maxW ? fitText(str, maxW) : str, x, y);
+}
+function para(str, x, y, size, maxW, color = B_GRAY, lhK = 1.55, maxLines = 9) {   // 折り返す文。戻り値：下の y
+  g.font = `500 ${size}px ${FONT}`;
+  const lines = wrapLines(str, maxW).slice(0, maxLines);
+  lines.forEach((ln, i) => txt(ln, x, y + size * lhK * (i + 0.5), size, color));
+  return y + lines.length * size * lhK;
+}
+function setHit(B, name, x, y, w, h, extra = {}) { B.hit[name] = {x, y, w, h, ...extra}; }
+function magnifier(x, y, r, color = '#9aa0a6') { g.strokeStyle = color; g.lineWidth = Math.max(1.5, r * 0.28); g.beginPath(); g.arc(x - r * 0.15, y - r * 0.15, r * 0.6, 0, Math.PI * 2); g.moveTo(x + r * 0.3, y + r * 0.3); g.lineTo(x + r * 0.85, y + r * 0.85); g.stroke(); }
+// 画像の代わり：色の面に、川の線と題（どれも、この展示のために描いたもの）
+function poster(x, y, w, h, seed = 0, label = '') {
+  const gr = g.createLinearGradient(x, y, x, y + h);
+  const cs = [['#21405e', '#7aa6c2'], ['#3b2c4f', '#d79a7c'], ['#1f3b2d', '#9cc29a'], ['#2b2b2b', '#8a8a8a']][seed % 4];
+  gr.addColorStop(0, cs[0]); gr.addColorStop(1, cs[1]);
+  g.fillStyle = gr; g.fillRect(x, y, w, h);
+  g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = Math.max(1.5, w * 0.02);
+  g.beginPath(); for (let i = 0; i <= 20; i++) { const px = x + w * i / 20, py = y + h * (0.72 + 0.06 * Math.sin(i * 0.9 + seed)); i ? g.lineTo(px, py) : g.moveTo(px, py); } g.stroke();
+  if (label) { g.fillStyle = '#ffffff'; g.font = `700 ${Math.min(w * 0.6 / Math.max(3, [...label].length * 0.9), h * 0.14)}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, x + w / 2, y + h * 0.36); }
+}
+function stars(x, y, size, n, of = 5) { for (let i = 0; i < of; i++) txt(i < n ? '★' : '☆', x + i * size * 1.05, y, size, i < n ? '#e7711b' : '#c4c7c5'); }
+// 検索ボックス：打った字（pre ＋ 打っている字）と、点滅するカーソル
+function searchBox(S, B, x, y, w, h, t, big = false) {
+  const q = B.q, fs = S.fs, drop = B.drop && B.page === 'results';
+  g.fillStyle = '#ffffff';
+  if (drop) { rr(x, y, w, h + fs * 0.2, [h / 2, h / 2, 0, 0]); g.fill(); }
+  else { g.save(); g.shadowColor = 'rgba(32,33,36,0.18)'; g.shadowBlur = big ? 8 : 4; g.shadowOffsetY = 1; rr(x, y, w, h, h / 2); g.fill(); g.restore(); }
+  g.strokeStyle = B_LINE; g.lineWidth = 1; if (!drop) { rr(x, y, w, h, h / 2); g.stroke(); }
+  magnifier(x + h * 0.55, y + h / 2, h * 0.34);
+  const size = h * 0.42, view = {text: q.pre + q.text, comp: q.comp, pend: q.pend, full: q.pre + q.full};
+  const caret = (B.focus === q) && caretOn(t);
+  if (!view.text && !view.comp && !view.pend) { if (caret) { g.fillStyle = INK; g.fillRect(x + h * 1.05, y + h / 2 - size * 0.6, 2, size * 1.2); } }
+  else drawField(view, x + h * 1.05, y + h / 2 - h * 0.45, w - h * 1.6, h * 0.9, size, caret);
+  setHit(B, 'box', x, y, w, h, {ax: 0.62});
+}
+const RESULTS = {
+  base: [
+    {site: '映画『みにかわ』公式サイト', url: 'minikawa-movie.jp', title: '映画『みにかわ』公式サイト｜10月9日（金）全国ロードショー', body: '小さな川が流れる町で、ふたりは同じ夏を二度くり返す。注目の新鋭・川瀬葉月監督が描く、やさしくて少し苦い青春映画。'},
+    {site: 'シネマナビ', url: 'cinema-navi.jp › movie › 98765', title: 'みにかわ (2026) - 作品情報・あらすじ・キャスト', body: '上映時間 118分。監督：川瀬葉月。出演：森野ひかり、早瀬蒼、内田みのり ほか。レビュー 2,341件、平均 4.1点。'},
+    {site: 'つきよのブログ', url: 'tsukiyo-blog.example › entry', title: '『みにかわ』を観てきた。静かなのに、ずっと胸が苦しい', body: 'エンドロールが終わっても、しばらく立てなかった。川の音だけが残る映画。ネタバレなしの感想です。'},
+    {site: '映画館ナビ', url: 'eigakan-navi.jp › minikawa', title: 'みにかわ 上映館・上映スケジュール', body: '全国 214 館で上映中。お近くの映画館の上映時間と、座席の空き状況を確認できます。'},
+  ],
+  trailer: [
+    {site: '映画『みにかわ』公式サイト', url: 'minikawa-movie.jp › trailer', title: '予告編・特報｜映画『みにかわ』公式サイト', body: '本予告（90秒）、特報（30秒）、メイキング映像を公開中。'},
+    {site: 'シネマナビ', url: 'cinema-navi.jp › movie › 98765 › video', title: 'みにかわ 予告編・動画 - シネマナビ', body: '最新の予告編と、キャストのインタビュー動画をまとめて見られます。'},
+  ],
+  review: [
+    {site: 'シネマナビ', url: 'cinema-navi.jp › movie › 98765 › review', title: 'みにかわ のレビュー・感想・評価 - シネマナビ', body: '「ラストの川のシーンで泣いた」「静かすぎて眠くなった」など、2,341件のレビュー。'},
+    {site: 'フィルムメモ', url: 'film-memo.example › minikawa', title: '『みにかわ』の感想・評価・ネタバレ', body: '平均 3.9。映像の美しさを評価する声が多い一方、展開がゆっくりすぎるという意見も。'},
+  ],
+  story: [
+    {site: 'シネマナビ', url: 'cinema-navi.jp › movie › 98765 › story', title: 'みにかわ あらすじ・ネタバレ - シネマナビ', body: '小さな川が流れる町。夏休み最後の日に、ミナは同じ一日をもう一度くり返していることに気づく…。'},
+    {site: 'ウィキ', url: 'wiki.example › みにかわ', title: 'みにかわ - ウィキ', body: '『みにかわ』は、2026年公開の日本の映画。川瀬葉月の長編第一作。原作は同名の短編小説。'},
+  ],
+  free: [
+    {site: 'MOVIE FREE ZONE', url: 'movie-free-zone.xyz › minikawa', title: '【完全無料】みにかわ フル動画 高画質 今すぐ見放題', body: '登録不要・広告なし！最新映画「みにかわ」をフルHDで無料視聴。ダウンロードもOK。', bad: true},
+    {site: 'VODナビ', url: 'vod-navi.jp › minikawa', title: 'みにかわ の配信はいつから？無料で見る方法を調査', body: '現在、動画配信サービスでの配信はありません（劇場公開中）。違法アップロードサイトは危険です。'},
+    {site: '映画館ナビ', url: 'eigakan-navi.jp › minikawa', title: 'みにかわ 上映館・上映スケジュール', body: '全国 214 館で上映中。'},
+  ],
+};
+function resultItem(S, B, r, x, y, w, name) {   // 1件分。戻り値：下の y
+  const fs = S.fs, s = fs * 0.5;
+  g.fillStyle = r.bad ? '#f1c232' : '#e8eaed'; g.beginPath(); g.arc(x + s * 0.9, y + s * 1.0, s * 0.9, 0, Math.PI * 2); g.fill();
+  txt(r.site, x + s * 2.4, y + s * 0.6, s * 0.95, B_URL, 500, 'left', w - s * 3);
+  txt(r.url, x + s * 2.4, y + s * 1.65, s * 0.85, B_GRAY, 500, 'left', w - s * 3);
+  const ty = y + s * 3.2;
+  txt(r.title, x, ty, fs * 0.66, B_BLUE, 500, 'left', w);
+  if (name) setHit(B, name, x, ty - fs * 0.4, Math.min(w, (g.font = `500 ${fs * 0.66}px ${FONT}`, g.measureText(r.title).width)), fs * 0.8, {ax: 0.35});
+  return para(r.body, x, ty + fs * 0.45, fs * 0.52, w, B_GRAY, 1.55, 2) + fs * 0.9;
+}
+function chipRow(S, B, items, x, y, w, t, prefix) {   // 「関連する検索」：2列の候補（虫めがね＋文字）
+  const fs = S.fs, h = fs * 1.35, cw = (w - fs * 0.5) / 2;
+  items.forEach((it, j) => {
+    const cx = x + (j % 2) * (cw + fs * 0.5), cy = y + Math.floor(j / 2) * (h + fs * 0.4), look = mirrorLook(S, B, j, t);
+    g.fillStyle = look && look.lime > 0 ? LIME_BG : '#f1f3f4'; rr(cx, cy, cw, h, h / 2); g.fill();
+    if (look && look.lime > 0) { g.strokeStyle = LIME; g.lineWidth = 2 + 2 * look.lime; rr(cx, cy, cw, h, h / 2); g.stroke(); }
+    magnifier(cx + h * 0.55, cy + h / 2, h * 0.3, '#5f6368');
+    txt(`${MOVIE} `, cx + h * 1.0, cy + h / 2, fs * 0.55, B_URL, 500);
+    const pw = textW(`${MOVIE} `);
+    txt(it, cx + h * 1.0 + pw, cy + h / 2, fs * 0.55, B_URL, 700);
+    if (look && look.cancel > 0) { g.strokeStyle = RED; g.lineWidth = 3; g.beginPath(); g.moveTo(cx + h, cy + h / 2); g.lineTo(cx + h + (cw - h * 1.4) * look.cancel, cy + h / 2); g.stroke(); }
+    if (look && look.badge) badge(cx + cw - h * 0.95, cy + h * 0.15, h * 0.7, look.k);
+    setHit(B, prefix + j, cx, cy, cw, h, {ax: 0.3});
   });
-  K.scroll += (Math.max(0, y - (bottom - top - 6)) - K.scroll) * (1 - Math.exp(-dt / 140));
-  g.save(); g.beginPath(); g.rect(sw, top, W - sw, bottom - top); g.clip();
-  rows.forEach(r => {
-    const p = popOf(r.m, t, 240), by = top + r.y - K.scroll + (1 - easeOut(p)) * size * 0.8;
-    if (by + r.h < top - 4 || by > bottom + 4) return;
-    g.save(); g.globalAlpha = p;   // ぽんっ：下から、すっと出る
-    g.textBaseline = 'middle';
-    let yy = by;
-    if (r.head) {
-      const boss = r.m.who === 'boss';
-      g.fillStyle = boss ? '#ecb22e' : '#36c5f0'; rr(ax, by + 3, as, as, 6); g.fill();
-      g.fillStyle = INK; g.font = `700 ${fs * 0.8}px ${FONT}`; g.textAlign = 'center'; g.fillText(boss ? BOSS[0] : 'あ', ax + as / 2, by + 3 + as / 2 + 1);
-      g.textAlign = 'left'; g.font = `700 ${size}px ${FONT}`; g.fillText(boss ? BOSS : 'あなた', tx, by + size * 0.8);
-      const nw = g.measureText(boss ? BOSS : 'あなた').width;
-      g.font = `500 ${size * 0.7}px ${FONT}`; g.fillText(r.m.time || '', tx + nw + 10, by + size * 0.8);
-      yy += size * 1.5;
-    }
-    drawBlock(r.m, tx, yy, size, lh, r.lines, false);
-    if (r.card) {   // 添付ファイル
-      const cy = yy + r.lines.length * lh + 4, cwid = Math.min(maxW, size * 15);
-      g.strokeStyle = '#c9ced6'; g.lineWidth = 1; rr(tx, cy, cwid, r.card - 8, 8); g.stroke();
-      g.fillStyle = INK; g.fillRect(tx + 12, cy + 10, size * 1.4, (r.card - 8) - 20);
-      g.font = `700 ${size * 0.8}px ${FONT}`; g.textAlign = 'left'; g.fillText(r.m.file, tx + 12 + size * 1.4 + 12, cy + (r.card - 8) / 2);
-    }
-    if (r.rx) {   // リアクション：絵文字と数の小さな札。増えた瞬間に、少しはずむ
-      let rx = tx; const ry = yy + r.lines.length * lh + r.card + size * 0.25, rh = size * 1.35;
-      g.font = `500 ${size * 0.75}px ${FONT}`; g.textAlign = 'left'; g.textBaseline = 'middle';
-      for (const x of r.m.reacts) {
-        const label = `${x.e} ${x.n}`, rw = g.measureText(label).width + size * 1.0, b = 1 + 0.12 * Math.exp(-(t - x.t) / 120);
-        g.save(); g.translate(rx + rw / 2, ry + rh / 2); g.scale(b, b);
-        g.fillStyle = '#f1f1f1'; g.strokeStyle = '#e0e0e0'; g.lineWidth = 1; rr(-rw / 2, -rh / 2, rw, rh, rh / 2); g.fill(); g.stroke();   // 来場者は押していないので、灰色（自分が押したときの青にはしない）
-        g.fillStyle = '#1d1c1d'; g.fillText(label, -rw / 2 + size * 0.5, 1); g.restore();
-        rx += rw + size * 0.4;
-      }
-    }
-    g.restore();
-  });
-  g.restore();
-  if (K.typingWho) { g.font = `500 ${size * 0.8}px ${FONT}`; g.fillStyle = INK; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(`${K.typingWho}さんが入力中…`, ax, bottom + size * 0.6); }
-  // ヘッダー
-  g.fillStyle = '#ffffff'; g.fillRect(sw, 0, W - sw, hh); g.fillStyle = '#e0e0e0'; g.fillRect(sw, hh - 1, W - sw, 1);
-  g.fillStyle = INK; g.textAlign = 'left'; g.textBaseline = 'middle'; g.font = `700 ${size * 1.05}px ${FONT}`; g.fillText('# ' + CHANNEL, ax, hh / 2);
-  // 入力欄
-  const cx = sw + 16, cwid = W - sw - 32, cy = pb - cb - 10;
-  g.fillStyle = '#ffffff'; rr(cx, cy, cwid, cb, 8); g.fill(); g.strokeStyle = '#868686'; g.lineWidth = 1.5; rr(cx, cy, cwid, cb, 8); g.stroke();
-  const f = K.input;
-  {   // 送信ボタン（紙飛行機）：文字があると緑、ないと灰。送る瞬間に明るくなって、押し込まれる
-    const has = !!(f.text || f.comp || f.pend), q = K.sendT ? clamp((t - K.sendT) / 260, 0, 1) : 1, push = Math.sin(Math.PI * q);
-    const bw = fs * 1.6 * (1 - 0.1 * push), bh = fs * 1.15 * (1 - 0.1 * push), bxc = cx + cwid - fs * 1.15, byc = cy + cb - fs * 0.8;
-    g.fillStyle = q < 1 ? '#2bac76' : has ? '#007a5a' : '#e8e8e8';
-    rr(bxc - bw / 2, byc - bh / 2, bw, bh, 6); g.fill();
-    plane(bxc, byc, bh * 0.32, has || q < 1 ? '#ffffff' : '#a0a0a0');
+  return y + Math.ceil(items.length / 2) * (h + fs * 0.4);
+}
+function knowledgePanel(S, x, y, w) {
+  const fs = S.fs, ph = w * 0.55;
+  poster(x + 1, y + 1, w - 2, ph, 0, MOVIE);
+  let yy = y + ph + fs * 0.8;
+  txt(MOVIE, x + fs * 0.6, yy, fs * 0.9, B_URL, 700); yy += fs * 0.8;
+  txt('2026年 ‧ 青春/ドラマ ‧ 1時間 58分', x + fs * 0.6, yy, fs * 0.5, B_GRAY); yy += fs * 0.9;
+  stars(x + fs * 0.6, yy, fs * 0.5, 4); txt('4.1/5 ・ シネマナビ', x + fs * 3.6, yy, fs * 0.5, B_GRAY); yy += fs * 0.9;
+  for (const [k, v] of [['公開日', '2026年10月9日（日本）'], ['監督', '川瀬葉月'], ['出演', '森野ひかり、早瀬蒼、内田みのり']]) {
+    txt(k + '：', x + fs * 0.6, yy, fs * 0.5, B_URL, 700); txt(v, x + fs * 0.6 + textW(k + '：'), yy, fs * 0.5, B_GRAY, 500, 'left', w - fs * 4); yy += fs * 0.75;
   }
-  if (!f.text && !f.comp && !f.pend) { g.globalAlpha = 0.4; g.fillStyle = INK; g.font = `500 ${fz}px ${FONT}`; g.textAlign = 'left'; g.fillText(`# ${CHANNEL} へのメッセージ`, cx + 18, cy + cb * 0.36); g.globalAlpha = 1; if (S.typing === f && caretOn(t)) { g.fillStyle = INK; g.fillRect(cx + 18, cy + cb * 0.36 - fz * 0.55, 2, fz * 1.1); } }
-  else drawField(f, cx + 18, cy + cb * 0.06, cwid - fs * 2.6, cb * 0.6, fz, S.typing === f && caretOn(t));
-  // サイドバー：幅に合わせて字を小さくし、はみ出さない
-  g.save(); g.beginPath(); g.rect(0, 0, sw, pb); g.clip();
-  g.fillStyle = '#3f0e40'; g.fillRect(0, 0, sw, pb);
-  const SB = [['# 全体連絡', 0], ['# ' + CHANNEL, 1], ['# 雑談', 0], ['', 2], ['ダイレクトメッセージ', 3], [BOSS, 0], ['あなた', 0]];
-  g.font = `500 100px ${FONT}`;
-  const widest = Math.max(...SB.map(([s]) => g.measureText(s).width)) / 100 * 1.06, ss = Math.min(size * 0.68, (sw - 34) / widest);
-  const ts = Math.min(size * 0.64, (sw - 28) / 8.6);   // 会社名は2行（8字まで）
-  g.fillStyle = 'rgba(255,255,255,0.95)'; g.font = `700 ${ts}px ${FONT}`; g.textAlign = 'left'; g.textBaseline = 'middle';
-  g.fillText('アルファ・', 16, hh / 2 - ts * 0.55); g.fillText('コンサルティング', 16, hh / 2 + ts * 0.62);
-  g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(0, hh - 1, sw, 1);
-  let iy = hh + ss * 1.3;
-  SB.forEach(([s, kind]) => {
-    if (kind === 2) { iy += ss * 0.7; return; }
-    if (kind === 1) { g.fillStyle = '#1164a3'; rr(8, iy - ss * 0.85, sw - 16, ss * 1.7, 6); g.fill(); }
-    g.fillStyle = kind === 3 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.92)'; g.font = `${kind === 1 ? 700 : 500} ${ss * (kind === 3 ? 0.82 : 1)}px ${FONT}`;
-    g.fillText(s, 16, iy); iy += ss * 1.9;
+  g.strokeStyle = B_LINE; g.lineWidth = 1; rr(x, y, w, yy - y + fs * 0.1, 10); g.stroke();   // 枠は、中身の高さに合わせる
+}
+function drawResults(S, B, t, top, pb) {
+  const fs = S.fs, y0 = top - B.scroll, lx = W * 0.12, lw = W * 0.46, view = B.view || 'base';
+  g.fillStyle = '#ffffff'; g.fillRect(0, top, W, pb - top);
+  txt('サーチ', W * 0.025, y0 + fs * 1.15, fs * 0.8, INK, 700);
+  searchBox(S, B, lx, y0 + fs * 0.45, lw, fs * 1.4, t);
+  let tabX = lx + fs * 0.4;
+  ['すべて', '画像', '動画', 'ニュース', 'ショッピング'].forEach((s, i) => {
+    txt(s, tabX, y0 + fs * 2.5, fs * 0.5, i ? B_GRAY : B_BLUE, i ? 500 : 700);
+    const w = textW(s);
+    if (!i) { g.fillStyle = B_BLUE; g.fillRect(tabX - fs * 0.1, y0 + fs * 2.85, w + fs * 0.2, 3); }
+    tabX += w + fs * 1.1;
+  });
+  g.fillStyle = '#ebebeb'; g.fillRect(0, y0 + fs * 2.95, W, 1);
+  txt(`約 ${view === 'free' ? '38,600' : '1,240,000'} 件（0.38 秒）`, lx, y0 + fs * 3.5, fs * 0.45, '#70757a');
+  let y = y0 + fs * 4.1;
+  if (view === 'trailer') {   // 動画：予告編のサムネイル
+    txt('動画', lx, y + fs * 0.3, fs * 0.72, B_URL, 500); y += fs * 0.9;
+    const tw = (lw - fs * 0.8) / 3, th = tw * 0.56;
+    [['映画『みにかわ』本予告【10月9日公開】', '1:32'], ['『みにかわ』特報', '0:30'], ['みにかわ メイキング映像', '4:05']].forEach(([title, d], i) => {
+      const tx = lx + i * (tw + fs * 0.4);
+      poster(tx, y, tw, th, i + 1);
+      g.fillStyle = 'rgba(0,0,0,0.55)'; g.beginPath(); g.arc(tx + tw / 2, y + th / 2, th * 0.2, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.moveTo(tx + tw / 2 - th * 0.06, y + th / 2 - th * 0.1); g.lineTo(tx + tw / 2 + th * 0.1, y + th / 2); g.lineTo(tx + tw / 2 - th * 0.06, y + th / 2 + th * 0.1); g.fill();
+      g.fillStyle = 'rgba(0,0,0,0.7)'; rr(tx + tw - fs * 1.4, y + th - fs * 0.75, fs * 1.2, fs * 0.6, 4); g.fill(); txt(d, tx + tw - fs * 0.8, y + th - fs * 0.45, fs * 0.4, '#fff', 500, 'center');
+      para(title, tx, y + th + fs * 0.1, fs * 0.46, tw, B_URL, 1.4, 2);
+    });
+    y += th + fs * 1.9;
+  } else if (view === 'review') {   // レビュー：星と口コミ
+    txt('レビュー', lx, y + fs * 0.3, fs * 0.72, B_URL, 500); y += fs * 1.0;
+    txt('4.1', lx, y + fs * 0.4, fs * 1.3, B_URL, 500); stars(lx + fs * 2.2, y + fs * 0.4, fs * 0.6, 4); txt('2,341 件のレビュー', lx + fs * 5.6, y + fs * 0.4, fs * 0.5, B_GRAY); y += fs * 1.3;
+    [[5, 'ラストの川のシーンで涙が止まらなかった。音の使い方がすばらしい。'], [4, '静かな映画。好きな人はずっと好きだと思う。'], [2, '映像はきれいだけど、とにかく展開がゆっくり。途中で少し眠くなった。']].forEach(([n, s]) => {
+      stars(lx, y + fs * 0.3, fs * 0.45, n); y = para(s, lx + fs * 2.6, y, fs * 0.52, lw - fs * 2.6, B_URL, 1.5, 2) + fs * 0.35;
+    });
+    y += fs * 0.6;
+  } else if (view === 'story') {   // あらすじ：公式の紹介文
+    txt('あらすじ', lx, y + fs * 0.3, fs * 0.72, B_URL, 500); y += fs * 0.9;
+    y = para('小さな川が流れる町に暮らす高校生のミナ。夏休み最後の日、幼なじみのソウと川辺で交わした約束を、ミナは思い出せない。目を覚ますと、また同じ夏の一日が始まっていた――。ふたりは、くり返す一日の中で、言えなかったことばを探しはじめる。（公式サイトより）', lx, y, fs * 0.55, lw, B_URL, 1.6, 6) + fs * 0.9;
+  }
+  (RESULTS[view] || RESULTS.base).forEach((r, i) => { y = resultItem(S, B, r, lx, y, lw, view === 'free' && i === 0 ? 'top' : null); });
+  if (view !== 'base' && view !== 'free') {   // 関連する検索（3択②）
+    B.relY = y - top + B.scroll;   // 文書の中の位置（スクロールの目標に使う）
+    txt('関連する検索', lx, y + fs * 0.4, fs * 0.72, B_URL, 500);
+    y = chipRow(S, B, B_TX.related, lx, y + fs * 1.1, lw, t, 'rel') + fs * 1.4;
+  }
+  if (view !== 'free') knowledgePanel(S, W * 0.62, y0 + fs * 4.1, W * 0.3);
+  B.docH = y - y0;
+  if (B.drop) {   // 続きの検索候補（3択①）
+    const x = lx, bw = lw, h = fs * 1.2, dy = y0 + fs * 1.85, a = clamp((t - B.drop) / 200, 0, 1);
+    g.globalAlpha = a; g.save(); g.shadowColor = 'rgba(32,33,36,0.28)'; g.shadowBlur = 6; g.shadowOffsetY = 2; g.fillStyle = '#fff'; rr(x, dy - fs * 0.2, bw, h * 3 + fs * 0.6, [0, 0, 18, 18]); g.fill(); g.restore();
+    g.fillStyle = B_LINE; g.fillRect(x + fs * 0.6, dy - fs * 0.1, bw - fs * 1.2, 1);
+    B_TX.suggest.forEach((sg, j) => {
+      const yy = dy + fs * 0.15 + j * h, look = mirrorLook(S, B, j, t);
+      if (look && look.lime > 0) { g.fillStyle = LIME_BG; g.fillRect(x, yy, bw, h); g.fillStyle = LIME; g.fillRect(x, yy, 5, h); }
+      magnifier(x + fs * 0.75, yy + h / 2, fs * 0.42);
+      txt(`${MOVIE} 映画 `, x + fs * 1.5, yy + h / 2, fs * 0.6, B_URL, 500);
+      txt(sg, x + fs * 1.5 + textW(`${MOVIE} 映画 `), yy + h / 2, fs * 0.6, B_URL, 700);
+      if (look && look.cancel > 0) { g.strokeStyle = RED; g.lineWidth = 3; g.beginPath(); g.moveTo(x + fs * 1.5, yy + h / 2); g.lineTo(x + fs * 1.5 + bw * 0.5 * look.cancel, yy + h / 2); g.stroke(); }
+      if (look && look.badge) badge(x + bw - fs * 1.2, yy + h * 0.15, h * 0.7, look.k);
+      setHit(B, 'sug' + j, x, yy, bw, h, {ax: 0.25});
+    });
+    g.globalAlpha = 1;
+  }
+}
+function drawHome(S, B, t, top, pb) {
+  const fs = S.fs, w = Math.min(W * 0.52, fs * 22), x = (W - w) / 2, cy = top + (pb - top) * 0.42;
+  g.fillStyle = '#ffffff'; g.fillRect(0, top, W, pb - top);
+  txt('サーチ', W / 2, cy - fs * 2.2, fs * 2.0, INK, 700, 'center');
+  searchBox(S, B, x, cy - fs * 0.75, w, fs * 1.5, t, true);
+  [['検索', -1], ['ランダム', 1]].forEach(([s, d]) => { const bw = fs * 4.2, bx = W / 2 + d * fs * 0.3 - (d < 0 ? bw : 0); g.fillStyle = '#f8f9fa'; rr(bx, cy + fs * 1.4, bw, fs * 1.15, 6); g.fill(); txt(s, bx + bw / 2, cy + fs * 1.98, fs * 0.5, '#3c4043', 500, 'center'); });
+}
+function drawPirate(S, B, t, top, pb) {
+  const fs = S.fs, cw = W * 0.7, x = (W - cw) / 2;
+  g.fillStyle = '#0d0d10'; g.fillRect(0, top, W, pb - top);
+  txt('MOVIE FREE ZONE', x, top + fs * 0.9, fs * 0.9, '#ffd400', 800);
+  txt('最新映画 すべて無料 ・ 登録不要 ・ HD', x + fs * 9, top + fs * 0.9, fs * 0.5, '#9a9a9a');
+  const ph = Math.min(cw * 0.5, pb - top - fs * 4.5), py = top + fs * 1.8;
+  poster(x, py, cw * 0.72, ph, 3, `${MOVIE}（2026）フル HD`);
+  g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.arc(x + cw * 0.36, py + ph * 0.62, fs * 1.1, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#0d0d10'; g.beginPath(); g.moveTo(x + cw * 0.36 - fs * 0.35, py + ph * 0.62 - fs * 0.55); g.lineTo(x + cw * 0.36 + fs * 0.55, py + ph * 0.62); g.lineTo(x + cw * 0.36 - fs * 0.35, py + ph * 0.62 + fs * 0.55); g.fill();
+  const blink = Math.floor(t / 400) % 2;
+  [['今すぐダウンロード ▶', '#e01b24'], ['高速再生はこちら', '#16a34a'], ['残り 3 名様限定', blink ? '#e01b24' : '#f59e0b']].forEach(([s, c], i) => {
+    const ax = x + cw * 0.75, ay = py + i * (ph / 3), aw = cw * 0.25, ah = ph / 3 - fs * 0.3;
+    g.fillStyle = c; rr(ax, ay, aw, ah, 6); g.fill(); txt(s, ax + aw / 2, ay + ah / 2, fs * 0.5, '#fff', 700, 'center', aw - 8);
+  });
+  txt('▶ 再生できない場合は、下のボタンからプレイヤーを更新してください', x, py + ph + fs * 0.8, fs * 0.5, '#bdbdbd', 500, 'left', cw);
+}
+function drawWarning(S, B, t, top, pb) {
+  const fs = S.fs, x = W * 0.2, w = W * 0.6;
+  g.fillStyle = '#a50e0e'; g.fillRect(0, top, W, pb - top);
+  let y = top + (pb - top) * 0.16;
+  g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(x + fs * 0.9, y - fs * 0.9); g.lineTo(x + fs * 1.9, y + fs * 0.9); g.lineTo(x - fs * 0.1, y + fs * 0.9); g.closePath(); g.fill();
+  txt('!', x + fs * 0.9, y + fs * 0.35, fs * 1.0, '#a50e0e', 800, 'center');
+  y += fs * 2.2;
+  txt('この接続は安全ではありません', x, y, fs * 1.15, '#ffffff', 700); y += fs * 1.0;
+  y = para('攻撃者が、このサイトであなたの情報（パスワード、メッセージ、クレジットカードなど）を盗もうとしている可能性があります。', x, y, fs * 0.55, w, '#ffe9e9', 1.6, 3) + fs * 0.9;
+  const bh = fs * 1.3;
+  g.fillStyle = '#ffffff'; rr(x + w - fs * 7.5, y, fs * 7.5, bh, 6); g.fill(); txt('安全なページに戻る', x + w - fs * 3.75, y + bh / 2, fs * 0.52, '#a50e0e', 700, 'center');
+  txt('詳細', x + fs * 1.1, y + bh / 2, fs * 0.55, '#ffffff', 700, 'center');
+  setHit(B, 'detail', x, y, fs * 2.2, bh);
+  if (B.detail) {
+    y += bh + fs * 0.9;
+    y = para('このサイトのセキュリティ証明書は信頼されていません。アクセスすると、情報が盗まれるおそれがあります。', x, y, fs * 0.52, w, '#ffe9e9', 1.6, 3) + fs * 0.4;
+    txt('危険性を承知で進む', x, y + fs * 0.35, fs * 0.55, '#ffffff', 700); g.fillStyle = '#fff'; g.fillRect(x, y + fs * 0.72, textW('危険性を承知で進む'), 1.5);
+    setHit(B, 'proceed', x, y, textW('危険性を承知で進む'), fs * 0.75);
+  }
+}
+function drawSecurity(S, B, t, top, pb) {
+  const fs = S.fs, x = W * 0.16, w = W * 0.68;
+  g.fillStyle = '#f4f7fb'; g.fillRect(0, top, W, pb - top);
+  g.fillStyle = '#0b5ed7'; g.fillRect(0, top, W, fs * 1.6); txt('無料セキュリティ対策 PRO', x, top + fs * 0.8, fs * 0.7, '#fff', 800);
+  let y = top + fs * 2.7;
+  g.fillStyle = '#d93025'; g.beginPath(); g.moveTo(x + fs, y - fs * 0.7); g.lineTo(x + fs * 1.9, y - fs * 0.3); g.lineTo(x + fs * 1.7, y + fs * 0.7); g.lineTo(x + fs, y + fs * 1.1); g.lineTo(x + fs * 0.3, y + fs * 0.7); g.lineTo(x + fs * 0.1, y - fs * 0.3); g.closePath(); g.fill();
+  txt('!', x + fs, y + fs * 0.2, fs * 0.9, '#fff', 800, 'center');
+  txt('スキャン結果：3件の脅威が見つかりました', x + fs * 2.6, y, fs * 0.8, '#d93025', 700); y += fs * 1.0;
+  txt('ウイルスを駆除するには、アプリをインストールしてください', x + fs * 2.6, y, fs * 0.6, B_URL, 500); y += fs * 1.2;
+  [['Trojan.Gen.2', 'システムファイル'], ['Adware.Popup', 'ブラウザ'], ['Spy.Camera.Hook', 'カメラ']].forEach(([n, where]) => {
+    g.fillStyle = '#fff'; rr(x, y, w, fs * 1.2, 6); g.fill(); g.strokeStyle = B_LINE; g.lineWidth = 1; rr(x, y, w, fs * 1.2, 6); g.stroke();
+    txt(n, x + fs * 0.5, y + fs * 0.6, fs * 0.55, B_URL, 700); txt(where, x + w * 0.45, y + fs * 0.6, fs * 0.5, B_GRAY); txt('危険', x + w - fs * 0.6, y + fs * 0.6, fs * 0.5, '#d93025', 700, 'right');
+    y += fs * 1.45;
+  });
+  g.fillStyle = '#0b5ed7'; rr(W / 2 - fs * 4.5, y + fs * 0.4, fs * 9, fs * 1.3, 8); g.fill(); txt('今すぐインストール（無料）', W / 2, y + fs * 1.05, fs * 0.55, '#fff', 700, 'center');
+}
+function drawInstallDialog(S, B, t, top, pb) {   // アプリをインストールしますか？（3択③）／進み具合
+  const fs = S.fs, w = Math.min(W * 0.5, fs * 19), h = fs * 5.2, x = (W - w) / 2, y = top + fs * 0.5;
+  g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, top, W, pb - top);
+  g.fillStyle = '#fff'; rr(x, y, w, h, 12); g.fill();
+  if (B.prog >= 0) {
+    const p = B.installed ? 1 : clamp((t - B.progT) / 3200, 0, 1);
+    txt(B.installed ? 'インストールが完了しました' : 'インストールしています…', x + fs * 0.8, y + fs * 1.1, fs * 0.72, B_URL, 700);
+    g.fillStyle = '#e8eaed'; rr(x + fs * 0.8, y + fs * 2.4, w - fs * 1.6, fs * 0.45, fs * 0.22); g.fill();
+    g.fillStyle = B.installed ? '#188038' : '#0b5ed7'; rr(x + fs * 0.8, y + fs * 2.4, Math.max(fs * 0.45, (w - fs * 1.6) * p), fs * 0.45, fs * 0.22); g.fill();
+    txt(`${Math.round(p * 100)}%`, x + w - fs * 0.8, y + fs * 3.6, fs * 0.6, B_URL, 700, 'right');
+    txt('SecureFree.app', x + fs * 0.8, y + fs * 3.6, fs * 0.5, B_GRAY);
+    return;
+  }
+  txt('アプリをインストールしますか？', x + fs * 0.8, y + fs * 1.1, fs * 0.75, B_URL, 700);
+  txt('SecureFree.app（発行元：不明）', x + fs * 0.8, y + fs * 2.0, fs * 0.5, B_GRAY);
+  const bw = (w - fs * 2.4) / 3;
+  B_TX.install.forEach((s, j) => {
+    const bx = x + fs * 0.8 + j * (bw + fs * 0.4), by = y + h - fs * 1.9, look = mirrorLook(S, B, j, t);
+    g.fillStyle = look && look.lime > 0 ? LIME_BG : j === 0 ? '#0b5ed7' : '#f1f3f4'; rr(bx, by, bw, fs * 1.2, 8); g.fill();
+    if (look && look.lime > 0) { g.strokeStyle = LIME; g.lineWidth = 2 + 3 * look.lime; rr(bx, by, bw, fs * 1.2, 8); g.stroke(); }
+    txt(s, bx + bw / 2, by + fs * 0.6, fs * 0.55, look && look.lime > 0 ? INK : j === 0 ? '#fff' : B_URL, 700, 'center');
+    if (look && look.cancel > 0) { g.strokeStyle = RED; g.lineWidth = 3; g.beginPath(); g.moveTo(bx + fs * 0.3, by + fs * 0.6); g.lineTo(bx + fs * 0.3 + (bw - fs * 0.6) * look.cancel, by + fs * 0.6); g.stroke(); }
+    if (look && look.badge) badge(bx - fs * 0.2, by - fs * 0.5, fs * 0.75, look.k);
+    setHit(B, 'inst' + j, bx, by, bw, fs * 1.2);
+  });
+}
+function drawPrize(S, B, t, top, pb) {
+  const fs = S.fs, w = Math.min(W * 0.5, fs * 20), x = (W - w) / 2;
+  g.fillStyle = '#fff7e0'; g.fillRect(0, top, W, pb - top);
+  for (let i = 0; i < 40; i++) { const cx = (i * 97 % 100) / 100 * W, cy = top + ((i * 53 + t / 30) % 100) / 100 * (pb - top); g.fillStyle = ['#e01b24', '#f59e0b', '#16a34a', '#2563eb'][i % 4]; g.fillRect(cx, cy, fs * 0.25, fs * 0.12); }
+  let y = top + fs * 1.3;
+  txt('おめでとうございます！', W / 2, y, fs * 1.2, '#c2410c', 800, 'center'); y += fs * 1.25;
+  txt('当選しました！受け取りはこちら', W / 2, y, fs * 0.7, B_URL, 700, 'center'); y += fs * 1.1;
+  g.fillStyle = '#fff'; rr(x, y, w, fs * 7.6, 12); g.fill(); g.strokeStyle = '#f0c36b'; g.lineWidth = 2; rr(x, y, w, fs * 7.6, 12); g.stroke();
+  let fy = y + fs * 0.7;
+  const fieldRow = (label, f, name, hold) => {
+    txt(label, x + fs * 0.7, fy + fs * 0.25, fs * 0.5, B_URL, 700);
+    const bx = x + fs * 0.7, by = fy + fs * 0.6, bw = w - fs * 1.4, bh = fs * 1.15;
+    g.fillStyle = '#fff'; rr(bx, by, bw, bh, 6); g.fill(); g.strokeStyle = B.focus === f ? '#2563eb' : '#c4c7c5'; g.lineWidth = B.focus === f ? 2 : 1; rr(bx, by, bw, bh, 6); g.stroke();
+    if (f && (f.text || f.comp || f.pend)) drawField(f, bx + fs * 0.4, by + bh * 0.05, bw - fs * 0.8, bh * 0.9, fs * 0.58, B.focus === f && caretOn(t));
+    else if (hold) txt(hold, bx + fs * 0.4, by + bh / 2, fs * 0.5, '#9aa0a6');
+    else if (B.focus === f && caretOn(t)) { g.fillStyle = INK; g.fillRect(bx + fs * 0.4, by + bh * 0.2, 2, bh * 0.6); }
+    if (name) setHit(B, name, bx, by, bw, bh, {ax: 0.2});
+    fy += fs * 2.0;
+  };
+  fieldRow('お名前', B.form.name, 'fname');
+  fieldRow('カード番号', B.form.card, 'fcard');
+  fieldRow('有効期限・セキュリティコード', null, null, 'MM / YY　　CVC');
+  const sx = W / 2 - fs * 3, sy = y + fs * 7.6 + fs * 0.5;
+  g.fillStyle = B.sent && t - B.sent < 400 ? '#1d4ed8' : '#c2410c'; rr(sx, sy, fs * 6, fs * 1.3, 8); g.fill(); txt('送信して受け取る', W / 2, sy + fs * 0.65, fs * 0.55, '#fff', 700, 'center');
+  setHit(B, 'fsend', sx, sy, fs * 6, fs * 1.3);
+  if (B.sent) txt('送信しました。カードの確認が完了しました。', W / 2, sy + fs * 2.0, fs * 0.5, '#188038', 700, 'center');
+}
+function drawPops(S, B, t, top, pb) {
+  const fs = S.fs;
+  B.pops.forEach(p => {
+    const a = clamp((t - p.t0) / 180, 0, 1), w = p.big ? Math.min(W * 0.5, fs * 18) : fs * 9.5, h = p.big ? fs * 6.4 : fs * 3.5;
+    const x = p.big ? (W - w) / 2 : p.x * W, y = p.big ? top + (pb - top) * 0.22 : top + p.y * (pb - top);
+    g.globalAlpha = a; g.save(); g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 12; g.fillStyle = '#fff'; rr(x, y, w, h, 8); g.fill(); g.restore();
+    g.globalAlpha = a;
+    g.fillStyle = p.red ? '#d93025' : '#3c4043'; rr(x, y, w, fs * 1.05, [8, 8, 0, 0]); g.fill();
+    txt((p.red ? '⚠ ' : '') + p.title, x + fs * 0.4, y + fs * 0.53, fs * (p.big ? 0.62 : 0.5), '#fff', 700, 'left', w - fs * 1.4);
+    txt('×', x + w - fs * 0.4, y + fs * 0.53, fs * 0.55, '#fff', 500, 'right');
+    if (p.big) {
+      para(p.body, x + fs * 0.7, y + fs * 1.4, fs * 0.55, w - fs * 1.4, B_URL, 1.6, 2);
+      const bw = fs * 6, bx = x + w - bw - fs * 0.7, by = y + h - fs * 1.75;
+      g.fillStyle = '#d93025'; rr(bx, by, bw, fs * 1.2, 8); g.fill(); txt('今すぐスキャン', bx + bw / 2, by + fs * 0.6, fs * 0.55, '#fff', 700, 'center');
+      txt('閉じる', bx - fs * 1.6, by + fs * 0.6, fs * 0.5, B_GRAY, 500, 'center');
+      setHit(B, 'scan', bx, by, bw, fs * 1.2);
+    } else para(p.body, x + fs * 0.4, y + fs * 1.3, fs * 0.48, w - fs * 0.8, B_URL, 1.5, 2);
+    g.globalAlpha = 1;
+  });
+}
+function drawCamera(S, B, t, top, pb) {   // 来場者の手元のカメラ映像が、そのまま映る
+  const fs = S.fs, v = document.getElementById('pv-hands');
+  g.fillStyle = '#000'; g.fillRect(0, top, W, pb - top);
+  const ch = pb - top;
+  if (v && v.readyState >= 2 && v.videoWidth) {
+    const k = Math.max(W / v.videoWidth, ch / v.videoHeight), w = v.videoWidth * k, h = v.videoHeight * k;
+    g.drawImage(v, (W - w) / 2, top + (ch - h) / 2, w, h);
+  } else { txt('（カメラの映像）', W / 2, top + ch / 2, fs * 0.8, '#777', 500, 'center'); }
+  g.fillStyle = 'rgba(0,0,0,0.55)'; rr(fs * 0.6, top + fs * 0.6, fs * 7.2, fs * 1.2, 8); g.fill();
+  g.fillStyle = '#e01b24'; g.beginPath(); g.arc(fs * 1.2, top + fs * 1.2, fs * 0.2, 0, Math.PI * 2); g.fill();
+  txt('カメラに接続しました', fs * 1.6, top + fs * 1.2, fs * 0.55, '#fff', 700);
+}
+function drawHistory(S, B, t, top, pb) {   // 閲覧履歴：新しい順。下から上へ流れる
+  const fs = S.fs, x = W * 0.14, w = W * 0.72, rowH = fs * 1.15;
+  g.fillStyle = '#ffffff'; g.fillRect(0, top, W, pb - top);
+  txt('履歴', x, top + fs * 1.0, fs * 0.9, B_URL, 500);
+  g.fillStyle = '#f1f3f4'; rr(x + w * 0.35, top + fs * 0.45, w * 0.5, fs * 1.1, fs * 0.55); g.fill(); magnifier(x + w * 0.35 + fs * 0.55, top + fs * 1.0, fs * 0.35); txt('履歴を検索', x + w * 0.35 + fs * 1.1, top + fs * 1.0, fs * 0.5, '#70757a');
+  const list = [...B.hist].reverse(), el = (t - B.histT) / 1000;
+  const listTop = top + fs * 2.2, h = list.length * rowH + fs * 1.3, e = easeOut(clamp(el / 3.2, 0, 1));
+  const y0 = listTop + (pb - listTop) * (1 - e) - Math.max(0, h - (pb - listTop) + fs) * clamp((el - 3.2) / 3, 0, 1);
+  g.save(); g.beginPath(); g.rect(0, listTop, W, pb - listTop); g.clip();
+  g.fillStyle = '#fff'; g.strokeStyle = B_LINE; g.lineWidth = 1; rr(x, y0, w, h, 10); g.stroke();
+  txt('今日 - 2026年10月22日（木）', x + fs * 0.6, y0 + fs * 0.65, fs * 0.5, B_URL, 700);
+  list.forEach((r, i) => {
+    const y = y0 + fs * 1.3 + i * rowH + rowH / 2;
+    txt(r.time, x + fs * 0.6, y, fs * 0.48, '#70757a');
+    g.fillStyle = /xyz|top|click/.test(r.url) ? '#f1c232' : '#e8eaed'; rr(x + fs * 2.4, y - fs * 0.25, fs * 0.5, fs * 0.5, 3); g.fill();
+    txt(r.title, x + fs * 3.2, y, fs * 0.52, B_URL, 500, 'left', w * 0.55);
+    txt(r.url.split('/')[0], x + fs * 3.4 + w * 0.56, y, fs * 0.45, '#70757a', 500, 'left', w * 0.3);
   });
   g.restore();
+}
+function drawChrome(S, B, t, th, ah) {   // タブの列と、アドレスバー（配置と色だけ）
+  const fs = S.fs;
+  g.fillStyle = '#dee1e6'; g.fillRect(0, 0, W, th);
+  const n = B.tabs.length, tw = Math.min(fs * 7.5, (W - fs * 3) / n);
+  B.tabs.forEach((tb, i) => {
+    const x = fs * 0.4 + i * tw, act = i === B.tab;
+    if (act) { g.fillStyle = '#ffffff'; rr(x, fs * 0.2, tw, th - fs * 0.2, [8, 8, 0, 0]); g.fill(); }
+    else if (i && i - 1 !== B.tab) { g.fillStyle = '#9aa0a6'; g.fillRect(x, th * 0.35, 1, th * 0.4); }
+    g.fillStyle = tb.bad ? '#d93025' : '#9aa0a6'; g.beginPath(); g.arc(x + fs * 0.55, th * 0.58, fs * 0.17, 0, Math.PI * 2); g.fill();
+    txt(tb.t || '新しいタブ', x + fs * 0.9, th * 0.58, fs * 0.42, B_URL, 500, 'left', tw - fs * 1.6);
+  });
+  txt('＋', fs * 0.6 + n * tw, th * 0.58, fs * 0.5, '#5f6368');
+  g.fillStyle = '#ffffff'; g.fillRect(0, th, W, ah); g.fillStyle = B_LINE; g.fillRect(0, th + ah - 1, W, 1);
+  ['←', '→', '↻'].forEach((s, i) => txt(s, fs * 0.6 + i * fs * 1.1, th + ah / 2, fs * 0.6, '#5f6368', 500));
+  const ux = fs * 3.9, uw = W - ux - fs * 1.2, uh = ah * 0.68, uy = th + (ah - uh) / 2, bad = B.tabs[B.tab]?.bad;
+  g.fillStyle = '#f1f3f4'; rr(ux, uy, uw, uh, uh / 2); g.fill();
+  if (B.url) {
+    let ox = ux + fs * 0.5;
+    if (bad) { txt('⚠ 保護されていない通信', ox, th + ah / 2, fs * 0.45, '#d93025', 700); ox += textW('⚠ 保護されていない通信') + fs * 0.4; }
+    else { txt('🔒', ox, th + ah / 2, fs * 0.42, B_URL); ox += fs * 0.8; }
+    txt(B.url === 'chrome-history' ? '履歴' : B.url, ox, th + ah / 2, fs * 0.5, B_URL, 500, 'left', ux + uw - ox - fs * 0.5);
+  } else txt('検索するか、URL を入力', ux + fs * 0.5, th + ah / 2, fs * 0.5, '#80868b');
+  if (B.loadT && t - B.loadT < 650) { g.fillStyle = '#1a73e8'; g.fillRect(0, th + ah - 3, W * easeOut((t - B.loadT) / 650), 3); }
+}
+function drawPointer(B, t) {
+  if (!B.ptr) return;
+  const p = ptrNow(B, t), k = Math.max(16, W * 0.016);
+  if (B.clickT && t - B.clickT < 380) {   // クリック：輪が広がる
+    const q = (t - B.clickT) / 380;
+    g.strokeStyle = `rgba(26,115,232,${0.6 * (1 - q)})`; g.lineWidth = 3; g.beginPath(); g.arc(p.x, p.y, k * (0.4 + 1.4 * q), 0, Math.PI * 2); g.stroke();
+  }
+  g.save(); g.translate(p.x, p.y); if (B.clickT && t - B.clickT < 140) g.scale(0.9, 0.9);
+  g.beginPath(); g.moveTo(0, 0); g.lineTo(0, k * 1.35); g.lineTo(k * 0.34, k * 1.02); g.lineTo(k * 0.58, k * 1.55); g.lineTo(k * 0.78, k * 1.46); g.lineTo(k * 0.54, k * 0.95); g.lineTo(k * 0.98, k * 0.95); g.closePath();
+  g.fillStyle = '#ffffff'; g.fill(); g.strokeStyle = '#111'; g.lineWidth = 1.6; g.stroke();
+  g.restore();
+}
+function drawBrowser(S, B, t, dt, pb) {
+  const fs = S.fs, th = fs * 1.25, ah = fs * 1.45, top = th + ah;
+  B.hit = {}; B.contentH = pb - top;
+  if (B.sc) { const e = ease3(clamp((t - B.sc.t0) / B.sc.dur, 0, 1)); B.scroll = B.sc.from + (B.sc.to - B.sc.from) * e; }
+  g.save(); g.beginPath(); g.rect(0, top, W, pb - top); g.clip();
+  if (B.cam) drawCamera(S, B, t, top, pb);
+  else {
+    ({home: drawHome, results: drawResults, pirate: drawPirate, warning: drawWarning, security: drawSecurity, prize: drawPrize, history: drawHistory}[B.page] || drawHome)(S, B, t, top, pb);
+    if (B.dialog || B.prog >= 0) drawInstallDialog(S, B, t, top, pb);
+    drawPops(S, B, t, top, pb);
+  }
+  g.restore();
+  drawChrome(S, B, t, th, ah);
+  if (B.perm) {   // カメラの許可を求める吹き出し（アドレスバーの下）
+    const w = Math.min(W * 0.36, fs * 14), x = fs * 3.9, y = th + ah + 4, h = fs * 4.0, a = clamp((t - B.perm) / 200, 0, 1);
+    g.globalAlpha = a; g.save(); g.shadowColor = 'rgba(0,0,0,0.3)'; g.shadowBlur = 10; g.fillStyle = '#fff'; rr(x, y, w, h, 10); g.fill(); g.restore(); g.globalAlpha = a;
+    txt('lucky-prize-center.click が', x + fs * 0.6, y + fs * 0.6, fs * 0.48, B_URL, 500, 'left', w - fs);
+    txt('次の許可を求めています', x + fs * 0.6, y + fs * 1.15, fs * 0.48, B_URL, 500);
+    txt('📷 カメラを使用する', x + fs * 0.6, y + fs * 1.9, fs * 0.52, B_URL, 700);
+    const bw = fs * 3.2, by = y + h - fs * 1.3;
+    g.strokeStyle = B_LINE; g.lineWidth = 1; rr(x + w - bw * 2 - fs * 0.9, by, bw, fs * 0.95, 6); g.stroke(); txt('ブロック', x + w - bw * 1.5 - fs * 0.9, by + fs * 0.48, fs * 0.45, '#1a73e8', 700, 'center');
+    g.fillStyle = '#1a73e8'; rr(x + w - bw - fs * 0.5, by, bw, fs * 0.95, 6); g.fill(); txt('許可', x + w - bw / 2 - fs * 0.5, by + fs * 0.48, fs * 0.45, '#fff', 700, 'center');
+    setHit(B, 'allow', x + w - bw - fs * 0.5, by, bw, fs * 0.95);
+    g.globalAlpha = 1;
+  }
+  if (B.page !== 'history' && !B.cam) drawPointer(B, t);
+  if (B.black) {   // 暗転（black > 0）と、明ける（black < 0）
+    const a = B.black > 0 ? clamp((t - B.black) / 500, 0, 1) : 1 - clamp((t + B.black) / 800, 0, 1);
+    if (a > 0) { g.fillStyle = `rgba(0,0,0,${a})`; g.fillRect(0, 0, W, pb); }
+  }
 }
 
 // ---- X（風）：投稿画面。配置と色だけをそれっぽくした、ロゴのない画面。長い文は、打っている行が見えるように上へ流れる ----
@@ -907,62 +1645,6 @@ function drawTitle(S, T, t, pb) {
   if (typing || Math.floor((t - T.t0) / 530) % 2 === 0) g.fillRect(cx, y - size * 0.78, Math.max(2, size * 0.035), size * 0.95);   // 打っている間は点いたまま
 }
 
-// ---- 待機：上に「キーに指を軽く添えてください」。その下で、ローディング画面のように、落ちた・通った・回った・満ちた場所のキーが打たれる（4つの動きが順に変わる） ----
-const newSaver = () => ({k: 'saver', mode: 0, t0: 0, len: 9500, x: 0.5, vx: 1.3, y: 1, vy: 0, wait: 0, sq: 0, after: false, last: -1, p: 0, hold: 0});
-function drawSaver(S, V, t, dt, pb) {
-  if (!V.t0) V.t0 = t;
-  if (t - V.t0 > V.len) { Object.assign(V, {mode: (V.mode + 1) % 4, t0: t, last: -1, p: 0, hold: 0, wait: 0, y: 1, vy: 0, after: false}); }
-  const d = dt / 1000 * P.spd, top = pb * 0.34, ground = KY - STEP * 0.75, cy = ground * 0.58, ph = (t - V.t0) / 1000 * P.spd;   // 動きは案内の下で
-  g.fillStyle = INK; g.font = `500 ${S.fs * 1.05}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(SAVER_MSG, W / 2, pb * 0.2);   // 案内：キーに指を軽く添えてください
-  if (V.mode === 0) {   // 跳ねるボール：落ちた場所のキー
-    if (V.wait > 0) V.wait -= dt;
-    else {
-      V.vy -= 4 * d; V.y += V.vy * d; V.x += V.vx * d;
-      if (V.x > 7) { V.x = 7; V.vx *= -1; } if (V.x < 0) { V.x = 0; V.vx *= -1; }
-      if (V.y <= 0) {
-        const v = -V.vy; V.y = 0; V.vy = v * 0.78; V.sq = t;
-        hit(Math.round(V.x), P.len, P.str * clamp(v / 2.8, 0.3, 1));
-        if (V.vy < 0.55) { V.vy = 0; V.wait = 700; V.after = true; }
-      }
-    }
-    if (V.wait <= 0 && V.after) { V.after = false; V.y = 1; V.vy = 0; V.x = rand(0.5, 6.5); V.vx = (Math.random() < 0.5 ? -1 : 1) * rand(0.8, 1.8); }
-    const x = kToX(V.x), y = ground - 16 - V.y * (ground - 16 - top), q = Math.exp(-(t - V.sq) / 60);
-    g.globalAlpha = 0.14; g.fillRect(W * 0.08, ground, W * 0.84, 1);
-    g.beginPath(); g.ellipse(x, ground, 18 * (1 - V.y * 0.5), 4, 0, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
-    g.beginPath(); g.ellipse(x, y + q * 5, 16 * (1 + q * 0.35), 16 * (1 - q * 0.3), 0, 0, Math.PI * 2); g.fill();
-  } else if (V.mode === 1) {   // 横に動くボール：通ったキーが、ウェーブのように打たれる
-    const k = 3.5 + 3.5 * Math.sin(ph * 2 * Math.PI / 5.4 - Math.PI / 2), kr = clamp(Math.round(k), 0, 7);
-    if (kr !== V.last) { if (V.last >= 0) strikeFree(kr); V.last = kr; }
-    g.globalAlpha = 0.14; g.fillRect(kx(0) - STEP * 0.3, cy + 22, kx(7) - kx(0) + STEP * 0.6, 1); g.globalAlpha = 1;
-    for (let i = 7; i >= 0; i--) {   // 尾
-      const kk = 3.5 + 3.5 * Math.sin((ph - i * 0.07) * 2 * Math.PI / 5.4 - Math.PI / 2);
-      g.globalAlpha = i === 0 ? 1 : 0.22 * (1 - i / 8); g.beginPath(); g.arc(kToX(kk), cy, i === 0 ? 16 : 12 - i, 0, Math.PI * 2); g.fill();
-    }
-    g.globalAlpha = 1;
-  } else if (V.mode === 2) {   // 回る点：スピナー。いまの点のキーが打たれる
-    const n = 8, head = Math.floor(ph / 0.34) % n, R = STEP * 0.9;
-    if (head !== V.last) { strikeFree(head); V.last = head; }
-    for (let i = 0; i < n; i++) {
-      const a = -Math.PI / 2 + i * Math.PI * 2 / n, back = (head - i + n) % n;
-      g.globalAlpha = back === 0 ? 1 : Math.max(0.12, 0.8 - back * 0.12);
-      g.beginPath(); g.arc(W / 2 + Math.cos(a) * R, cy + Math.sin(a) * R, back === 0 ? 11 : 8, 0, Math.PI * 2); g.fill();
-    }
-    g.globalAlpha = 1;
-  } else {   // 満ちるバー：先端が通ったキーが打たれる
-    const bw = kx(7) - kx(0) + STEP * 0.6, bx = W / 2 - bw / 2, by = cy, bh = 9;
-    if (V.hold > 0) V.hold -= dt;
-    else {
-      V.p += dt / 3600 * P.spd;
-      const pe = ease3(clamp(V.p, 0, 1));   // 画面の先端と同じ位置で、キーが打たれる
-      for (let k = 0; k < 8; k++) { const kk = (kx(k) - (kx(0) - STEP * 0.3)) / bw; if (V.last < k && pe >= kk) { strikeFree(k); V.last = k; } }
-      if (V.p >= 1) { V.p = 1; V.hold = 900; }
-    }
-    if (V.hold <= 0 && V.p >= 1) { V.p = 0; V.last = -1; }
-    g.globalAlpha = 0.14; rr(bx, by, bw, bh, bh / 2); g.fill(); g.globalAlpha = 1;
-    rr(bx, by, Math.max(bh, bw * ease3(clamp(V.p, 0, 1))), bh, bh / 2); g.fill();
-  }
-}
 function kToX(k) {   // キーの番号（小数も）→ 画面の x
   if (k <= 0) return kx(0) + k * STEP;
   if (k >= 7) return kx(7) + (k - 7) * STEP;
@@ -970,16 +1652,35 @@ function kToX(k) {   // キーの番号（小数も）→ 画面の x
   return kx(i) + (kx(i + 1) - kx(i)) * (k - i);
 }
 
+
+// ---- 待機：F が2秒ごとに鼓動する（カチ）。鼓動のとき F を押さえていると始まる ----
+const newSaver = () => ({k: 'saver'});
+function drawSaver(S, V, t, dt, pb) {
+  const fs = S.fs, bt = S.beatT ? t - S.beatT : 1e9, q = Math.exp(-bt / 260);
+  g.fillStyle = INK; g.font = `500 ${fs * 1.05}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(SAVER_MSG, W / 2, pb * 0.24);
+  g.font = `500 ${fs * 0.72}px ${FONT}`; g.fillStyle = '#555';
+  g.fillText(SAVER_SUB, W / 2, pb * 0.24 + fs * 1.3);
+  // 鼓動：F の上で、輪が広がる。下の F のキーへ、細い線
+  const x = kx(BEAT_KEY), cy = pb * 0.62, r = fs * 1.5 * (1 + 0.18 * q);
+  g.strokeStyle = ORANGE; g.lineWidth = 2; g.globalAlpha = 0.5;
+  g.beginPath(); g.moveTo(x, cy + r); g.lineTo(x, pb); g.stroke();
+  if (bt < 900) { g.globalAlpha = 0.6 * (1 - bt / 900); g.lineWidth = 3; g.beginPath(); g.arc(x, cy, r + fs * 2.2 * (bt / 900), 0, Math.PI * 2); g.stroke(); }
+  g.globalAlpha = 1;
+  g.fillStyle = ORANGE; g.beginPath(); g.arc(x, cy, r, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#1a0e00'; g.font = `700 ${fs * 1.3}px ${FONT}`; g.fillText('F', x, cy + 2);
+}
+
 function drawScr(S, scr, t, dt, pb) {
   if (!scr) return;
   if (scr.k === 'saver') drawSaver(S, scr, t, dt, pb);
   else if (scr.k === 'title') drawTitle(S, scr, t, pb);
   else if (scr.k === 'cli') drawCli(S, scr, t, dt, pb);
+  else if (scr.k === 'browse') drawBrowser(S, scr, t, dt, pb);
   else if (scr.k === 'line') drawLine(S, scr, t, dt, pb);
-  else if (scr.k === 'slack') drawSlack(S, scr, t, dt, pb);
   else if (scr.k === 'x') drawX(S, scr, t, dt, pb);
 }
-const TOTAL = 212000;   // 通しの目安（終了の画面の終わりまで、約3分30秒）。右上の時計の線の長さ
+const TOTAL = 307000;   // 通しの目安（終了の画面の終わりまで、約5分）。右上の時計の線の長さ
 function drawHud(S, t) {   // 右上：経過時間と場面（スタッフ用。来場者に見せるときは H で消す）
   if (!S.hud) return;   // S.hud: 1 = 出す、0 = 出さない（H で切り替え）
   const el = S.running ? (t - S.t0) / 1000 : 0, f = v => `${Math.floor(v / 60)}:${String(Math.floor(v % 60)).padStart(2, '0')}`;
@@ -989,33 +1690,36 @@ function drawHud(S, t) {   // 右上：経過時間と場面（スタッフ用�
   const bx = W - 14 - 180;
   g.fillStyle = INK; g.fillRect(bx, 28, 180, 1); g.fillRect(bx, 26, Math.min(180, el * 1000 / TOTAL * 180), 5);
   g.fillStyle = RED; g.fillRect(bx + DUE.toX / TOTAL * 180 - 1, 23, 2, 11);   // 感想の投稿に入る目安
-  if (S.phase === 'saver') put('Enter か「はじめる」で開始　H で表示を切り替え', 44);
+  if (S.phase === 'saver') put(`F を押さえるか、Enter か「はじめる」で開始　H で表示を切り替え　次の感想 ${(parseInt(lsGet('kc-dlg-review') ?? '0', 10) || 0) + 1}/${REVIEWS.length}`, 44);
 }
 
 // ================= 体験の登録 =================
 const EXP = {
   id: 'dialogue', name: '対話',
-  note: 'インストラクターと、LINE・Slack・X の画面を行き来する。来場者の発言は、来場者の指が打つ',
-  use: 'Enter か「はじめる」で開始／H で時計の表示を切り替え',
+  note: 'インストラクターと、ブラウザ・LINE・X の画面を行き来する。来場者の発言は、来場者の指が打つ。ときどき、キーを押して選ぶ',
+  use: 'F を押さえるか、Enter か「はじめる」で開始／H で時計の表示を切り替え',
   opts: {から: START, LLM: ['あり', 'なし']},
   actions: [{label: s => s.running ? '最初から' : 'はじめる', run: s => { document.activeElement?.blur?.(); if (s.running) restart(); else begin(s); }}],
   init(S) {
     queued.fill(false);
     Object.assign(S, {phase: 'saver', running: false, dead: false, tl: [], fs: 28,
-      cli: {k: 'cli', inst: null, me: null, gone: []}, sv: newSaver(), slide: null, line: null, slack: null, x: null, title: null,
-      typing: null, hud: lsGet('kc-dlg-hud') === '0' ? 0 : 1});
+      cli: {k: 'cli', inst: null, me: null, gone: []}, sv: newSaver(), slide: null, line: null, br: null, x: null, title: null, choice: null,
+      typing: null, hud: lsGet('kc-dlg-hud') === '0' ? 0 : 1, beatT: 0});
     S.scr = S.sv;
     S.onKey = e => {
       if (e.target?.tagName === 'INPUT' && e.target.type === 'text') return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === 'Enter' && !S.running) { e.preventDefault(); document.activeElement?.blur?.(); begin(S); }
+      if ((e.key === 'Enter' || e.code === 'KeyF') && !S.running && !e.repeat) { e.preventDefault(); document.activeElement?.blur?.(); begin(S); }   // F：鼓動のとき押さえていると、基板が F を打つ
       else if (e.key === 'h' || e.key === 'H') { S.hud = S.hud ? 0 : 1; lsSet('kc-dlg-hud', String(S.hud)); }
     };
+    S.onKnock = e => { if (e.detail.held && !S.running) begin(S); };   // キー入力が届かないときも、シリアルの KNOCK … HELD で始める
     addEventListener('keydown', S.onKey);
+    addEventListener('kc-knock', S.onKnock);
     S.watch = setInterval(() => { if (paused && !S.dead) quit(S); }, 400);   // 一時停止したら、止める
+    startBeat(S);
     fetch('/api/status').then(r => r.json()).then(j => {
       S.llmOff = !j.llm;
-      if (S.llmOff && S.o.LLM === 'あり') status('LLM のキーが .env にありません。返事は台本の文言で進みます', 5000);
+      if (S.llmOff && S.o.LLM === 'あり') status('LLM のキーが .env にありません。下書きは台本の文言で進みます', 5000);
     }).catch(() => { S.llmOff = true; });
   },
   stop(S) { quit(S); },
@@ -1033,9 +1737,11 @@ const EXP = {
       g.fillStyle = 'rgba(0,0,0,0.16)'; g.fillRect(seam - 1, 0, 2, pb);
     } else drawScr(S, S.scr, t, dt, pb);
     g.restore();
+    if (S.choice) drawChoice(S, S.choice, t, pb);   // 選ぶ場面：カードと、中央の箱（キーへの線は、紙の下の端まで）
     window.KC_POST?.place(W, pb);   // 投稿のあとの画面（DOM）を、キーより上に重ねる
     drawHud(S, t);
   },
 };
 window.KC_DIALOGUE = EXP;
 })();
+

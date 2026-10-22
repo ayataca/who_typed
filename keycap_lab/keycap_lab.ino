@@ -1,10 +1,10 @@
 /*
- * Keycap Lab v3: eight solenoid keycaps that push the fingers resting on
+ * Keycap Lab v4: eight solenoid keycaps that push the fingers resting on
  * them (push), and raise keys and wait for a finger to push them down (INPUT)
  * Board: Raspberry Pi Pico / Pico 2 W (Arduino-Pico core)
  *   Tools > USB Stack: "Pico SDK" (the default). The board is then a USB
  *   serial port and a USB keyboard at the same time.
- * Protocol: KEYCAP-LAB-v3, USB Serial (115200), one text command per line
+ * Protocol: KEYCAP-LAB-v4, USB Serial (115200), one text command per line
  *
  * keycap_lab/index.html drives it. Wiring as v10 / v2:
  *   key          A0  S1  D2  F3  J4  K5  L6  ;7
@@ -22,6 +22,10 @@
  *   push   P / F: the board drives the key (a strike or a tremble), always at
  *          full strength (no PWM, so the coils do not whine). Any duty above 0
  *          means full, 0 releases. A key that stops is braked for 5 ms.
+ *   knock  K key: a short push (150 ms) on a key that is not raised: the
+ *          waiting screen's heartbeat. From the current during the push the
+ *          board tells whether a finger holds the key down (the plunger cannot
+ *          rise): then it types the key on the USB keyboard, as a press.
  *   INPUT  U mask: the keys in mask rise (80 ms apart) and stay up. A finger
  *          pushing a raised key down is typed as that key on the USB keyboard
  *          (a s d f j k l ;, lower case: no Shift) and reported as DOWN on the
@@ -29,6 +33,16 @@
  *          after 500 ms without U, every raised key drops (TIMEOUT).
  * A push on a raised key takes over: the key is not read while it is pushed
  * and for 150 ms after, so the board never types its own strikes.
+ * At most 3 keys are raised at once (the supply cannot hold more): U with more
+ * keys raises the first 3 and prints ERROR.
+ *
+ * Knock: is the key held down?
+ *   The mean current of the knocked key in four windows after it is switched
+ *   on (2-10, 10-25, 25-50, 50-100 ms) is compared with the same key's usual
+ *   (free) knocks. The first 3 knocks of each key after power-on (or KLEARN)
+ *   are taken as free and learned; later free knocks keep updating it.
+ *   held = some window is off by more than KSIGMAS x its usual spread, and by
+ *   at least KMINMA mA (5 and 6.0 mA; set with KSIGMAS / KMINMA).
  *
  * INPUT: how a press is read (CFI_sdf_press_test, for any of the 8 keys)
  *   Only the current is read; the coil is simply on (no braking, no pulses).
@@ -56,8 +70,10 @@
  *       push one key for ms (max 5000). hz: on/off at hz after kick ms.
  *   F ms kick d0 d1 d2 d3 d4 d5 d6 d7
  *       push all eight at once: d > 0 keeps a key going ms more, 0 releases.
- *   U mask      INPUT: raise the keys in mask (hex, bit 0 = A) and read them.
- *               Send it every 200 ms. U 0 drops them.
+ *   K key [ms]  knock: push the key for ms (default 150) and tell whether it is held
+ *   KSIGMAS x / KMINMA x / KLEARN   knock: how far off counts as held / learn again
+ *   U mask      INPUT: raise the keys in mask (hex, bit 0 = A) and read them
+ *               (3 keys at most). Send it every 200 ms. U 0 drops them.
  *   X           stop: every key down
  *   SIGMAS x [key]   threshold = x sigma (2..30, default 6), all keys or one
  *   MINMA x [key]    threshold at least x mA (0.1..50, default 1.0)
@@ -67,21 +83,24 @@
  *   SENSE / ?        print noise, threshold and the largest bump since last time
  *   V                print the version
  * Board -> host
- *   READY KEYCAP-LAB-v3 (at boot) / VERSION KEYCAP-LAB-v3
+ *   READY KEYCAP-LAB-v4 (at boot) / VERSION KEYCAP-LAB-v4
  *   MODE INPUT | MODE PLAY           some keys raised for input / none
  *   RAISED mask                      keys up and read now (hex)
  *   LEARNED key sigma threshold      noise learned (mA)
  *   ARMED key                        calm: a press now counts
  *   DOWN key bump threshold          pushed down (also typed on the keyboard)
  *   UP key                           let go (UP key -1: the key dropped meanwhile)
+ *   KNOCK key LEARN|FREE|HELD score f1 f2 f3 f4   a knock (score >= 1 = held; f = mean mA)
+ *   KNOCK key REST                   the key is resting (heat guard): no knock
  *   REST key / AWAKE key             heat guard (below)
  *   TIMEOUT                          no U for 500 ms: raised keys dropped
  *   SENSE key phase sigma threshold peak mA
  *   S mask  bump threshold phase mA  (x8, STREAM)
  *
  * Heat guard: each key collects heat while driven and loses it five times as
- * fast while off. At 5 s of heat the key rests until it has cooled (5 s on ->
- * 1 s off), printing REST and AWAKE. A raised key comes back up by itself.
+ * fast while off. At 6 s of heat the key rests until it has cooled (6 s on ->
+ * 1.2 s off), printing REST and AWAKE. A raised key comes back up by itself.
+ * (The solenoid's datasheet allows 10 s; the page keeps an input window at 5 s.)
  *
  * KEYCAP-LAB-v2's tau sensing and calibration (AUTO, MANUAL, DEPTH, PROFILE)
  * are gone: the current alone is read, and nothing has to be calibrated.
@@ -121,13 +140,24 @@ constexpr uint32_t VOICE_BRAKE_US = 5000;
 constexpr uint32_t AFTER_PUSH_MS = 150;     // a pushed key is not read this long after
 
 // Heat guard
-constexpr float HEAT_LIMIT_MS = 5000.0f;
+constexpr float HEAT_LIMIT_MS = 6000.0f;   // datasheet: under 10 s. An input window is 5 s
 constexpr float COOL_RATE = 5.0f;
 
 // INPUT: raising
 constexpr uint32_t STAGGER_MS = 80;         // raised keys rise this far apart
 constexpr uint32_t BRAKE_MS = 5;            // a raised key that drops is braked this long
 constexpr uint32_t LISTEN_TIMEOUT_MS = 500; // no U this long: every raised key drops
+constexpr uint8_t MAX_RAISED = 3;           // the supply cannot hold more keys up at once
+
+// Knock: is the key held down? (the waiting screen's heartbeat)
+constexpr uint32_t DEFAULT_KNOCK_MS = 150;
+constexpr uint8_t KNOCK_WINDOWS = 4;
+const float KNOCK_EDGE_MS[KNOCK_WINDOWS + 1] = {2, 10, 25, 50, 100};
+constexpr uint8_t KNOCK_LEARN = 3;          // the first knocks are taken as free
+constexpr float KNOCK_FOLLOW = 0.2f;        // free knocks keep the usual shape up to date
+constexpr float DEFAULT_KNOCK_SIGMAS = 5.0f;
+constexpr float DEFAULT_KNOCK_MIN_MA = 6.0f;
+constexpr float MIN_KNOCK_DEV_MA = 0.3f;
 
 // INPUT: reading a press (CFI_sdf_press_test)
 constexpr float MA_PER_COUNT = 3.3f / 4095.0f * 2.0f / 1.0f * 1000.0f;  // divider x2, 1 ohm
@@ -178,6 +208,19 @@ struct Sensor {
   uint32_t count;
   float noiseSq;    // kept while the key is down
   uint32_t lastUs, overSinceUs, calmSinceMs, phaseMs;
+};
+
+struct Knock {
+  bool active;
+  uint8_t key;
+  uint32_t startUs;
+  float sum[KNOCK_WINDOWS];
+  uint16_t n[KNOCK_WINDOWS];
+};
+struct KnockBase {
+  uint8_t count;
+  float mean[KNOCK_WINDOWS];
+  float dev[KNOCK_WINDOWS];
 };
 
 Adafruit_NeoPixel statusLed(1, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -612,10 +655,124 @@ void reportSense() {
 }
 
 // =====================================================================
+// Knock: a short push on a key that is not raised. Held down = a press
+// =====================================================================
+Knock knock = {};
+KnockBase knockBase[KEY_COUNT] = {};
+float knockSigmas = DEFAULT_KNOCK_SIGMAS;
+float knockMinMa = DEFAULT_KNOCK_MIN_MA;
+
+void startKnock(uint8_t i, uint32_t ms) {
+  if (knock.active || !hasSense(i)) return;
+  if (listenMask & bitOf(i)) {
+    Serial.println(F("ERROR knock: the key is raised"));
+    return;
+  }
+  if (ms < KNOCK_EDGE_MS[KNOCK_WINDOWS]) ms = static_cast<uint32_t>(KNOCK_EDGE_MS[KNOCK_WINDOWS]);
+  startVoice(i, ms, 100, 0, 0, true);
+  if (!voices[i].active) {
+    Serial.print(F("KNOCK "));
+    Serial.print(i);
+    Serial.println(F(" REST"));
+    return;
+  }
+  writeOutputs();
+  knock = {};
+  knock.active = true;
+  knock.key = i;
+  knock.startUs = micros();
+}
+
+void printKnock(uint8_t i, const __FlashStringHelper *verdict, float score, const float *f) {
+  Serial.print(F("KNOCK "));
+  Serial.print(i);
+  Serial.print(' ');
+  Serial.print(verdict);
+  Serial.print(' ');
+  Serial.print(score, 2);
+  for (uint8_t w = 0; w < KNOCK_WINDOWS; ++w) {
+    Serial.print(' ');
+    Serial.print(f[w], 1);
+  }
+  Serial.println();
+}
+
+void finishKnock() {
+  const uint8_t i = knock.key;
+  knock.active = false;
+  float f[KNOCK_WINDOWS];
+  for (uint8_t w = 0; w < KNOCK_WINDOWS; ++w) {
+    if (!knock.n[w]) return;  // cut short (stopped, or the key rested): no verdict
+    f[w] = knock.sum[w] / knock.n[w];
+  }
+  KnockBase &b = knockBase[i];
+  if (b.count < KNOCK_LEARN) {  // learn the usual (free) shape
+    ++b.count;
+    for (uint8_t w = 0; w < KNOCK_WINDOWS; ++w) {
+      if (b.count == 1) {
+        b.mean[w] = f[w];
+        b.dev[w] = MIN_KNOCK_DEV_MA;
+        continue;
+      }
+      const float d = f[w] - b.mean[w];
+      b.mean[w] += d / b.count;
+      b.dev[w] += (fabsf(d) - b.dev[w]) / (b.count - 1);
+      if (b.dev[w] < MIN_KNOCK_DEV_MA) b.dev[w] = MIN_KNOCK_DEV_MA;
+    }
+    printKnock(i, F("LEARN"), 0, f);
+    return;
+  }
+  float score = 0;
+  for (uint8_t w = 0; w < KNOCK_WINDOWS; ++w) {
+    float limit = knockSigmas * b.dev[w];
+    if (limit < knockMinMa) limit = knockMinMa;
+    const float sc = fabsf(f[w] - b.mean[w]) / limit;
+    if (sc > score) score = sc;
+  }
+  if (score >= 1.0f) {
+    if (hidOn) Keyboard.write(KEY_CHAR[i]);  // held down: a press
+    printKnock(i, F("HELD"), score, f);
+    return;
+  }
+  for (uint8_t w = 0; w < KNOCK_WINDOWS; ++w) {
+    const float d = f[w] - b.mean[w];
+    b.mean[w] += KNOCK_FOLLOW * d;
+    b.dev[w] += KNOCK_FOLLOW * (fabsf(d) - b.dev[w]);
+    if (b.dev[w] < MIN_KNOCK_DEV_MA) b.dev[w] = MIN_KNOCK_DEV_MA;
+  }
+  printKnock(i, F("FREE"), score, f);
+}
+
+void updateKnock() {
+  if (!knock.active) return;
+  const float el = (micros() - knock.startUs) / 1000.0f;
+  if (el >= KNOCK_EDGE_MS[KNOCK_WINDOWS] || !voices[knock.key].active) {
+    finishKnock();
+    return;
+  }
+  if (el < KNOCK_EDGE_MS[0]) return;
+  uint8_t w = 0;
+  while (w < KNOCK_WINDOWS - 1 && el >= KNOCK_EDGE_MS[w + 1]) ++w;
+  knock.sum[w] += mcpRead(static_cast<uint8_t>(ADC_CHANNEL[knock.key])) * MA_PER_COUNT;
+  ++knock.n[w];
+}
+
+// =====================================================================
 // Modes: PLAY (pushes only) / INPUT (some keys raised for input)
 // =====================================================================
+uint8_t firstKeys(uint8_t mask, uint8_t n) {
+  uint8_t out = 0;
+  for (uint8_t i = 0; i < KEY_COUNT && n; ++i) if (mask & bitOf(i)) { out |= bitOf(i); --n; }
+  return out;
+}
+
 void setListen(uint8_t mask) {
   lastListenMs = millis();
+  if (__builtin_popcount(mask) > MAX_RAISED) {
+    mask = firstKeys(mask, MAX_RAISED);
+    static uint32_t lastWarnMs = 0;
+    if (millis() - lastWarnMs > 2000) { lastWarnMs = millis(); Serial.println(F("ERROR max 3 keys")); }
+  }
   if (mask == listenMask) return;
   const bool wasInput = listenMask != 0;
   listenMask = mask;
@@ -624,6 +781,7 @@ void setListen(uint8_t mask) {
 }
 
 void stopAll() {
+  knock.active = false;
   releaseAllVoices();
   setListen(0);
 }
@@ -713,7 +871,7 @@ void runCommand(char *p) {
   if (!strcmp(word, "X")) {
     stopAll();
   } else if (!strcmp(word, "V")) {
-    Serial.println(F("VERSION KEYCAP-LAB-v3"));
+    Serial.println(F("VERSION KEYCAP-LAB-v4"));
   } else if (!strcmp(word, "SENSE") || !strcmp(word, "?")) {
     reportSense();
   } else if (!strcmp(word, "P")) {
@@ -737,6 +895,28 @@ void runCommand(char *p) {
       if (duty > 0) startVoice(i, ms, duty, kick, 0, false);
       else releaseVoice(i, micros());
     }
+  } else if (!strcmp(word, "K")) {
+    char token[4];
+    nextWord(p, token, sizeof(token), false);
+    const int i = keyIndex(token);
+    if (i < 0) {
+      Serial.println(F("ERROR key"));
+      return;
+    }
+    startKnock(i, nextNumber(p, DEFAULT_KNOCK_MS, 10));
+  } else if (!strcmp(word, "KSIGMAS")) {
+    float v = nextFloat(p, DEFAULT_KNOCK_SIGMAS);
+    knockSigmas = v < 1 ? 1 : v > 50 ? 50 : v;
+    Serial.print(F("KSIGMAS "));
+    Serial.println(knockSigmas, 2);
+  } else if (!strcmp(word, "KMINMA")) {
+    float v = nextFloat(p, DEFAULT_KNOCK_MIN_MA);
+    knockMinMa = v < 0.5f ? 0.5f : v > 200 ? 200 : v;
+    Serial.print(F("KMINMA "));
+    Serial.println(knockMinMa, 2);
+  } else if (!strcmp(word, "KLEARN")) {
+    for (uint8_t i = 0; i < KEY_COUNT; ++i) knockBase[i] = {};
+    Serial.println(F("KLEARN"));
   } else if (!strcmp(word, "U")) {
     setListen(static_cast<uint8_t>(nextNumber(p, 0, 16) & 0xFF));
   } else if (!strcmp(word, "SIGMAS")) {
@@ -811,7 +991,7 @@ void setup() {
   writeOutputs();
 
   delay(250);
-  Serial.println(F("READY KEYCAP-LAB-v3"));
+  Serial.println(F("READY KEYCAP-LAB-v4"));
   Serial.println(F("MODE PLAY"));
 }
 
@@ -821,6 +1001,7 @@ void loop() {
   serviceCoils();
   writeOutputs();
   updateInput();
+  updateKnock();
   serviceCoils();
   writeOutputs();
   checkListenTimeout();
