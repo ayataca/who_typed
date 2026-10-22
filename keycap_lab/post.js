@@ -12,9 +12,9 @@ const CONFIG = {
   // node server.mjs で配信したときだけ投稿する。file:// で開いた場合は模擬投稿
   postEndpoint: location.protocol.startsWith('http') ? '/api/post' : '',
   postTimeoutMs: 25000,
-  previewMs: 8000,    // ポストの確認を見せる時間
-  postingMs: 4500,    // 投稿中（くるくる）の表示時間
-  askMs: 9000,        // 「この投稿を書いたのは、誰…？」を見せる時間
+  previewMs: 5000,    // ポストの確認を見せる時間
+  postingMs: 2500,    // 投稿中（くるくる）の表示時間
+  askMs: 6000,        // 「この投稿を書いたのは、誰…？」を見せる時間
   endMs: 25000,       // 終了画面を見せてから、待機に戻るまで（次のお客さんへ）
 };
 const $ = id => document.getElementById(id);
