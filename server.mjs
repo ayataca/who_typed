@@ -371,7 +371,9 @@ const server = http.createServer(async (req, res) => {
     if (isViewPath(url.pathname)) return serveView(req, res);
     if (req.method !== 'GET') return send(res, 405, { ok: false });
     // 静的ファイル（.env や posts/ は配信しない）
-    const rel = decodeURIComponent(url.pathname === '/' ? '/who-typed-exhibition-scenario.html' : url.pathname);
+    // トップ（http://localhost:8787）は keycap_lab の対話。前の展示のページは /who-typed-exhibition-scenario.html で開ける
+    const top = ['/', '/keycap_lab', '/keycap_lab/'].includes(url.pathname);
+    const rel = decodeURIComponent(top ? '/keycap_lab/index.html' : url.pathname);
     const file = path.normalize(path.join(ROOT, rel));
     const ext = path.extname(file).toLowerCase();
     if (!file.startsWith(ROOT + path.sep) || file.startsWith(POSTS_DIR) || !PUBLIC.has(ext) || !fs.existsSync(file)) { res.writeHead(404); return res.end('not found'); }

@@ -20,13 +20,14 @@ header p{color:var(--sub);font-size:.9rem;margin-top:.15rem}
 #qr{margin-left:auto;text-align:center;font-size:.75rem;color:var(--sub);flex:none}
 #qr svg{display:block;width:min(22vw,9rem,24vh);height:auto;background:#fff;padding:.3rem;border-radius:.4rem;margin-bottom:.3rem}
 .m #qr{display:none}
-main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none}
+main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;transition:opacity .6s ease}
+main.fade{opacity:0}
 main::-webkit-scrollbar{display:none}
 /* ポスト：アイコン・名前・@ハンドル・時刻・本文・写真・アイコン列。スレッドの続きは、アイコンの下の縦線でつなぐ */
-.post{display:flex;gap:.55rem;padding:.8rem 1rem;border-bottom:1px solid var(--border);animation:in .6s ease}
+.post{display:flex;gap:.55rem;padding:.8rem 1rem;border-bottom:1px solid var(--border)}
 .post.has-next{border-bottom:0;padding-bottom:0}
 .post.has-prev{padding-top:.3rem}
-.post.new{background:var(--new)}
+.post.new{background:var(--new);animation:in .6s ease}
 .side{display:flex;flex-direction:column;align-items:center;flex:none;width:2.65rem}
 .side .line{flex:1;width:2px;background:var(--thread);margin-top:.25rem;min-height:.5rem}
 .avatar{width:2.65rem;height:2.65rem;border-radius:50%;background:var(--media-bg) center/cover no-repeat;flex:none}
@@ -39,7 +40,7 @@ main::-webkit-scrollbar{display:none}
 .text{margin-top:.15rem;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}
 .hl{color:var(--link)}
 .media{margin-top:.8rem;border:1px solid var(--border);border-radius:1rem;overflow:hidden;background:var(--media-bg)}
-.media img{display:block;width:100%;max-height:34rem;object-fit:cover}
+.media img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}   /* 写真の場所を先に取っておく（読み込みで高さが変わって、スクロールが跳ねないように） */
 .actions{display:flex;justify-content:space-between;margin-top:.8rem;max-width:28rem;color:var(--sub);font-size:.85rem}
 .act{display:flex;align-items:center;gap:.25rem;min-width:2.6rem}
 .act svg{width:1.25rem;height:1.25rem;fill:currentColor}
@@ -111,7 +112,8 @@ function post(item, text, i, n) {
   const main = el('div', 'main'), head = el('div', 'head');
   head.append(el('span', 'name', profile.name));
   if (profile.handle) head.append(el('span', 'handle', profile.handle));
-  head.append(el('span', 'dot', '·'), el('span', 'time', fmt(item.at)));
+  const time = el('span', 'time', fmt(item.at)); time.dataset.at = item.at;
+  head.append(el('span', 'dot', '·'), time);
   const body = el('div', 'text'); highlighted(body, text);
   main.append(head, body);
   if (i === 0 && item.photo) {   // 手元写真（スレッドの1件目。X と同じ）
@@ -125,34 +127,58 @@ function post(item, text, i, n) {
   art.append(side, main);
   return art;
 }
+// 5秒ごとに確認し、中身が変わったときだけ並べ直す（変わっていないのに並べ直すと、写真の読み込みで高さが変わり、スクロールが跳ねる）
+let sig = '';
 async function refresh() {
   try {
     const r = await fetch('/api/timeline', {cache: 'no-store'}), j = await r.json();
     profile = {...profile, ...(j.profile || {})};
     drawQr(profile.handle);
     if (!j.items.length) return;
+    const next = JSON.stringify([profile.name, profile.handle, profile.avatar, j.items.map(i => [i.id, i.texts || i.text, i.photo])]);
+    if (next === sig) return;
+    sig = next;
     const frag = document.createDocumentFragment();
     for (const it of j.items) {
       const texts = it.texts?.length ? it.texts : [it.text];
       texts.forEach((t, i) => frag.append(post(it, t, i, texts.length)));
     }
     const fresh = !first && j.items.some(i => !known.has(i.id));
-    const keep = list.scrollTop;
     list.replaceChildren(frag);
     // 新しい感想が来たら、先頭（最新）に戻って少し止まる。そうでなければ、いまの位置のまま
-    if (fresh) { list.scrollTop = 0; holdUntil = Date.now() + 6000; } else list.scrollTop = keep;
+    if (fresh) toTop(6000); else list.scrollTop = pos;
     known = new Set(j.items.map(i => i.id)); first = false;
   } catch {}
 }
-let holdUntil = Date.now() + 4000;
 refresh(); setInterval(refresh, 5000);
-// 表示用（プロジェクタ・縦型ディスプレイ）：先頭で少し止まってから、ゆっくり下へ。端まで来たら先頭へ戻る
-if (!isPhone) { let dir = 1; setInterval(() => {
-  if (Date.now() < holdUntil || list.scrollHeight <= list.clientHeight) return;
-  list.scrollTop += dir;
-  if (list.scrollTop + list.clientHeight >= list.scrollHeight - 1) dir = -1;
-  else if (list.scrollTop <= 0 && dir < 0) { dir = 1; holdUntil = Date.now() + 4000; }
-}, 40); }
+setInterval(() => list.querySelectorAll('.time[data-at]').forEach(e => { e.textContent = fmt(e.dataset.at); }), 30000);   // 「〇分」の表示だけ進める
+
+// 表示用（プロジェクタ・縦型ディスプレイ）：先頭で止まり、一定の速さで下へ流れ、端で止まってから、ふっと先頭へ戻る。
+// 位置は小数のまま自分で持ち、時間で進める（1px ずつ足すと、端末によっては丸められて止まってしまう）。速さは ?speed=（px/秒）
+const SPEED = Number(q.get('speed')) || 30;
+let pos = 0, holdUntil = Date.now() + 4000, wrapping = false, lastT = 0, lastFrame = 0;
+function toTop(hold) {
+  pos = 0; list.scrollTop = 0; holdUntil = Date.now() + hold;
+}
+function step(t) {
+  lastFrame = performance.now();
+  const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0; lastT = t;
+  const max = list.scrollHeight - list.clientHeight;
+  if (isPhone || wrapping || max <= 0 || Date.now() < holdUntil) return;
+  if (pos >= max - 0.5) {   // 端まで来た：少し止まってから、フェードして先頭へ
+    wrapping = true;
+    setTimeout(() => { list.classList.add('fade'); setTimeout(() => { toTop(4000); list.classList.remove('fade'); wrapping = false; }, 650); }, 3000);
+    return;
+  }
+  pos = Math.min(max, pos + SPEED * dt);
+  list.scrollTop = pos;
+}
+let rafPending = false;
+const schedule = () => { if (!rafPending) { rafPending = true; requestAnimationFrame(frame); } };   // ループを二重に走らせない
+function frame(t) { rafPending = false; step(t); schedule(); }
+schedule();
+// 端末によっては描画のループが止まることがあるので、止まっていたら動かし直す
+setInterval(() => { if (performance.now() - lastFrame > 500) { lastT = 0; rafPending = false; schedule(); } }, 1000);
 // 画面を消さない（対応している端末だけ。対応していなければ、端末の自動ロックをオフにする）
 let wakeLock = null;
 const keepAwake = async () => { try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch {} };
