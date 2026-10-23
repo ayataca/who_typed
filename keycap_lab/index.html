@@ -25,6 +25,7 @@ html.fs #bar{display:none}
 .seg button.on{background:var(--line);color:var(--fg)}
 .op{background:none;border:1px solid var(--line);color:var(--fg);font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
 .op:disabled{opacity:.45;cursor:default}
+html.fs, html.fs *{cursor:none}
 #conn.live{border-color:var(--acc);color:var(--acc)}
 #conn.warn{border-color:#e5484d;color:#e5484d}
 #bar label{display:flex;gap:6px;align-items:center}
@@ -105,7 +106,7 @@ html.fs #bar{display:none}
     <label><input type="checkbox" id="realConsent" checked> 撮影・公開について本人の実際の同意を確認済み</label>
     <label><input type="checkbox" id="publicSession" checked> 公開セッション</label>
     <button class="op" id="stopPublish">このセッションの公開を中止</button>
-    <button class="op" id="cameraBtn">カメラを開始</button><video id="pv-hands" muted playsinline></video>
+    <button class="op" id="cameraBtn">カメラを開始</button><select class="op" id="cameraSel" title="使うカメラ"><option value="">カメラ（自動）</option></select><video id="pv-hands" muted playsinline></video>
     <span id="xStatus">X投稿: 確認中…</span><button class="op" id="deletePost" disabled>直前の投稿をXから削除</button>
     <span id="postResult"></span>
   </div>
@@ -218,7 +219,7 @@ function simLevel(k, t) {
 }
 
 // ---- 入力（INPUT）：キーを上げて、来場者が押し込んだキーを受け取る ----
-// listen('jkl')（または listen(0b1110000)）で、そのキーを上げて待つ。listen(0) で下げる。8本のどれでも選べる（A=0 S=1 D=2 F=3 J=4 K=5 L=6 ;=7）が、同時に上げるのは3本まで
+// listen('sdf')（または listen(0b1110)）で、そのキーを上げて待つ。listen(0) で下げる。8本のどれでも選べる（A=0 S=1 D=2 F=3 J=4 K=5 L=6 ;=7）が、同時に上げるのは3本まで
 // ページは 200ms ごとに U を送り直し、途切れると基板は 0.5 秒で全部下げる。
 // 押し込みは、基板が USB キーボードとして打つ（a s d f j k l ;）ので、keydown（キーの位置 e.code）で受け取る。基板がなくても、PC のキーボードで試せる。
 // 体験は onPress(s, key) で受け取る（上げているキーだけ。自動のリピートは無視）。window の 'kc-press' イベントでも受け取れる。
@@ -273,7 +274,7 @@ function knock(k, ms = P.len) {
   Object.assign(sim[k], {active: true, start: t, until: t + ms, duty: 100, kick: 0, hz: 0});
   lastHit[k] = t;
 }
-const INPUT_TESTS = [['なし', 0], ['J K L', toMask('jkl')], ['J', toMask('j')]];
+const INPUT_TESTS = [['なし', 0], ['S D F', toMask('sdf')], ['F', toMask('f')]];
 function inputUI() {
   const seg = $('inputSeg'), st = $('inputState');
   if (!seg) return;
@@ -424,8 +425,9 @@ addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
   if (e.code === 'Space') { e.preventDefault(); setPaused(!paused); }
 });
-// 全画面：シナリオの画面だけを画面いっぱいに出す（下の帯は隠れる。Esc で戻る）
-$('fsBtn').onclick = () => { $('fsBtn').blur(); document.documentElement.requestFullscreen?.().catch(e => status('全画面にできません: ' + e.message, 4000)); };
+// 全画面：シナリオの画面だけを画面いっぱいに出す（下の帯は隠れる。マウスの矢印も消える。Esc で戻る）
+// Chrome のタブや Mac のメニューバーまで確実に消すには、kiosk.command（Chrome をキオスクモードで開く）から起動する
+$('fsBtn').onclick = () => { $('fsBtn').blur(); document.documentElement.requestFullscreen?.({navigationUI: 'hide'}).catch(e => status('全画面にできません: ' + e.message, 4000)); };
 document.addEventListener('fullscreenchange', layout);
 document.addEventListener('visibilitychange', () => { if (document.hidden && !paused) setPaused(true); });
 addEventListener('resize', layout);
