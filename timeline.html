@@ -27,12 +27,14 @@ body{display:flex;flex-direction:column;align-items:center;overflow:hidden}
 .col{width:100%;max-width:40rem;border-left:1px solid var(--border);border-right:1px solid var(--border)}
 /* 下の帯：画面の端から端まで（タイムラインの列とは揃えない）。中身だけ列の幅に合わせて中央に置く */
 .caption{flex:none;width:100%;background:var(--cap-bg);color:var(--cap-ink)}
-.caption-in{max-width:40rem;margin:0 auto;display:flex;align-items:center;gap:1.2rem;padding:1.1rem 1rem}
-.work{font-family:"Poppins",-apple-system,"Segoe UI",sans-serif;font-weight:600;font-size:.8rem;letter-spacing:.04em;color:var(--cap-sub)}
-.caption h1{font-size:1.35rem;font-weight:800;line-height:1.2;margin-top:.2rem}
-.caption p{color:var(--cap-sub);font-size:.85rem;margin-top:.3rem}
-#qr{margin-left:auto;text-align:center;font-size:.7rem;color:var(--cap-sub);flex:none}
-#qr svg{display:block;width:min(22vw,7.5rem,18vh);height:auto;background:#fff;padding:.35rem;border-radius:.4rem;margin:0 auto .35rem}
+.caption-in{max-width:40rem;margin:0 auto;display:flex;align-items:center;gap:1.5rem;padding:1.6rem 1.25rem}
+.work{font-family:"Poppins",-apple-system,"Segoe UI",sans-serif;font-weight:600;font-size:1.3rem;line-height:1.1;letter-spacing:.01em}
+.caption h1{font-size:1.5rem;font-weight:800;line-height:1.2;margin-top:.35rem}
+#qr{margin-left:auto;text-align:center;flex:none}
+#qr svg{display:block;width:min(28vw,9.5rem,22vh);height:auto;background:#fff;padding:.4rem;border-radius:.45rem;margin:0 auto .45rem}
+#qrlabel{display:block;line-height:1.25}
+#qrlabel small{display:block;font-size:.75rem;color:var(--cap-sub)}
+#qrlabel b{display:block;font-size:1rem;font-weight:700;color:var(--cap-ink)}
 .m #qr{display:none}
 main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;transition:opacity .6s ease}
 main.fade{opacity:0}
@@ -67,7 +69,7 @@ main::-webkit-scrollbar{display:none}
 <main id="list" class="col"><div class="empty"><b>まだ感想はありません</b>展示で投稿されると、ここに表示されます</div></main>
 <footer class="caption">
   <div class="caption-in">
-    <div><div class="work">Who typed?</div><h1>みんなの感想</h1><p>この展示で「勝手に」打たれた感想です</p></div>
+    <div><div class="work">Who typed?</div><h1>来場者の声</h1></div>
     <div id="qr" hidden><div id="qrbox"></div><span id="qrlabel"></span></div>
   </div>
 </footer>
@@ -92,7 +94,8 @@ function drawQr(handle) {
   if (!url) return;
   const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
   document.getElementById('qrbox').innerHTML = qr.createSvgTag({cellSize: 4, margin: 0, scalable: true});
-  document.getElementById('qrlabel').textContent = 'X で見る ' + handle;
+  const label = document.getElementById('qrlabel');
+  label.replaceChildren(el('small', null, 'X で見る'), el('b', null, '@' + handle.replace(/^@/, '')));
 }
 // 時刻は X の日本語表記（〇秒・〇分・〇時間・〇月〇日）
 function fmt(iso) {
