@@ -165,7 +165,7 @@ function newSession() {
 }
 function initControls() {
   $('cameraBtn').onclick = startCamera;
-  $('cameraSel').onchange = e => { camSet(e.target.value); startCamera(); };   // 選んだら、そのカメラにつなぎ直す
+  $('cameraSel').onchange = e => { e.target.blur(); camSet(e.target.value); startCamera(); };   // 選んだら、そのカメラにつなぎ直す（選択欄からフォーカスを外す：そのままだと S D F の入力で選択が変わってしまう）
   listCameras();
   navigator.mediaDevices?.addEventListener?.('devicechange', listCameras);
   $('stopPublish').onclick = () => {
