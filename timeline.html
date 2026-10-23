@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- ホーム画面に追加すると、アドレスバーなしで開く（iPhone はこの方法で全画面にする） -->
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- ホーム画面に追加すると、アドレスバーなしで開く（iPhone はこの方法で全画面にする）。上の時計の帯の下まで、ページを広げる（feed.html と同じ） -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Who Typed?">
 <link rel="manifest" href="/timeline.webmanifest">
 <title>Who Typed? 感想タイムライン</title>
@@ -27,7 +27,7 @@ body{display:flex;flex-direction:column;align-items:center;overflow:hidden}
 .col{width:100%;max-width:40rem;border-left:1px solid var(--border);border-right:1px solid var(--border)}
 /* 下の帯：画面の端から端まで（タイムラインの列とは揃えない）。中身だけ列の幅に合わせて中央に置く */
 .caption{flex:none;width:100%;background:var(--cap-bg);color:var(--cap-ink)}
-.caption-in{max-width:40rem;margin:0 auto;display:flex;align-items:center;gap:1.5rem;padding:1.6rem 1.25rem}
+.caption-in{max-width:40rem;margin:0 auto;display:flex;align-items:center;gap:1.5rem;padding:1.6rem 1.25rem calc(1.6rem + env(safe-area-inset-bottom))}   /* iPhone の下のバーに、かからないように */
 .work{font-family:"Poppins",-apple-system,"Segoe UI",sans-serif;font-weight:600;font-size:1.3rem;line-height:1.1;letter-spacing:.01em}
 .caption h1{font-size:1.5rem;font-weight:800;line-height:1.2;margin-top:.35rem}
 #qr{margin-left:auto;text-align:center;flex:none}
@@ -36,7 +36,7 @@ body{display:flex;flex-direction:column;align-items:center;overflow:hidden}
 #qrlabel small{display:block;font-size:.75rem;color:var(--cap-sub)}
 #qrlabel b{display:block;font-size:1rem;font-weight:700;color:var(--cap-ink)}
 .m #qr{display:none}
-main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;transition:opacity .6s ease}
+main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;transition:opacity .6s ease;padding-top:env(safe-area-inset-top)}   /* 上の時計の帯に、かからないように */
 main.fade{opacity:0}
 main::-webkit-scrollbar{display:none}
 /* ポスト：アイコン・名前・@ハンドル・時刻・本文・写真・アイコン列。スレッドの続きは、アイコンの下の縦線でつなぐ */
