@@ -218,7 +218,7 @@ function simLevel(k, t) {
 }
 
 // ---- 入力（INPUT）：キーを上げて、来場者が押し込んだキーを受け取る ----
-// listen('sdf')（または listen(0b1110)）で、そのキーを上げて待つ。listen(0) で下げる。8本のどれでも選べる（A=0 S=1 D=2 F=3 J=4 K=5 L=6 ;=7）が、同時に上げるのは3本まで
+// listen('jkl')（または listen(0b1110000)）で、そのキーを上げて待つ。listen(0) で下げる。8本のどれでも選べる（A=0 S=1 D=2 F=3 J=4 K=5 L=6 ;=7）が、同時に上げるのは3本まで
 // ページは 200ms ごとに U を送り直し、途切れると基板は 0.5 秒で全部下げる。
 // 押し込みは、基板が USB キーボードとして打つ（a s d f j k l ;）ので、keydown（キーの位置 e.code）で受け取る。基板がなくても、PC のキーボードで試せる。
 // 体験は onPress(s, key) で受け取る（上げているキーだけ。自動のリピートは無視）。window の 'kc-press' イベントでも受け取れる。
@@ -273,7 +273,7 @@ function knock(k, ms = P.len) {
   Object.assign(sim[k], {active: true, start: t, until: t + ms, duty: 100, kick: 0, hz: 0});
   lastHit[k] = t;
 }
-const INPUT_TESTS = [['なし', 0], ['S D F', toMask('sdf')], ['F', toMask('f')]];
+const INPUT_TESTS = [['なし', 0], ['J K L', toMask('jkl')], ['J', toMask('j')]];
 function inputUI() {
   const seg = $('inputSeg'), st = $('inputState');
   if (!seg) return;
@@ -331,11 +331,7 @@ function drawKeys(t, dt) {
     if (s.lift > 0.02) { g.fillStyle = alpha(ACC, s.lift * 0.85); g.fill(); }
     const lit = (INPUT.mask | INPUT.guide) & 1 << i;   // 入力に使うキー（指を置く場所）：オレンジに光る。上がっているあいだは濃く
     if (lit) { g.fillStyle = alpha(ORANGE, INPUT.raised & 1 << i ? 0.95 : 0.6 + 0.25 * Math.sin(t / 260)); g.fill(); }
-    g.strokeStyle = s.rest ? '#e5484d' : '#34353a'; g.lineWidth = 1.5; g.stroke();
-    if (INPUT.mask | INPUT.guide) {   // 入力の場面では、8つのキーに文字を出す（どの指か分かるように）
-      g.fillStyle = lit ? '#1a0e00' : '#7d7a74'; g.font = `700 ${ks * 0.36}px "Hiragino Sans","Noto Sans JP",system-ui,sans-serif`;
-      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(KEY_NAMES[i], kx(i), y + 1);
-    }
+    g.strokeStyle = s.rest ? '#e5484d' : '#34353a'; g.lineWidth = 1.5; g.stroke();   // キーの文字（A S D F…）は、来場者には関係ないので出さない
   }
 }
 
