@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
 <style>
-/* タイムラインは X と同じ見た目（feed.html と同じ色と組み方）。ダーク／ライトは ?theme=dark|light（なければ端末の設定）
+/* タイムラインは X と同じ見た目（feed.html と同じ色と組み方）。初期値はライト。?theme=dark でダーク、?theme=auto で端末の設定に合わせる
    下の帯（作品名・見出し・QR）は展示の案内なので、X の画面とは分ける：展示画面の紙色と墨色を、タイムラインと反転させて使う */
 :root,[data-theme="dark"]{--bg:#000;--text:#e7e9ea;--sub:#71767b;--border:#2f3336;--link:#1d9bf0;--media-bg:#16181c;--thread:#333639;--new:#1d9bf01f;
   --cap-bg:#f3f6f9;--cap-ink:#18212b;--cap-sub:#68727d}
@@ -79,9 +79,9 @@ main::-webkit-scrollbar{display:none}
 'use strict';
 const q = new URLSearchParams(location.search), isPhone = q.has('m');
 if (isPhone) document.body.classList.add('m');
-// ダーク／ライト：?theme=dark|light。なければ端末の設定に合わせる
+// ダーク／ライト：初期値はライト。?theme=dark でダーク、?theme=auto で端末の設定に合わせる
 const sysDark = matchMedia('(prefers-color-scheme: dark)');
-const applyTheme = () => { const t = q.get('theme'); document.documentElement.dataset.theme = t === 'dark' || t === 'light' ? t : sysDark.matches ? 'dark' : 'light'; };
+const applyTheme = () => { const t = q.get('theme') || 'light'; document.documentElement.dataset.theme = t === 'auto' ? (sysDark.matches ? 'dark' : 'light') : t === 'dark' ? 'dark' : 'light'; };
 applyTheme(); sysDark.addEventListener('change', applyTheme);
 
 const list = document.getElementById('list');
