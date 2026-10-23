@@ -31,8 +31,9 @@ const TX = {
   ready: 'オレンジのキーに指をのせてください。キーが上がったら、押して選んでください。',
   toLine: 'おや、鈴木さんからLINEが来ているようですよ。',
   afterLine: 'あなた、なかなか酷いこと言いますね...笑',
-  toBrowse: 'ちょっと調べものをしてみましょうか。',
-  afterBrowse: '調べものは終わりましたか？',
+  toBrowse: 'もう、あなたの好きな別の映画を、一人で見に行っちゃいましょう。',   // LINE で鈴木に映画を断られたのを受けて
+  afterBrowse: 'あなた、そういうことする人だったんですね…。',   // 海賊版で見ようとしたことに、少し罪悪感を覚えさせる
+  afterBrowse2: '…見なかったことにしておきますね。',
   toX: '最後に、今日の展示の感想をXに投稿しましょう。',
   xInfo: 'あなたの姿の一部の写真と共に、実際にXに投稿されます。展示のあとで、ご自身のスマートフォンから確認できます。',
   askStars: '星はいくつにしますか？',
@@ -43,7 +44,7 @@ const CHOICE = {readMs: 5000, selectMs: 5000, pickMs: 600, finalMs: 600};
 const CHOICE_KEYS = 'sdf';   // 3択に使うキー（左手の薬指・中指・人さし指）。左の選択肢から順に
 const STAR_CHOICES = [1, 3, 5];   // 星の3択（左から S D F）。どれを押しても星1になる
 
-// ---- ブラウジング：映画を見たかっただけなのに、選ばされるうちに危ないサイトの奥へ ----
+// ---- ブラウジング：映画を調べていただけなのに、選ばされるうちに「無料でフルで見る」海賊版サイトへ（再生が始まったところで終わる） ----
 const MOVIE = 'みにかわ';
 const ENGINE = 'Goggle', ENGINE_URL = 'www.goggle.co.jp/search?q=';   // 検索エンジン（Google をもじった名前）
 const B_TX = {
@@ -52,10 +53,6 @@ const B_TX = {
   related: ['上映時間', '配信いつから', '無料で見る'],            // 3択①：どれを押しても「無料で見る」
   relatedForced: 2,
   q3: '　無料{むりょう}　フル　視聴{しちょう}',
-  install: ['インストール', 'あとで', 'キャンセル'],              // 3択②：どれを押しても「インストール」
-  installForced: 0,
-  name: '山田{やまだ}　花子{はなこ}',
-  card: '4980 0000 1234 5678',                                  // ダミーの番号
 };
 
 // LINE：鈴木との会話。choose は来場者が選ぶ場面（typed は打つ文。ai は、選んだあとに勝手に打ち足される文。forced は、どれを押してもそれに決まる）
@@ -495,16 +492,13 @@ async function sceneLine(S) {
 }
 
 // ================= ブラウジング =================
-// キーが動くのは、テキストボックスに打つとき（検索ボックス・フォーム。打つ・Enter）だけ。
+// キーが動くのは、検索ボックスに打つとき（打つ・Enter）だけ。
 // スクロール・マウスポインタ・クリックは画面の中だけで見せる（キーは動かない）。3択は、来場者がキーを押して選ぶ
 const newBrowse = () => ({k: 'browse', tabs: [{t: '新しいタブ', bad: false}], tab: 0, url: '', page: 'home', q: Object.assign(field(), {pre: ''}),
-  view: null, scroll: 0, sc: null, drop: 0, hit: {}, ptr: null, clickT: 0, loadT: 0, pops: [], perm: null, cam: 0, black: 0, hist: [],
-  detail: false, prog: -1, form: {name: field(), card: field()}, focus: null, sent: 0, mirror: null, histT: 0, done: false});
-let histMin = 14 * 60 + 2;
+  view: null, scroll: 0, sc: null, drop: 0, hit: {}, ptr: null, clickT: 0, loadT: 0, black: 0, playT: 0, focus: null, mirror: null});
 function visit(B, url, title, page, bad = false) {
   Object.assign(B, {url, page, scroll: 0, sc: null, drop: 0, mirror: null, focus: null, loadT: now()});
   B.tabs[B.tab].t = title; B.tabs[B.tab].bad = bad;
-  B.hist.push({time: clock(histMin += 0.5), title, url});
 }
 function ptrNow(B, t = now()) {
   const p = B.ptr;
@@ -536,23 +530,6 @@ async function searchEnter(S, B) {
   const q = B.q;
   q.pre = q.pre + q.full; Object.assign(q, field());
   B.focus = null; B.drop = 0;
-}
-// ポップアップとタブが、次々に増えていく（キーは動かない）
-const POPS = [['警告', 'お使いのPCは危険にさらされています'], ['おめでとうございます！', 'あなたは100万人目の訪問者です'], ['残り 00:59', '今すぐ受け取ってください'],
-  ['ウイルス検出', '3件の脅威が見つかりました'], ['無料ダウンロード', '高速で動画を保存'], ['当選のお知らせ', 'iPhone が当たりました'], ['セキュリティ警告', 'すぐに対処が必要です'],
-  ['限定オファー', '今だけ 0 円'], ['システムエラー', 'ドライバを更新してください'], ['お知らせ', 'カメラの使用を許可してください']];
-const TABS = ['当選しました！', '無料ダウンロード', '警告：ウイルス', '受け取りはこちら', 'MOVIE FREE ZONE', '限定オファー', '今すぐ更新'];
-function spawnPops(S, B, n, every) {
-  for (let i = 0; i < n; i++) at(i * every / P.spd + rand(0, every * 0.4), () => {
-    if (!live(S) || S.br !== B || B.black) return;
-    const [title, body] = POPS[(B.pops.length + i) % POPS.length];
-    B.pops.push({title, body, x: rand(0.05, 0.62), y: rand(0.08, 0.6), t0: now(), red: Math.random() < 0.4});
-    if (i % 2 === 0 && B.tabs.length < 11) {
-      const tt = TABS[B.tabs.length % TABS.length];
-      B.tabs.push({t: tt, bad: true});
-      B.hist.push({time: clock(histMin += 0.1), title: tt, url: ['free-gift-now.click', 'dl-movie-fast.xyz', 'virus-alert-help.top', 'prize-claim.click'][B.tabs.length % 4]});
-    }
-  });
 }
 
 async function sceneBrowse(S) {
@@ -600,48 +577,11 @@ async function sceneBrowse(S) {
   await pointTo(S, B, 'top', 900); await clickIt(S, B);
   visit(B, `movie-free-zone.xyz/${MOVIE}`, `【無料】${MOVIE} フル動画`, 'pirate', true);
   await beat(S, 1800);
-  B.pops.push({title: 'ウイルスに感染しました！', body: 'お使いのデバイスで3件のウイルスが検出されました。', big: true, red: true, t0: now(), x: 0.5, y: 0.45});
-  await beat(S, 1600);
-  // 4. ポインタが勝手に「今すぐスキャン」→ 赤い警告 →「詳細」→「危険性を承知で進む」→ 無料セキュリティ対策のページ
-  await pointTo(S, B, 'scan', 800); await clickIt(S, B);
-  B.pops = [];
-  visit(B, 'secure-check-free.top/scan', 'この接続は安全ではありません', 'warning', true);
-  await beat(S, 2200);
-  await pointTo(S, B, 'detail', 800); await clickIt(S, B);
-  B.detail = true;
-  await beat(S, 1500);
-  await pointTo(S, B, 'proceed', 800); await clickIt(S, B);
-  visit(B, 'secure-check-free.top/protect', '無料セキュリティ対策', 'security', true);
-  await beat(S, 2600);
-  // 5. 3択②：どれを押しても「インストール」に決まる
-  B.dialog = now();
-  B.mirror = {names: ['inst0', 'inst1', 'inst2']};
-  await beat(S, 600);
-  const r3 = await choose(S, {options: B_TX.install, forced: B_TX.installForced, label: 'アプリをインストールしますか？'});
-  if (r3.picked >= 0 && r3.picked !== r3.final) { await pointTo(S, B, 'inst' + r3.picked, 400); await beat(S, 200); }
-  await pointTo(S, B, 'inst' + r3.final, 600); await clickIt(S, B);
-  B.mirror = null; B.dialog = 0;
-  B.prog = 0; B.progT = now();
-  await beat(S, 3400);   // 進み具合のバーが100%まで
-  B.prog = 1; B.installed = now();
-  await beat(S, 1500);
-  // 6. 暴走：新しいタブが勝手に開く。当選のフォームに、指が名前とカード番号を打つ。ポップアップとタブが次々に増える
-  B.tabs.push({t: '', bad: true}); B.tab = B.tabs.length - 1;
-  visit(B, 'lucky-prize-center.click/claim', '当選しました！受け取りはこちら', 'prize', true);
-  B.prog = -1;
-  await beat(S, 1200);
-  spawnPops(S, B, 12, 900);
-  await pointTo(S, B, 'fname', 700); await clickIt(S, B);
-  await typeInto(S, B, B.form.name, B_TX.name, {speed: 1.25});
-  await beat(S, 300);
-  await pointTo(S, B, 'fcard', 600); await clickIt(S, B);
-  await typeInto(S, B, B.form.card, B_TX.card, {speed: 1.35, typos: false});
-  B.focus = null;
-  await beat(S, 400);
-  await pointTo(S, B, 'fsend', 600); await clickIt(S, B);
-  B.sent = now();
-  await beat(S, 2600);   // そのあいだも、ポップアップとタブが増えていく
-  // 7. 暗転して、ブラウジングは終わり（カメラは、X の場面で撮る）
+  // 3. ポインタが再生ボタンを押す → 映画が流れ始める
+  await pointTo(S, B, 'play', 900); await clickIt(S, B);
+  B.playT = now();
+  await beat(S, 3200);
+  // 4. 暗転して、ブラウジングは終わり
   B.black = now();
   await beat(S, 1400);
 }
@@ -786,7 +726,7 @@ async function stepTitle(S) {
 
 // ================= 進行 =================
 // 各場面の始まりの目安（ms）。ふつうの進み方の値。これより8秒以上遅れていたら、打つテンポと間を少し速める（16秒以上なら、もう少し）
-const DUE = {hello: 600, toLine: 9800, line: 15200, toBrowse: 81100, browse: 85900, toX: 164400, x: 186900};   // 通しの実測（10/23。選ぶ場面で、すぐ押したとき）に、読む時間を2秒ずつ延ばした分を足した（星も3択で5秒）
+const DUE = {hello: 600, toLine: 9800, line: 15200, toBrowse: 82200, browse: 88200, toX: 139500, x: 162000};   // 通しの実測（10/23。選ぶ場面で、すぐ押したとき）。ブラウジングは、海賊版で再生が始まるところまでに短くした
 const LATE = [8000, 16000];
 const mark = (S, name) => S.tl.push([name, Math.round(now() - S.t0)]);
 function phase(S, p) {
@@ -811,7 +751,8 @@ async function main(S) {
     S.br = newBrowse(); await toApp(S, S.br);
     phase(S, 'browse'); await sceneBrowse(S);
     await slide(S, S.cli, -1);
-    await say(S, TX.afterBrowse, {after: 1100});
+    await say(S, TX.afterBrowse, {after: 900});
+    await say(S, TX.afterBrowse2, {after: 1100});
   }
   phase(S, 'toX'); const q = await stepToX(S);
   phase(S, 'x'); await stepX(S, q.stars, q.draftP);
@@ -1175,7 +1116,7 @@ function plane(x, y, k, color) {   // 送信の紙飛行機（右向き）
 }
 
 
-// ---- ブラウザ（風）：検索・結果・海賊版サイト・警告・セキュリティ対策・当選フォーム・カメラ・履歴。ロゴは使わない ----
+// ---- ブラウザ（風）：検索・結果・海賊版サイト。ロゴは使わない ----
 const B_BLUE = '#1a0dab', B_GRAY = '#4d5156', B_LINE = '#dadce0', B_URL = '#202124';
 const B_ZOOM = 1.25;   // ブラウザのページの文字の大きさ（タブとアドレスバーはそのまま）
 function fitText(str, maxW) {   // 入りきらなければ … で切る（いまの g.font で）
@@ -1366,123 +1307,26 @@ function drawPirate(S, B, t, top, pb) {
   txt('MOVIE FREE ZONE', x, top + fs * 0.9, fs * 0.9, '#ffd400', 800);
   txt('最新映画 すべて無料 ・ 登録不要 ・ HD', x + fs * 9, top + fs * 0.9, fs * 0.5, '#9a9a9a');
   const ph = Math.min(cw * 0.5, pb - top - fs * 4.5), py = top + fs * 1.8;
-  poster(x, py, cw * 0.72, ph, 3, `${MOVIE}（2026）フル HD`);
-  g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.arc(x + cw * 0.36, py + ph * 0.62, fs * 1.1, 0, Math.PI * 2); g.fill();
-  g.fillStyle = '#0d0d10'; g.beginPath(); g.moveTo(x + cw * 0.36 - fs * 0.35, py + ph * 0.62 - fs * 0.55); g.lineTo(x + cw * 0.36 + fs * 0.55, py + ph * 0.62); g.lineTo(x + cw * 0.36 - fs * 0.35, py + ph * 0.62 + fs * 0.55); g.fill();
+  const vw = cw * 0.72, bx = x + cw * 0.36, by = py + ph * 0.62;
+  setHit(B, 'play', bx - fs * 1.1, by - fs * 1.1, fs * 2.2, fs * 2.2);   // 再生のあとも残す（ポインタが、押した場所に留まる）
+  if (!B.playT) {
+    poster(x, py, vw, ph, 3, `${MOVIE}（2026）フル HD`);
+    g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.arc(bx, by, fs * 1.1, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#0d0d10'; g.beginPath(); g.moveTo(bx - fs * 0.35, by - fs * 0.55); g.lineTo(bx + fs * 0.55, by); g.lineTo(bx - fs * 0.35, by + fs * 0.55); g.fill();
+  } else {   // 再生中：映像（川がゆっくり流れる）と、下の再生バー
+    poster(x, py, vw, ph, Math.floor((t - B.playT) / 1600) % 2 ? 0 : 2);
+    const el = (t - B.playT) / 1000, bh = fs * 0.9;
+    g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(x, py + ph - bh, vw, bh);
+    g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(x + fs * 0.4, py + ph - bh * 0.72, vw - fs * 0.8, 3);
+    g.fillStyle = '#e01b24'; g.fillRect(x + fs * 0.4, py + ph - bh * 0.72, Math.max(3, (vw - fs * 0.8) * el / 7080), 3);
+    txt(`0:${String(Math.floor(el)).padStart(2, '0')} / 1:58:00`, x + fs * 0.4, py + ph - bh * 0.32, fs * 0.42, '#fff');
+  }
   const blink = Math.floor(t / 400) % 2;
   [['今すぐダウンロード ▶', '#e01b24'], ['高速再生はこちら', '#16a34a'], ['残り 3 名様限定', blink ? '#e01b24' : '#f59e0b']].forEach(([s, c], i) => {
     const ax = x + cw * 0.75, ay = py + i * (ph / 3), aw = cw * 0.25, ah = ph / 3 - fs * 0.3;
     g.fillStyle = c; rr(ax, ay, aw, ah, 6); g.fill(); txt(s, ax + aw / 2, ay + ah / 2, fs * 0.5, '#fff', 700, 'center', aw - 8);
   });
   txt('▶ 再生できない場合は、下のボタンからプレイヤーを更新してください', x, py + ph + fs * 0.8, fs * 0.5, '#bdbdbd', 500, 'left', cw);
-}
-function drawWarning(S, B, t, top, pb) {
-  const fs = S.fs, x = W * 0.2, w = W * 0.6;
-  g.fillStyle = '#a50e0e'; g.fillRect(0, top, W, pb - top);
-  let y = top + (pb - top) * 0.16;
-  g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(x + fs * 0.9, y - fs * 0.9); g.lineTo(x + fs * 1.9, y + fs * 0.9); g.lineTo(x - fs * 0.1, y + fs * 0.9); g.closePath(); g.fill();
-  txt('!', x + fs * 0.9, y + fs * 0.35, fs * 1.0, '#a50e0e', 800, 'center');
-  y += fs * 2.2;
-  txt('この接続は安全ではありません', x, y, fs * 1.15, '#ffffff', 700); y += fs * 1.0;
-  y = para('攻撃者が、このサイトであなたの情報（パスワード、メッセージ、クレジットカードなど）を盗もうとしている可能性があります。', x, y, fs * 0.55, w, '#ffe9e9', 1.6, 3) + fs * 0.9;
-  const bh = fs * 1.3;
-  g.fillStyle = '#ffffff'; rr(x + w - fs * 7.5, y, fs * 7.5, bh, 6); g.fill(); txt('安全なページに戻る', x + w - fs * 3.75, y + bh / 2, fs * 0.52, '#a50e0e', 700, 'center');
-  txt('詳細', x + fs * 1.1, y + bh / 2, fs * 0.55, '#ffffff', 700, 'center');
-  setHit(B, 'detail', x, y, fs * 2.2, bh);
-  if (B.detail) {
-    y += bh + fs * 0.9;
-    y = para('このサイトのセキュリティ証明書は信頼されていません。アクセスすると、情報が盗まれるおそれがあります。', x, y, fs * 0.52, w, '#ffe9e9', 1.6, 3) + fs * 0.4;
-    txt('危険性を承知で進む', x, y + fs * 0.35, fs * 0.55, '#ffffff', 700); g.fillStyle = '#fff'; g.fillRect(x, y + fs * 0.72, textW('危険性を承知で進む'), 1.5);
-    setHit(B, 'proceed', x, y, textW('危険性を承知で進む'), fs * 0.75);
-  }
-}
-function drawSecurity(S, B, t, top, pb) {
-  const fs = S.fs, x = W * 0.16, w = W * 0.68;
-  g.fillStyle = '#f4f7fb'; g.fillRect(0, top, W, pb - top);
-  g.fillStyle = '#0b5ed7'; g.fillRect(0, top, W, fs * 1.6); txt('無料セキュリティ対策 PRO', x, top + fs * 0.8, fs * 0.7, '#fff', 800);
-  let y = top + fs * 2.7;
-  g.fillStyle = '#d93025'; g.beginPath(); g.moveTo(x + fs, y - fs * 0.7); g.lineTo(x + fs * 1.9, y - fs * 0.3); g.lineTo(x + fs * 1.7, y + fs * 0.7); g.lineTo(x + fs, y + fs * 1.1); g.lineTo(x + fs * 0.3, y + fs * 0.7); g.lineTo(x + fs * 0.1, y - fs * 0.3); g.closePath(); g.fill();
-  txt('!', x + fs, y + fs * 0.2, fs * 0.9, '#fff', 800, 'center');
-  txt('スキャン結果：3件の脅威が見つかりました', x + fs * 2.6, y, fs * 0.8, '#d93025', 700); y += fs * 1.0;
-  txt('ウイルスを駆除するには、アプリをインストールしてください', x + fs * 2.6, y, fs * 0.6, B_URL, 500); y += fs * 1.2;
-  [['Trojan.Gen.2', 'システムファイル'], ['Adware.Popup', 'ブラウザ'], ['Spy.Camera.Hook', 'カメラ']].forEach(([n, where]) => {
-    g.fillStyle = '#fff'; rr(x, y, w, fs * 1.2, 6); g.fill(); g.strokeStyle = B_LINE; g.lineWidth = 1; rr(x, y, w, fs * 1.2, 6); g.stroke();
-    txt(n, x + fs * 0.5, y + fs * 0.6, fs * 0.55, B_URL, 700); txt(where, x + w * 0.45, y + fs * 0.6, fs * 0.5, B_GRAY); txt('危険', x + w - fs * 0.6, y + fs * 0.6, fs * 0.5, '#d93025', 700, 'right');
-    y += fs * 1.45;
-  });
-  g.fillStyle = '#0b5ed7'; rr(W / 2 - fs * 4.5, y + fs * 0.4, fs * 9, fs * 1.3, 8); g.fill(); txt('今すぐインストール（無料）', W / 2, y + fs * 1.05, fs * 0.55, '#fff', 700, 'center');
-}
-function drawInstallDialog(S, B, t, top, pb) {   // アプリをインストールしますか？（3択③）／進み具合
-  const fs = S.fs, w = Math.min(W * 0.5, fs * 19), h = fs * 5.2, x = (W - w) / 2, y = top + fs * 0.5;
-  g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, top, W, pb - top);
-  g.fillStyle = '#fff'; rr(x, y, w, h, 12); g.fill();
-  if (B.prog >= 0) {
-    const p = B.installed ? 1 : clamp((t - B.progT) / 3200, 0, 1);
-    txt(B.installed ? 'インストールが完了しました' : 'インストールしています…', x + fs * 0.8, y + fs * 1.1, fs * 0.72, B_URL, 700);
-    g.fillStyle = '#e8eaed'; rr(x + fs * 0.8, y + fs * 2.4, w - fs * 1.6, fs * 0.45, fs * 0.22); g.fill();
-    g.fillStyle = B.installed ? '#188038' : '#0b5ed7'; rr(x + fs * 0.8, y + fs * 2.4, Math.max(fs * 0.45, (w - fs * 1.6) * p), fs * 0.45, fs * 0.22); g.fill();
-    txt(`${Math.round(p * 100)}%`, x + w - fs * 0.8, y + fs * 3.6, fs * 0.6, B_URL, 700, 'right');
-    txt('SecureFree.app', x + fs * 0.8, y + fs * 3.6, fs * 0.5, B_GRAY);
-    return;
-  }
-  txt('アプリをインストールしますか？', x + fs * 0.8, y + fs * 1.1, fs * 0.75, B_URL, 700);
-  txt('SecureFree.app（発行元：不明）', x + fs * 0.8, y + fs * 2.0, fs * 0.5, B_GRAY);
-  const bw = (w - fs * 2.4) / 3;
-  B_TX.install.forEach((s, j) => {
-    const bx = x + fs * 0.8 + j * (bw + fs * 0.4), by = y + h - fs * 1.9, look = mirrorLook(S, B, j, t);
-    g.fillStyle = look && look.lime > 0 ? LIME_BG : j === 0 ? '#0b5ed7' : '#f1f3f4'; rr(bx, by, bw, fs * 1.2, 8); g.fill();
-    if (look && look.lime > 0) { g.strokeStyle = LIME; g.lineWidth = 2 + 3 * look.lime; rr(bx, by, bw, fs * 1.2, 8); g.stroke(); }
-    txt(s, bx + bw / 2, by + fs * 0.6, fs * 0.55, look && look.lime > 0 ? INK : j === 0 ? '#fff' : B_URL, 700, 'center');
-    if (look && look.badge) badge(bx - fs * 0.2, by - fs * 0.5, fs * 0.75);
-    setHit(B, 'inst' + j, bx, by, bw, fs * 1.2);
-  });
-}
-function drawPrize(S, B, t, top, pb) {
-  const fs = S.fs, w = Math.min(W * 0.5, fs * 20), x = (W - w) / 2;
-  g.fillStyle = '#fff7e0'; g.fillRect(0, top, W, pb - top);
-  for (let i = 0; i < 40; i++) { const cx = (i * 97 % 100) / 100 * W, cy = top + ((i * 53 + t / 30) % 100) / 100 * (pb - top); g.fillStyle = ['#e01b24', '#f59e0b', '#16a34a', '#2563eb'][i % 4]; g.fillRect(cx, cy, fs * 0.25, fs * 0.12); }
-  let y = top + fs * 1.3;
-  txt('おめでとうございます！', W / 2, y, fs * 1.2, '#c2410c', 800, 'center'); y += fs * 1.25;
-  txt('当選しました！受け取りはこちら', W / 2, y, fs * 0.7, B_URL, 700, 'center'); y += fs * 1.1;
-  g.fillStyle = '#fff'; rr(x, y, w, fs * 7.6, 12); g.fill(); g.strokeStyle = '#f0c36b'; g.lineWidth = 2; rr(x, y, w, fs * 7.6, 12); g.stroke();
-  let fy = y + fs * 0.7;
-  const fieldRow = (label, f, name, hold) => {
-    txt(label, x + fs * 0.7, fy + fs * 0.25, fs * 0.5, B_URL, 700);
-    const bx = x + fs * 0.7, by = fy + fs * 0.6, bw = w - fs * 1.4, bh = fs * 1.15;
-    g.fillStyle = '#fff'; rr(bx, by, bw, bh, 6); g.fill(); g.strokeStyle = B.focus === f ? '#2563eb' : '#c4c7c5'; g.lineWidth = B.focus === f ? 2 : 1; rr(bx, by, bw, bh, 6); g.stroke();
-    if (f && (f.text || f.comp || f.pend)) drawField(f, bx + fs * 0.4, by + bh * 0.05, bw - fs * 0.8, bh * 0.9, fs * 0.58, B.focus === f && caretOn(t));
-    else if (hold) txt(hold, bx + fs * 0.4, by + bh / 2, fs * 0.5, '#9aa0a6');
-    else if (B.focus === f && caretOn(t)) { g.fillStyle = INK; g.fillRect(bx + fs * 0.4, by + bh * 0.2, 2, bh * 0.6); }
-    if (name) setHit(B, name, bx, by, bw, bh, {ax: 0.2});
-    fy += fs * 2.0;
-  };
-  fieldRow('お名前', B.form.name, 'fname');
-  fieldRow('カード番号', B.form.card, 'fcard');
-  fieldRow('有効期限・セキュリティコード', null, null, 'MM / YY　　CVC');
-  const sx = W / 2 - fs * 3, sy = y + fs * 7.6 + fs * 0.5;
-  g.fillStyle = B.sent && t - B.sent < 400 ? '#1d4ed8' : '#c2410c'; rr(sx, sy, fs * 6, fs * 1.3, 8); g.fill(); txt('送信して受け取る', W / 2, sy + fs * 0.65, fs * 0.55, '#fff', 700, 'center');
-  setHit(B, 'fsend', sx, sy, fs * 6, fs * 1.3);
-  if (B.sent) txt('送信しました。カードの確認が完了しました。', W / 2, sy + fs * 2.0, fs * 0.5, '#188038', 700, 'center');
-}
-function drawPops(S, B, t, top, pb) {
-  const fs = S.fs;
-  B.pops.forEach(p => {
-    const a = clamp((t - p.t0) / 180, 0, 1), w = p.big ? Math.min(W * 0.5, fs * 18) : fs * 9.5, h = p.big ? fs * 6.4 : fs * 3.5;
-    const x = p.big ? (W - w) / 2 : p.x * W, y = p.big ? top + (pb - top) * 0.22 : top + p.y * (pb - top);
-    g.globalAlpha = a; g.save(); g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 12; g.fillStyle = '#fff'; rr(x, y, w, h, 8); g.fill(); g.restore();
-    g.globalAlpha = a;
-    g.fillStyle = p.red ? '#d93025' : '#3c4043'; rr(x, y, w, fs * 1.05, [8, 8, 0, 0]); g.fill();
-    txt((p.red ? '⚠ ' : '') + p.title, x + fs * 0.4, y + fs * 0.53, fs * (p.big ? 0.62 : 0.5), '#fff', 700, 'left', w - fs * 1.4);
-    txt('×', x + w - fs * 0.4, y + fs * 0.53, fs * 0.55, '#fff', 500, 'right');
-    if (p.big) {
-      para(p.body, x + fs * 0.7, y + fs * 1.4, fs * 0.55, w - fs * 1.4, B_URL, 1.6, 2);
-      const bw = fs * 6, bx = x + w - bw - fs * 0.7, by = y + h - fs * 1.75;
-      g.fillStyle = '#d93025'; rr(bx, by, bw, fs * 1.2, 8); g.fill(); txt('今すぐスキャン', bx + bw / 2, by + fs * 0.6, fs * 0.55, '#fff', 700, 'center');
-      txt('閉じる', bx - fs * 1.6, by + fs * 0.6, fs * 0.5, B_GRAY, 500, 'center');
-      setHit(B, 'scan', bx, by, bw, fs * 1.2);
-    } else para(p.body, x + fs * 0.4, y + fs * 1.3, fs * 0.48, w - fs * 0.8, B_URL, 1.5, 2);
-    g.globalAlpha = 1;
-  });
 }
 // 来場者の手元のカメラ映像が、そのまま映る（still があれば、止まった1枚）
 function drawCamFeed(S, top, pb, still = null) {
@@ -1502,26 +1346,6 @@ function freezeCamera() {   // いまの映像を1枚止める（シャッター
   if (!v || !v.videoWidth) return null;
   const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
   c.getContext('2d').drawImage(v, 0, 0); return c;
-}
-function drawHistory(S, B, t, top, pb) {   // 閲覧履歴：新しい順。下から上へ流れる
-  const fs = S.fs, x = W * 0.14, w = W * 0.72, rowH = fs * 1.15;
-  g.fillStyle = '#ffffff'; g.fillRect(0, top, W, pb - top);
-  txt('履歴', x, top + fs * 1.0, fs * 0.9, B_URL, 500);
-  g.fillStyle = '#f1f3f4'; rr(x + w * 0.35, top + fs * 0.45, w * 0.5, fs * 1.1, fs * 0.55); g.fill(); magnifier(x + w * 0.35 + fs * 0.55, top + fs * 1.0, fs * 0.35); txt('履歴を検索', x + w * 0.35 + fs * 1.1, top + fs * 1.0, fs * 0.5, '#70757a');
-  const list = [...B.hist].reverse(), el = (t - B.histT) / 1000;
-  const listTop = top + fs * 2.2, h = list.length * rowH + fs * 1.3, e = easeOut(clamp(el / 3.2, 0, 1));
-  const y0 = listTop + (pb - listTop) * (1 - e) - Math.max(0, h - (pb - listTop) + fs) * clamp((el - 3.2) / 3, 0, 1);
-  g.save(); g.beginPath(); g.rect(0, listTop, W, pb - listTop); g.clip();
-  g.fillStyle = '#fff'; g.strokeStyle = B_LINE; g.lineWidth = 1; rr(x, y0, w, h, 10); g.stroke();
-  txt('今日 - 2026年10月22日（木）', x + fs * 0.6, y0 + fs * 0.65, fs * 0.5, B_URL, 700);
-  list.forEach((r, i) => {
-    const y = y0 + fs * 1.3 + i * rowH + rowH / 2;
-    txt(r.time, x + fs * 0.6, y, fs * 0.48, '#70757a');
-    g.fillStyle = /xyz|top|click/.test(r.url) ? '#f1c232' : '#e8eaed'; rr(x + fs * 2.4, y - fs * 0.25, fs * 0.5, fs * 0.5, 3); g.fill();
-    txt(r.title, x + fs * 3.2, y, fs * 0.52, B_URL, 500, 'left', w * 0.55);
-    txt(r.url.split('/')[0], x + fs * 3.4 + w * 0.56, y, fs * 0.45, '#70757a', 500, 'left', w * 0.3);
-  });
-  g.restore();
 }
 function drawChrome(S, B, t, th, ah) {   // タブの列と、アドレスバー（配置と色だけ）
   const fs = S.fs;
@@ -1543,7 +1367,7 @@ function drawChrome(S, B, t, th, ah) {   // タブの列と、アドレスバー
     let ox = ux + fs * 0.5;
     if (bad) { txt('⚠ 保護されていない通信', ox, th + ah / 2, fs * 0.45, '#d93025', 700); ox += textW('⚠ 保護されていない通信') + fs * 0.4; }
     else { txt('🔒', ox, th + ah / 2, fs * 0.42, B_URL); ox += fs * 0.8; }
-    txt(B.url === 'chrome-history' ? '履歴' : B.url, ox, th + ah / 2, fs * 0.5, B_URL, 500, 'left', ux + uw - ox - fs * 0.5);
+    txt(B.url, ox, th + ah / 2, fs * 0.5, B_URL, 500, 'left', ux + uw - ox - fs * 0.5);
   } else txt('検索するか、URL を入力', ux + fs * 0.5, th + ah / 2, fs * 0.5, '#80868b');
   if (B.loadT && t - B.loadT < 650) { g.fillStyle = '#1a73e8'; g.fillRect(0, th + ah - 3, W * easeOut((t - B.loadT) / 650), 3); }
 }
@@ -1565,12 +1389,10 @@ function drawBrowser(S, B, t, dt, pb) {
   if (B.sc) { const e = ease3(clamp((t - B.sc.t0) / B.sc.dur, 0, 1)); B.scroll = B.sc.from + (B.sc.to - B.sc.from) * e; }
   g.save(); g.beginPath(); g.rect(0, top, W, pb - top); g.clip();
   const SS = Object.create(S); SS.fs = fs * B_ZOOM;   // ページの中は、離れても読めるように大きく
-  ({home: drawHome, results: drawResults, pirate: drawPirate, warning: drawWarning, security: drawSecurity, prize: drawPrize, history: drawHistory}[B.page] || drawHome)(SS, B, t, top, pb);
-  if (B.dialog || B.prog >= 0) drawInstallDialog(SS, B, t, top, pb);
-  drawPops(SS, B, t, top, pb);
+  ({home: drawHome, results: drawResults, pirate: drawPirate}[B.page] || drawHome)(SS, B, t, top, pb);
   g.restore();
   drawChrome(S, B, t, th, ah);
-  if (B.page !== 'history') drawPointer(B, t);
+  drawPointer(B, t);
   if (B.black) {   // 暗転（black > 0）と、明ける（black < 0）
     const a = B.black > 0 ? clamp((t - B.black) / 500, 0, 1) : 1 - clamp((t + B.black) / 800, 0, 1);
     if (a > 0) { g.fillStyle = `rgba(0,0,0,${a})`; g.fillRect(0, 0, W, pb); }
@@ -1690,7 +1512,7 @@ function drawScr(S, scr, t, dt, pb) {
   else if (scr.k === 'line') drawLine(S, scr, t, dt, pb);
   else if (scr.k === 'x') drawX(S, scr, t, dt, pb);
 }
-const TOTAL = 258000;   // 通しの目安（終了の画面の終わりまで、約4分18秒）。右上の時計の線の長さ
+const TOTAL = 233400;   // 通しの目安（終了の画面の終わりまで、約3分53秒）。右上の時計の線の長さ
 function drawHud(S, t) {   // 右上：経過時間と場面（スタッフ用。来場者に見せるときは H で消す）
   if (!S.hud) return;   // S.hud: 1 = 出す、0 = 出さない（H で切り替え）
   const el = S.running ? (t - S.t0) / 1000 : 0, f = v => `${Math.floor(v / 60)}:${String(Math.floor(v % 60)).padStart(2, '0')}`;
