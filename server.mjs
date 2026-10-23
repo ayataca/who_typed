@@ -263,12 +263,30 @@ function postedEntries() {
   const seen = new Set();
   return rows.filter(e => !(e.ids || [e.id]).some(x => x && removed.has(x)) && !seen.has(e.sessionId) && seen.add(e.sessionId));
 }
+// X に残っているかの確認：X のアプリやサイトで直接消したポストも、一覧から外す
+// 本番モードのあいだ、起動したときと X_VERIFY_MIN 分（既定 10。0 で確かめない）ごとに、新しい順に100回分の1件目を X に問い合わせる。
+// X が「見つからない」と答えたものだけを、削除として記録する（通信の失敗や API の制限のときは、何も消さない）
+const VERIFY_MIN = Number(env.X_VERIFY_MIN ?? 10);
+async function verifyOnX() {
+  const ids = postedEntries().filter(e => !e.dryRun && e.id).slice(-100).map(e => e.id);
+  if (!ids.length) return;
+  try {
+    const r = await xFetch('GET', `https://api.x.com/2/tweets?ids=${ids.join(',')}`);
+    const gone = (r?.errors || []).filter(x => x.title === 'Not Found Error').map(x => x.resource_id || x.value).filter(x => ids.includes(x));
+    if (!gone.length) return;
+    log({ deleted: gone, at: new Date().toISOString(), ok: true, by: 'x' });
+    console.log(`X で消されていたポスト ${gone.length} 件を、感想タイムラインとフィードから外しました`);
+  } catch (e) {
+    console.error(`X に残っているかの確認に失敗しました（一覧はそのまま）: ${e.message}`);
+  }
+}
 // 手元写真：その回が実際に X に出たとき（模擬モードの間は、リハーサルの投稿も）だけ、LAN に出す。X と同じく、スレッドの1件目に付く
 const showable = e => dryRun || !e.dryRun;
 const photoPath = sessionId => path.join(POSTS_DIR, `${sessionId}.jpg`);
 function photoUrl(e) { return showable(e) && fs.existsSync(photoPath(e.sessionId)) ? `/photo/${e.sessionId}.jpg` : ''; }
 function timeline(limit = 50) {
-  return postedEntries().slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join(''), texts: e.texts, photo: photoUrl(e) }));
+  // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない（フィードと同じ）
+  return postedEntries().filter(showable).slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join(''), texts: e.texts, photo: photoUrl(e) }));
 }
 
 // ---- 展示用フィード（スマホで X のプロフィール画面のように流す） ----
@@ -408,4 +426,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log(`Who Typed? サーバー: http://localhost:${PORT}`);
     console.log(configured ? (dryRun ? '投稿モード: 模擬（DRY_RUN=1。Xには投稿しません）' : `投稿モード: 本番（${handle} に投稿します）`) : '投稿モード: 模擬（.env に X の鍵が未設定）');
   });
+  if (!dryRun && VERIFY_MIN > 0) { verifyOnX(); setInterval(verifyOnX, VERIFY_MIN * 60000); }
 }
