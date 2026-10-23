@@ -100,12 +100,13 @@ if (fs.existsSync(LOG)) for (const line of fs.readFileSync(LOG, 'utf8').split('\
 }
 const log = entry => fs.appendFileSync(LOG, JSON.stringify(entry) + '\n');
 
+const xLen = s => [...s].reduce((n, ch) => { const c = ch.codePointAt(0); return n + (c <= 0x10FF || (c >= 0x2000 && c <= 0x200D) || (c >= 0x2010 && c <= 0x201F) || (c >= 0x2032 && c <= 0x2037) ? 1 : 2); }, 0);
 async function handlePost(req) {
   const { sessionId, imageData, rating } = req;
   const texts = Array.isArray(req.texts) ? req.texts : (typeof req.text === 'string' ? [req.text] : []);
   if (!/^[\w-]{8,64}$/.test(sessionId || '')) return { status: 400, body: { ok: false, error: 'sessionId がありません' } };
-  // 日本語は1文字が2文字分に数えられるので、1ポスト140字まで。スレッドは10件まで
-  if (!texts.length || texts.length > 10 || texts.some(x => typeof x !== 'string' || !x.trim() || x.length > 140)) return { status: 400, body: { ok: false, error: '本文が不正です' } };
+  // X の数え方（日本語などは1字を2、英数字などは1）で、1ポスト280まで（日本語なら140字）。スレッドは10件まで
+  if (!texts.length || texts.length > 10 || texts.some(x => typeof x !== 'string' || !x.trim() || xLen(x) > 280)) return { status: 400, body: { ok: false, error: '本文が不正です' } };
   const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(imageData || '');
   if (!m) return { status: 400, body: { ok: false, error: '手元写真がありません（撮影に失敗した回は投稿しません）' } };
 
@@ -208,6 +209,18 @@ const LLM_TASKS = {
     user: ({ stars }) => `星: ${stars}`,
     out: j => { const text = clip(j.text, 200); const n = stripRuby(text).length; return n >= 30 && n <= 70 ? { text } : null; },
   },
+  // 英語版の下書き：日本語版と同じ温度で、英語の短い文（打つキーにない字は使わない）
+  review_en: {
+    system: [
+      'You write a short review of an art exhibit, to be posted on X on behalf of a visitor.',
+      '- Whatever the star rating, the review praises the exhibit: 5 stars is a rave; 3 stars is moderately positive, not a rave; 1 star is mild praise, along the lines of "some parts were rough, but it was an unusual experience".',
+      '- Casual, natural English, like a real visitor writing on their phone. 80 to 120 characters in total. No hashtags, no emoji, no double quotes, no dashes.',
+      '- Output exactly one line of JSON: {"text":"..."}',
+    ].join('\n'),
+    check: r => { const stars = Math.round(Number(r.stars)); return stars >= 1 && stars <= 5 ? { stars } : null; },
+    user: ({ stars }) => `Stars: ${stars}`,
+    out: j => { const text = clip(j.text, 200).replace(/[^A-Za-z0-9 .,;:'!?\/-]/g, ''); return text.length >= 50 && text.length <= 160 ? { text } : null; },
+  },
 };
 
 async function callLlm(system, user) {
@@ -287,7 +300,7 @@ async function readX(full = false) {
   if (dryRun || xBusy || Date.now() < xWaitUntil) return;
   xBusy = true;
   try {
-    if (!xs.userId) xs.userId = (await xFetch('GET', 'https://api.x.com/2/users/me')).data.id;
+    if (!xs.userId || !xs.name) { const me = (await xFetch('GET', 'https://api.x.com/2/users/me')).data; xs.userId = me.id; xs.name = me.name; }   // 表示名も X と同じにする
     const base = `https://api.x.com/2/users/${xs.userId}/tweets?max_results=100&exclude=retweets&tweet.fields=created_at,conversation_id&expansions=attachments.media_keys&media.fields=url,type`;
     if (full || !xs.at || !xs.tweets.length) {   // 読み直す：読んだ範囲は X のとおりにする（消されたものが外れる）。それより古いものは、前に読んだまま残す
       const got = []; let token = '';
@@ -326,7 +339,7 @@ const showable = e => dryRun || !e.dryRun;
 const photoPath = sessionId => path.join(POSTS_DIR, `${sessionId}.jpg`);
 function photoUrl(e) { return showable(e) && fs.existsSync(photoPath(e.sessionId)) ? `/photo/${e.sessionId}.jpg` : ''; }
 function timeline(limit = 50) {
-  if (fromXReady()) return xThreads().filter(ts => ts[0].text.startsWith('【来場者の声】')).slice(0, limit).map(ts => ({   // 展示のポストだけ（お知らせなどは出さない）
+  if (fromXReady()) return xThreads().filter(ts => /^【(来場者の声|Visitor Review)】/.test(ts[0].text)).slice(0, limit).map(ts => ({   // 展示のポストだけ（お知らせなどは出さない）
     id: ts[0].id, at: ts[0].at, rating: (ts[0].text.split('\n')[0].match(/★/g) || []).length || null, text: ts.map(t => t.text).join(''), texts: ts.map(t => t.text), photo: ts[0].photo,
   }));
   // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない
@@ -339,7 +352,7 @@ const avatarFile = () => AVATARS.find(f => fs.existsSync(path.join(ROOT, f))) ||
 function profile() {
   const a = avatarFile();
   return {
-    name: env.X_DISPLAY_NAME || handle.slice(1) || 'Who Typed?',
+    name: env.X_DISPLAY_NAME || xs.name || 'Who typed?',
     handle: handle.length > 1 ? handle : '',
     avatar: a ? '/' + a : '',
   };
@@ -389,7 +402,7 @@ const send = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'a
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
-    if (url.pathname === '/api/status' && req.method === 'GET') return send(res, 200, { configured, dryRun, handle, llm: !!LLM_KEY });
+    if (url.pathname === '/api/status' && req.method === 'GET') return send(res, 200, { configured, dryRun, handle, name: profile().name, llm: !!LLM_KEY });
     if (url.pathname === '/api/post' && req.method === 'POST') { const r = await handlePost(await readJson(req)); return send(res, r.status, r.body); }
     if (url.pathname === '/api/delete' && req.method === 'POST') { const r = await handleDelete(await readJson(req, 4096)); return send(res, r.status, r.body); }
     if (url.pathname === '/api/llm' && req.method === 'POST') {

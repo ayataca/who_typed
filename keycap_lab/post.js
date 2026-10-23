@@ -9,6 +9,8 @@ const CONFIG = {
   // アカウント名は server.mjs（.env の X_HANDLE）から読み込んで上書きする
   xAccountUrl: 'https://x.com/',
   xHandle: '@who_typed_exhibit',
+  xName: 'Who typed?',                 // 表示名（server.mjs から読み込んで上書きする。X のアカウントと同じ）
+  avatar: '/feed-avatar.png',          // アイコン（X のアカウントと同じ画像）
   // node server.mjs で配信したときだけ投稿する。file:// で開いた場合は模擬投稿
   postEndpoint: location.protocol.startsWith('http') ? '/api/post' : '',
   postTimeoutMs: 25000,
@@ -18,6 +20,12 @@ const CONFIG = {
   endMs: 25000,       // 終了画面を見せてから、待機に戻るまで（次のお客さんへ）
 };
 const $ = id => document.getElementById(id);
+// 言語（dialogue.js の setLang から）：投稿の見出しと、確認画面の文言
+let LANG = 'ja';
+const setLang = l => { LANG = l === 'en' ? 'en' : 'ja'; };
+const tr = (ja, en) => LANG === 'en' ? en : ja;
+// X の文字数の数え方：日本語などは1字を2、英数字などは1と数える（1ポスト280まで）
+const xLen = s => [...s].reduce((n, ch) => { const c = ch.codePointAt(0); return n + (c <= 0x10FF || (c >= 0x2000 && c <= 0x200D) || (c >= 0x2010 && c <= 0x201F) || (c >= 0x2032 && c <= 0x2037) ? 1 : 2); }, 0);
 let stream = null, postAbort = null, lastPostIds = null, publishAllowed = true, stopPublishedOnce = null;
 
 // ---- 改行：日本語を文節ほどの塊に分け、塊の間にだけ改行できる位置（ゼロ幅スペース）を入れる（本編と同じ） ----
@@ -66,18 +74,20 @@ function place(w, h) {
   root.firstChild.style.transform = `translate(-50%,-50%) scale(${k})`;
 }
 
-// ---- 投稿の本文：1件目に星とハッシュタグ。長文は1ポスト125字までに区切り、2つ目以降はスレッド（返信）にする ----
+// ---- 投稿の本文：1件目に星とハッシュタグ。長文は1ポスト250まで（X の数え方。日本語なら125字）に区切り、2つ目以降はスレッド（返信）にする ----
 function buildPosts(review, rating) {
-  const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating), head = `【来場者の声】${stars} #who_typed #TechBias2026_Who_typed\n\n`, LIMIT = 125, out = [];
+  const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating), head = `${tr('【来場者の声】', '【Visitor Review】')}${stars} #who_typed #TechBias2026_Who_typed\n\n`, LIMIT = 250, out = [];
   let cur = head;
+  let rest0 = '';
   const push = () => { out.push(cur.trimEnd()); cur = ''; };
-  for (const sent of review.match(/[^。！？]+[。！？]*|[。！？]+/g) || []) {
-    let rest = sent;
-    while (cur.length + rest.length > LIMIT) {
+  const room = () => { let n = 0; for (const ch of [...rest0]) { if (xLen(cur) + xLen(rest0.slice(0, n + ch.length)) > LIMIT) break; n += ch.length; } return n; };   // 入りきる字数
+  for (const sent of review.match(LANG === 'en' ? /[^.!?]+[.!?]*\s*/g : /[^。！？]+[。！？]*|[。！？]+/g) || []) {
+    rest0 = sent;
+    while (xLen(cur + rest0) > LIMIT) {
       if (cur.length > (out.length ? 0 : head.length)) { push(); continue; }
-      const room = LIMIT - cur.length; cur += rest.slice(0, room); rest = rest.slice(room); push();
+      const k = room(); cur += rest0.slice(0, k); rest0 = rest0.slice(k); push();
     }
-    cur += rest;
+    cur += rest0;
   }
   if (cur.trim() && cur !== head) push();
   return out;
@@ -86,7 +96,7 @@ const XSVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h
 // 投稿の下に並ぶアイコン（返信・リポスト・いいね・表示回数）。数は投稿した瞬間なのですべて0
 const TW_ACT = '<div class="tw-act" aria-hidden="true">' + ['<path d="M4 5h16v11H9l-5 4z"/>', '<path d="M7 4 4 7l3 3M4 7h12v4M17 20l3-3-3-3M20 17H8v-4"/>', '<path d="M12 20s-7-4.4-7-9.5A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.5C19 15.6 12 20 12 20z"/>', '<path d="M5 20V12M10 20V6M15 20v-9M20 20V9"/>'].map(d => `<span><svg viewBox="0 0 24 24">${d}</svg>0</span>`).join('') + '</div>';
 function tweetHTML(text, photo) {
-  return `<article class="tw"><div class="avatar">W</div><div><div class="tw-head"><b>来場者の声</b><span class="handle">${CONFIG.xHandle}</span><span class="when">· 今</span><span class="xm">${XSVG}</span></div><div class="post-text"></div>${photo === undefined ? '' : photo ? `<img class="photo" src="${photo}" alt="このセッションで撮影した手元">` : '<div class="photo" style="display:grid;place-items:center;color:#69737d">カメラ画像なし</div>'}${TW_ACT}</div></article>`;
+  return `<article class="tw"><div class="avatar" style="background-image:url('${CONFIG.avatar}')"></div><div><div class="tw-head"><b>${CONFIG.xName}</b><span class="handle">${CONFIG.xHandle}</span><span class="when">· ${tr('今', 'now')}</span><span class="xm">${XSVG}</span></div><div class="post-text"></div>${photo === undefined ? '' : photo ? `<img class="photo" src="${photo}" alt="${tr('このセッションで撮影した手元', 'Photo of hands taken this session')}">` : `<div class="photo" style="display:grid;place-items:center;color:#69737d">${tr('カメラ画像なし', 'No camera image')}</div>`}${TW_ACT}</div></article>`;
 }
 const threadHTML = (posts, img) => posts.map((t, i) => tweetHTML(t, i ? undefined : img)).join('');
 function fillThread(sel, posts) { stage.querySelectorAll(sel + ' .post-text').forEach((el, i) => el.textContent = phraseBreak(posts[i])); }
@@ -181,12 +191,13 @@ function initControls() {
   };
   if (CONFIG.postEndpoint) fetch('/api/status').then(r => r.json()).then(st => {
     if (st.handle && st.handle !== '@') { CONFIG.xHandle = st.handle; CONFIG.xAccountUrl = 'https://x.com/' + st.handle.slice(1); }
+    if (st.name) CONFIG.xName = st.name;
     $('xStatus').textContent = 'X投稿: ' + (st.dryRun ? (st.configured ? '模擬（DRY_RUN=1）' : '模擬（.env に鍵が未設定）') : '本番 ' + st.handle);
   }).catch(() => { $('xStatus').textContent = 'X投稿: サーバーに接続できません'; });
   else $('xStatus').textContent = 'X投稿: 模擬（file:// で開いています。node server.mjs で起動してください）';
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initControls); else initControls();
 
-window.KC_POST = {CONFIG, show, hide, place, buildPosts, threadHTML, fillThread, autoScroll, phraseBreak,
+window.KC_POST = {CONFIG, setLang, show, hide, place, buildPosts, threadHTML, fillThread, autoScroll, phraseBreak,
   startCamera, capture, hasCamera: () => !!stream, submitPost, showPostResult, wantPost, canStart, newSession};
 })();

@@ -35,7 +35,6 @@ html.fs, html.fs *{cursor:none}
 #postResult a{color:#9ecbff}
 #keys{margin-left:auto}
 #status{color:var(--acc)}
-#inputState.warn{color:#e5484d}
 
 /* ===== 投稿のあとの画面（本編 who-typed-exhibition-scenario.html と同じ組み方。X の部分は白地。post.js） ===== */
 #post{position:absolute;left:0;top:0;display:none;overflow:hidden;background:#fff;
@@ -59,7 +58,7 @@ html.fs, html.fs *{cursor:none}
 #post .tw{display:grid;grid-template-columns:42px 1fr;gap:12px;position:relative}
 #post .tw+.tw{margin-top:18px}
 #post .tw:not(:last-child)::before{content:'';position:absolute;left:20px;top:50px;bottom:-14px;width:2px;background:var(--x-line)}
-#post .avatar{width:42px;height:42px;background:#0f1419;color:#fff;border-radius:50%;display:grid;place-items:center;font-family:"Poppins",sans-serif;font-weight:600}
+#post .avatar{width:42px;height:42px;background:#cfd9de center/cover no-repeat;border-radius:50%;flex:none}
 #post .tw-head{display:flex;align-items:center;gap:6px;font-size:17px}
 #post .handle,#post .tw .when{color:var(--x-sub);font-size:15px}
 #post .tw-head .xm{margin-left:auto;width:18px;height:18px;color:var(--x-ink)}
@@ -94,12 +93,10 @@ html.fs, html.fs *{cursor:none}
     <button class="op" id="fsBtn">全画面で表示</button>
     <button class="op" id="conn"></button>
     <span id="status"></span>
-    <span>入力テスト</span><div class="seg" id="inputSeg"></div><span id="inputState"></span>
     <span id="keys">Enter はじめる　Space 一時停止／再開　Z 全画面　H 表示の切り替え　Esc 全画面をやめる</span>
   </div>
   <div class="row">
     <label>速さ <input id="spd" type="range" min="0.25" max="3" step="0.05" value="1"><output></output></label>
-    <label>強さ <input id="str" type="range" min="5" max="100" step="1" value="100"><output></output></label>
     <label>駆動時間 <input id="len" type="range" min="30" max="400" step="5" value="150"><output></output></label>
   </div>
   <div class="row">
@@ -112,6 +109,7 @@ html.fs, html.fs *{cursor:none}
   </div>
 </footer>
 <script src="post.js"></script>
+<script src="reviews_en.js"></script>
 <script src="dialogue.js"></script>
 <script>
 'use strict';
@@ -124,7 +122,7 @@ const pick = a => a[ri(a.length)];
 // 時計：一時停止のあいだは止まる。体験の時間・アニメーション・予約（at）は、すべてこの時計で動く
 let pausedAt = 0, pausedTotal = 0;
 const now = () => (pausedAt || performance.now()) - pausedTotal;
-const P = {spd: 1, str: 100, len: 150};   // 速さ（倍）・強さ（PWM %）・駆動時間（ms。キーが立ち上がるのに要る長さ。どの打鍵もこれより短くしない）
+const P = {spd: 1, str: 100, len: 150};   // 速さ（倍）・強さ（PWM %。基板はいつも全力で押すので、100 のまま）・駆動時間（ms。キーが立ち上がるのに要る長さ。どの打鍵もこれより短くしない）
 
 // ---- 基板（Web Serial） ----
 // P key ms duty kick hz … 1本を ms だけ動かす ／ U mask … 入力：そのキーを上げて押し込みを待つ（200ms ごとに送り直す）／ X … 全部止める
@@ -164,8 +162,6 @@ function onLine(l) {
   else if ((m = l.match(/^UP (\d)/))) { if (INPUT.raised & 1 << m[1]) INPUT.armed &= ~(1 << m[1]); inputUI(); }
   else if (/^TIMEOUT/.test(l)) { INPUT.raised = INPUT.armed = 0; inputUI(); }
   else if ((m = l.match(/^KNOCK (\d) (LEARN|FREE|HELD|REST)\s*([\d.]*)/))) {
-    INPUT.knock = `鼓動 ${KEY_NAMES[+m[1]]}：${{LEARN: 'ふだんの形を覚えています', FREE: 'ふつう', HELD: '押さえている', REST: '休み中'}[m[2]]}${m[3] ? `（${m[3]}）` : ''}`;
-    inputUI();
     dispatchEvent(new CustomEvent('kc-knock', {detail: {key: +m[1], held: m[2] === 'HELD', score: +m[3] || 0}}));
   }
   connUI();
@@ -228,7 +224,7 @@ function simLevel(k, t) {
 // シリアルの DOWN は、表示と「キー入力が届いていない」の診断にだけ使う（入力の判定には使わない）
 const KEY_CODES = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon'];
 const KEY_NAMES = ['A', 'S', 'D', 'F', 'J', 'K', 'L', ';'];
-const INPUT = {mask: 0, guide: 0, quiet: false, raised: 0, armed: 0, last: '', knock: '', typed: new Array(8).fill(-1e9), warn: ''};
+const INPUT = {mask: 0, guide: 0, labels: [], raised: 0, armed: 0, last: '', typed: new Array(8).fill(-1e9), warn: ''};
 const MAX_RAISED = 3;   // 電源の都合で、同時に上げてよいのは3本まで（基板も3本までしか上げない）
 function toMask(keys) {
   if (typeof keys === 'number') return keys & 0xFF;
@@ -236,12 +232,9 @@ function toMask(keys) {
   for (const c of String(keys || '').toLowerCase()) { const i = 'asdfjkl;'.indexOf(c); if (i >= 0) m |= 1 << i; }
   return m;
 }
-const maskNames = m => KEY_NAMES.filter((_, i) => m & 1 << i).join(' ') || 'なし';
 function firstKeys(m, n) { let out = 0; for (let i = 0; i < 8 && n; i++) if (m & 1 << i) { out |= 1 << i; n--; } return out; }
-// quiet：上げるが、画面のキーはオレンジにしない（選ぶ場面の準備。まだ押させないとき）
-function listen(keys, quiet = false) {
+function listen(keys) {
   const m = firstKeys(toMask(keys), MAX_RAISED);
-  INPUT.quiet = quiet;
   if (m !== INPUT.mask) { INPUT.mask = m; INPUT.armed &= m; INPUT.warn = ''; }
   send(`U ${m.toString(16)}`);
   inputUI();
@@ -268,6 +261,8 @@ function boardDown(k) {
     inputUI();
   }, 500);
 }
+// 画面下のキーに出す番号（選ぶ場面の①②③）：[[キー, 番号], …]。null で消す
+function labels(list) { INPUT.labels = []; (list || []).forEach(([k, n]) => INPUT.labels[k] = n); }
 // 指を置く場所を、オレンジで示すだけ（キーは上げない）
 function guide(keys) { INPUT.guide = toMask(keys); }
 // 鼓動：上げていないキーを短く押す。基板は、そのときの電流から「指で押さえ込まれているか」を読み、押さえ込まれていればキーボードとしてそのキーを打つ（KNOCK … HELD）
@@ -278,21 +273,15 @@ function knock(k, ms = P.len) {
   Object.assign(sim[k], {active: true, start: t, until: t + ms, duty: 100, kick: 0, hz: 0});
   lastHit[k] = t;
 }
-const INPUT_TESTS = [['なし', 0], ['S D F', toMask('sdf')], ['F', toMask('f')]];
+// 入力のトラブル（押し込みがキー入力として届かない・基板が古い）だけを、下の帯の知らせに出す
+let lastWarn = '';
 function inputUI() {
-  const seg = $('inputSeg'), st = $('inputState');
-  if (!seg) return;
-  if (!seg.childElementCount) INPUT_TESTS.forEach(([label, m]) => {
-    const b = document.createElement('button'); b.textContent = label; b.onclick = () => { b.blur(); listen(m); }; seg.append(b);
-  });
-  [...seg.children].forEach((b, i) => b.className = INPUT_TESTS[i][1] === INPUT.mask ? 'on' : '');
   const old = version && !/KEYCAP-LAB-v([4-9]|\d\d)/.test(version);
-  st.className = INPUT.warn || (INPUT.mask && old) ? 'warn' : '';
-  st.textContent = !INPUT.mask ? INPUT.knock : INPUT.warn ? INPUT.warn
-    : old ? `基板が ${version} です。入力には keycap_lab.ino（KEYCAP-LAB-v4）を書き込んでください`
-    : `上げる: ${maskNames(INPUT.mask)}　${writer ? `上がっている: ${maskNames(INPUT.raised)}　押せる: ${maskNames(INPUT.armed)}` : '基板なし（PC のキーボードで試せます）'}${INPUT.last ? `　最後: ${INPUT.last}` : ''}`;
+  const w = INPUT.warn || (INPUT.mask && old ? `基板が ${version} です。入力には keycap_lab.ino（KEYCAP-LAB-v4）を書き込んでください` : '');
+  if (w && w !== lastWarn) status(w, 8000);
+  lastWarn = w;
 }
-window.KC_INPUT = {listen, guide, knock, get mask() { return INPUT.mask; }, get raised() { return INPUT.raised; }, KEY_NAMES};
+window.KC_INPUT = {listen, guide, knock, labels, get mask() { return INPUT.mask; }, get raised() { return INPUT.raised; }, KEY_NAMES};
 
 // ---- 時間 ----
 // 予約は、一時停止のあいだは止まり、再開すると残りの時間から続く
@@ -337,9 +326,14 @@ function drawKeys(t, dt) {
     g.beginPath(); g.roundRect(kx(i) - ks / 2, y - ks / 2, ks, ks, ks * 0.16);
     g.fillStyle = '#1d1e22'; g.fill();
     if (s.lift > 0.02) { g.fillStyle = alpha(ACC, s.lift * 0.85); g.fill(); }
-    const lit = ((INPUT.quiet ? 0 : INPUT.mask) | INPUT.guide) & 1 << i;   // 入力に使うキー（指を置く場所）：オレンジに光る。上がっているあいだは濃く
+    const lit = (INPUT.mask | INPUT.guide) & 1 << i;   // 入力に使うキー（指を置く場所）：オレンジに光る。上がっているあいだは濃く
     if (lit) { g.fillStyle = alpha(ORANGE, INPUT.raised & 1 << i ? 0.95 : 0.6 + 0.25 * Math.sin(t / 260)); g.fill(); }
     g.strokeStyle = s.rest ? '#e5484d' : '#34353a'; g.lineWidth = 1.5; g.stroke();   // キーの文字（A S D F…）は、来場者には関係ないので出さない
+    const n = INPUT.labels[i];
+    if (n && lit) {   // 選ぶ場面：選択肢の番号（①②③）
+      g.strokeStyle = '#1a0e00'; g.lineWidth = Math.max(2, ks * 0.04); g.beginPath(); g.arc(kx(i), y, ks * 0.27, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = '#1a0e00'; g.font = `800 ${ks * 0.32}px "Hiragino Sans","Noto Sans JP",system-ui,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), kx(i), y + 1);
+    }
   }
 }
 
@@ -363,7 +357,7 @@ function toMora(str) {
     let r = ROMA[ch];
     if (r && r.length > 1 && r.endsWith('i') && 'ゃゅょ'.includes(nx || '×')) { out.push({disp: ch + nx, keys: r.slice(0, -1) + 'y' + ROMA[nx].slice(-1)}); i++; continue; }
     if (r) out.push({disp: ch, keys: r});
-    else if (/[a-z0-9.,;\/\-!?]/i.test(ch)) out.push({disp: ch, keys: ch.toLowerCase()});
+    else if (/[a-z0-9.,;:'\/\-!?]/i.test(ch)) out.push({disp: ch, keys: ch.toLowerCase()});   // 英数字と記号は、そのキーを打つ（英語版の文）
     else out.push({disp: ch, keys: ''});   // 漢字など：キーは打たずに出す
   }
   out.forEach((m, i) => { if (m.disp === 'ん' && /^[bcdfghjkmprstvwxz]/.test(out[i + 1]?.keys || '')) m.keys = 'n'; });
@@ -426,8 +420,8 @@ function setPaused(p) {
   if (p) { pausedAt = performance.now(); timers.forEach(tm => clearTimeout(tm.h)); send('X'); sim.forEach(x => x.active = false); }
   else { pausedTotal += performance.now() - pausedAt; pausedAt = 0; timers.forEach((tm, id) => arm(id, tm)); }
 }
-['spd', 'str', 'len'].forEach(id => {
-  const inp = $(id), out = inp.nextElementSibling, fmt = {spd: v => v.toFixed(2) + '×', str: v => v + '%', len: v => v + 'ms'}[id];
+['spd', 'len'].forEach(id => {
+  const inp = $(id), out = inp.nextElementSibling, fmt = {spd: v => v.toFixed(2) + '×', len: v => v + 'ms'}[id];
   try { const v = localStorage.getItem('keycap-lab-' + id); if (v != null) inp.value = v; } catch (e) {}
   const upd = () => { P[id] = +inp.value; out.textContent = fmt(P[id]); try { localStorage.setItem('keycap-lab-' + id, inp.value); } catch (e) {} };
   inp.oninput = upd; upd();
@@ -453,7 +447,7 @@ let prev = now();
 function loop() {
   const t = now(), dt = Math.min(50, t - prev); prev = t;
   g.clearRect(0, 0, W, H);
-  cur.draw(s, t, dt);   // 一時停止のあいだも描く（時計が止まっているので、その画面のまま）
+  try { cur.draw(s, t, dt); } catch (e) { console.error(e); }   // 一時停止のあいだも描く（時計が止まっているので、その画面のまま）。描画のエラーで、ループ（キーの表示）まで止めない
   drawKeys(t, dt);
   requestAnimationFrame(loop);
 }
