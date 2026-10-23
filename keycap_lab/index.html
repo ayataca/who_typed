@@ -95,7 +95,7 @@ html.fs, html.fs *{cursor:none}
     <button class="op" id="conn"></button>
     <span id="status"></span>
     <span>入力テスト</span><div class="seg" id="inputSeg"></div><span id="inputState"></span>
-    <span id="keys">Enter はじめる　Space 一時停止　H 表示の切り替え　Esc 全画面をやめる</span>
+    <span id="keys">Enter はじめる　Space 一時停止／再開　Z 全画面　H 表示の切り替え　Esc 全画面をやめる</span>
   </div>
   <div class="row">
     <label>速さ <input id="spd" type="range" min="0.25" max="3" step="0.05" value="1"><output></output></label>
@@ -121,7 +121,9 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
 const ri = n => Math.floor(Math.random() * n);
 const pick = a => a[ri(a.length)];
-const now = () => performance.now();
+// 時計：一時停止のあいだは止まる。体験の時間・アニメーション・予約（at）は、すべてこの時計で動く
+let pausedAt = 0, pausedTotal = 0;
+const now = () => (pausedAt || performance.now()) - pausedTotal;
 const P = {spd: 1, str: 100, len: 150};   // 速さ（倍）・強さ（PWM %）・駆動時間（ms。キーが立ち上がるのに要る長さ。どの打鍵もこれより短くしない）
 
 // ---- 基板（Web Serial） ----
@@ -226,7 +228,7 @@ function simLevel(k, t) {
 // シリアルの DOWN は、表示と「キー入力が届いていない」の診断にだけ使う（入力の判定には使わない）
 const KEY_CODES = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon'];
 const KEY_NAMES = ['A', 'S', 'D', 'F', 'J', 'K', 'L', ';'];
-const INPUT = {mask: 0, guide: 0, raised: 0, armed: 0, last: '', knock: '', typed: new Array(8).fill(-1e9), warn: ''};
+const INPUT = {mask: 0, guide: 0, quiet: false, raised: 0, armed: 0, last: '', knock: '', typed: new Array(8).fill(-1e9), warn: ''};
 const MAX_RAISED = 3;   // 電源の都合で、同時に上げてよいのは3本まで（基板も3本までしか上げない）
 function toMask(keys) {
   if (typeof keys === 'number') return keys & 0xFF;
@@ -236,8 +238,10 @@ function toMask(keys) {
 }
 const maskNames = m => KEY_NAMES.filter((_, i) => m & 1 << i).join(' ') || 'なし';
 function firstKeys(m, n) { let out = 0; for (let i = 0; i < 8 && n; i++) if (m & 1 << i) { out |= 1 << i; n--; } return out; }
-function listen(keys) {
+// quiet：上げるが、画面のキーはオレンジにしない（選ぶ場面の準備。まだ押させないとき）
+function listen(keys, quiet = false) {
   const m = firstKeys(toMask(keys), MAX_RAISED);
+  INPUT.quiet = quiet;
   if (m !== INPUT.mask) { INPUT.mask = m; INPUT.armed &= m; INPUT.warn = ''; }
   send(`U ${m.toString(16)}`);
   inputUI();
@@ -245,7 +249,7 @@ function listen(keys) {
 setInterval(() => { if (INPUT.mask && !paused) send(`U ${INPUT.mask.toString(16)}`); }, 200);   // 心拍
 addEventListener('keydown', e => {
   const k = KEY_CODES.indexOf(e.code);
-  if (k < 0 || e.metaKey || e.ctrlKey || e.altKey || !(INPUT.mask & 1 << k)) return;
+  if (k < 0 || paused || e.metaKey || e.ctrlKey || e.altKey || !(INPUT.mask & 1 << k)) return;
   if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
   e.preventDefault();
   if (e.repeat) return;
@@ -291,9 +295,12 @@ function inputUI() {
 window.KC_INPUT = {listen, guide, knock, get mask() { return INPUT.mask; }, get raised() { return INPUT.raised; }, KEY_NAMES};
 
 // ---- 時間 ----
-const timers = new Set();
-function at(ms, fn) { const id = setTimeout(() => { timers.delete(id); fn(); }, Math.max(0, ms)); timers.add(id); }
-function clearTimers() { timers.forEach(clearTimeout); timers.clear(); }
+// 予約は、一時停止のあいだは止まり、再開すると残りの時間から続く
+const timers = new Map();   // id → {due（now の時刻）, fn, h}
+let timerSeq = 0;
+function arm(id, tm) { tm.h = setTimeout(() => { timers.delete(id); tm.fn(); }, Math.max(0, tm.due - now())); }
+function at(ms, fn) { const id = ++timerSeq, tm = {due: now() + Math.max(0, ms), fn}; timers.set(id, tm); if (!pausedAt) arm(id, tm); return id; }
+function clearTimers() { timers.forEach(tm => clearTimeout(tm.h)); timers.clear(); }
 
 // ---- 音 ----
 let AC = null;
@@ -330,7 +337,7 @@ function drawKeys(t, dt) {
     g.beginPath(); g.roundRect(kx(i) - ks / 2, y - ks / 2, ks, ks, ks * 0.16);
     g.fillStyle = '#1d1e22'; g.fill();
     if (s.lift > 0.02) { g.fillStyle = alpha(ACC, s.lift * 0.85); g.fill(); }
-    const lit = (INPUT.mask | INPUT.guide) & 1 << i;   // 入力に使うキー（指を置く場所）：オレンジに光る。上がっているあいだは濃く
+    const lit = ((INPUT.quiet ? 0 : INPUT.mask) | INPUT.guide) & 1 << i;   // 入力に使うキー（指を置く場所）：オレンジに光る。上がっているあいだは濃く
     if (lit) { g.fillStyle = alpha(ORANGE, INPUT.raised & 1 << i ? 0.95 : 0.6 + 0.25 * Math.sin(t / 260)); g.fill(); }
     g.strokeStyle = s.rest ? '#e5484d' : '#34353a'; g.lineWidth = 1.5; g.stroke();   // キーの文字（A S D F…）は、来場者には関係ないので出さない
   }
@@ -389,12 +396,13 @@ const EXP = window.KC_DIALOGUE;
 let cur = null, s = null, paused = false;
 const optMemory = {};
 function select() {
+  if (paused) setPaused(false);
   cur?.stop?.(s);
   stopAll(); clearTimers();
   cur = EXP;
   const o = optMemory[cur.id] ||= Object.fromEntries(Object.entries(cur.opts || {}).map(([k, v]) => [k, v[0]]));
   s = {o};
-  if (!paused) cur.init(s);
+  cur.init(s);
   renderHead();
 }
 function renderHead() {
@@ -410,9 +418,13 @@ function renderHead() {
     box.append(seg);
   }
 }
+// 一時停止：その画面のまま止まる（時計と予約が止まる）。もう一度 Space で、続きから再開する。
+// 止めているあいだ、ソレノイドは止めてキーを下ろす（上げていたキーは、再開すると心拍でまた上がる）
 function setPaused(p) {
+  if (p === paused) return;
   paused = p; $('status').textContent = p ? '一時停止中' : '';
-  if (p) { stopAll(); clearTimers(); } else select();
+  if (p) { pausedAt = performance.now(); timers.forEach(tm => clearTimeout(tm.h)); send('X'); sim.forEach(x => x.active = false); }
+  else { pausedTotal += performance.now() - pausedAt; pausedAt = 0; timers.forEach((tm, id) => arm(id, tm)); }
 }
 ['spd', 'str', 'len'].forEach(id => {
   const inp = $(id), out = inp.nextElementSibling, fmt = {spd: v => v.toFixed(2) + '×', str: v => v + '%', len: v => v + 'ms'}[id];
@@ -421,11 +433,14 @@ function setPaused(p) {
   inp.oninput = upd; upd();
 });
 addEventListener('pointerdown', () => audio(), {once: true});
+const FS_KEY = 'KeyZ';   // 全画面にする／やめるキー（展示の PC のキーボード。来場者が触るキー a s d f j k l ; とは別）
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+  if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
   if (e.code === 'Space') { e.preventDefault(); setPaused(!paused); }
+  else if (e.code === FS_KEY) { e.preventDefault(); if (document.fullscreenElement) document.exitFullscreen(); else $('fsBtn').click(); }
 });
-// 全画面：シナリオの画面だけを画面いっぱいに出す（下の帯は隠れる。マウスの矢印も消える。Esc で戻る）
+// 全画面：シナリオの画面だけを画面いっぱいに出す（下の帯は隠れる。マウスの矢印も消える。Z か Esc で戻る）
 // Chrome のタブや Mac のメニューバーまで確実に消すには、kiosk.command（Chrome をキオスクモードで開く）から起動する
 $('fsBtn').onclick = () => { $('fsBtn').blur(); document.documentElement.requestFullscreen?.({navigationUI: 'hide'}).catch(e => status('全画面にできません: ' + e.message, 4000)); };
 document.addEventListener('fullscreenchange', layout);
@@ -438,7 +453,7 @@ let prev = now();
 function loop() {
   const t = now(), dt = Math.min(50, t - prev); prev = t;
   g.clearRect(0, 0, W, H);
-  if (!paused) cur.draw(s, t, dt);
+  cur.draw(s, t, dt);   // 一時停止のあいだも描く（時計が止まっているので、その画面のまま）
   drawKeys(t, dt);
   requestAnimationFrame(loop);
 }

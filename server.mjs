@@ -200,7 +200,7 @@ const LLM_TASKS = {
   review: {
     system: [
       '来場者の代わりに、展示の感想を X に投稿する文章を書きます。',
-      '- 星の数（1〜5）に見合う温度で、自然な話し言葉の日本語。全体で45〜55文字。',
+      '- どの星でも、ほめる文にする。星5は絶賛、星3はそこそこほめる（絶賛はしない）、星1は「悪いところもあったが、体験としては珍しかった」くらいの控えめなほめ。自然な話し言葉の日本語。全体で45〜55文字。',
       '- 漢字には 漢字{よみ} の形で、ひらがなの読みを必ず付ける（例: 想像{そうぞう}以上{いじょう}に楽{たの}しかった）。送り仮名は読みに含めない。',
       '- 出力は JSON 1行だけ: {"text":"..."}',
     ].join('\n'),
@@ -264,7 +264,7 @@ function postedEntries() {
   const seen = new Set();
   return rows.filter(e => !(e.ids || [e.id]).some(x => x && removed.has(x)) && !seen.has(e.sessionId) && seen.add(e.sessionId));
 }
-// ---- X から読む：本番モードのあいだ、感想タイムラインとフィードは、展示のアカウントの実際のポストだけで作る ----
+// ---- X から読む：本番モードのあいだ、感想タイムラインは、展示のアカウントの実際のポストだけで作る ----
 // ほかの PC で投稿した分も出て、X のアプリやサイトで消したものは出ない。
 // 新しいポストは X_POLL_SEC 秒（既定 30）ごとに、新しい分だけ読む（since_id）。消されたものを外すため、X_VERIFY_MIN 分（既定 10）ごとに、
 // 新しい順に X_FETCH_MAX 件（既定 100）を読み直す。読んだものは posts/x_cache.json に残し、X が読めないあいだはそれを出す
@@ -299,7 +299,7 @@ async function readX(full = false) {
       const before = new Set(xs.tweets.map(t => t.id)), older = token && oldest ? xs.tweets.filter(t => t.at < oldest) : [];
       const gone = xs.at ? xs.tweets.filter(t => !older.includes(t) && !got.some(g => g.id === t.id)).length : 0;
       xs.tweets = [...got, ...older];
-      if (gone) console.log(`X で消されていたポスト ${gone} 件を、感想タイムラインとフィードから外しました`);
+      if (gone) console.log(`X で消されていたポスト ${gone} 件を、感想タイムラインから外しました`);
       if (!before.size) console.log(`X から ${got.length} 件のポストを読みました`);
     } else {   // 新しい分だけ
       const got = fromX(await xFetch('GET', base + `&since_id=${xs.tweets[0].id}`));
@@ -329,78 +329,36 @@ function timeline(limit = 50) {
   if (fromXReady()) return xThreads().filter(ts => ts[0].text.startsWith('【来場者の声】')).slice(0, limit).map(ts => ({   // 展示のポストだけ（お知らせなどは出さない）
     id: ts[0].id, at: ts[0].at, rating: (ts[0].text.split('\n')[0].match(/★/g) || []).length || null, text: ts.map(t => t.text).join(''), texts: ts.map(t => t.text), photo: ts[0].photo,
   }));
-  // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない（フィードと同じ）
+  // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない
   return postedEntries().filter(showable).slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join(''), texts: e.texts, photo: photoUrl(e) }));
 }
 
-// ---- 展示用フィード（スマホで X のプロフィール画面のように流す） ----
-// 1回の体験の投稿は最大10件のスレッドなので、ツイート単位に分けてスレッドの順に並べる
-const FEED_IMAGES = ['feed-avatar.png', 'feed-avatar.jpg', 'feed-banner.png', 'feed-banner.jpg'];
-function feedImage(name) {
-  const f = FEED_IMAGES.find(x => x.startsWith(name) && fs.existsSync(path.join(ROOT, x)));
-  return f ? '/' + f : '';
-}
-// 表示名とアイコン（フィードと感想タイムラインで共通）
+// ---- 名前とアイコン（感想タイムライン）。このフォルダに feed-avatar.png（または .jpg）を置くとアイコンになる ----
+const AVATARS = ['feed-avatar.png', 'feed-avatar.jpg'];
+const avatarFile = () => AVATARS.find(f => fs.existsSync(path.join(ROOT, f))) || '';
 function profile() {
+  const a = avatarFile();
   return {
     name: env.X_DISPLAY_NAME || handle.slice(1) || 'Who Typed?',
     handle: handle.length > 1 ? handle : '',
-    avatar: feedImage('feed-avatar'),
-    banner: feedImage('feed-banner'),
-    bio: env.X_BIO || '',
+    avatar: a ? '/' + a : '',
   };
-}
-function feed(limitSessions = 300) {
-  if (fromXReady()) {   // X のプロフィールと同じく、アカウントのポストをすべて
-    const posts = [];
-    for (const ts of xThreads().slice(0, limitSessions)) ts.forEach((t, i) => posts.push({ id: t.id, at: t.at, text: t.text, photo: i === 0 ? t.photo : '', hasPrev: i > 0, hasNext: i < ts.length - 1 }));
-    return { profile: profile(), total: xs.tweets.length, posts };
-  }
-  // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない
-  const entries = postedEntries().filter(showable);
-  const posts = [];
-  for (const e of entries.slice(-limitSessions).reverse()) {
-    e.texts.forEach((text, i) => posts.push({
-      id: e.ids?.[i] || `${e.sessionId}-${i}`,
-      at: e.at,
-      text,
-      photo: i === 0 ? photoUrl(e) : '',
-      hasPrev: i > 0,
-      hasNext: i < e.texts.length - 1,
-    }));
-  }
-  return {
-    profile: profile(),
-    total: entries.reduce((n, e) => n + e.texts.length, 0),
-    posts,
-  };
-}
-// 中身が変わっていなければ 304 だけを返し、スマホの通信量を抑える
-function sendCached(req, res, body) {
-  const json = JSON.stringify(body);
-  const etag = '"' + crypto.createHash('sha1').update(json).digest('base64url') + '"';
-  if (req.headers['if-none-match'] === etag) { res.writeHead(304, { ETag: etag, 'Cache-Control': 'no-cache' }); return res.end(); }
-  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', ETag: etag, 'Cache-Control': 'no-cache' });
-  res.end(json);
 }
 
-// 公開用（LANに出す）サーバー：感想の一覧・フィード・その手元写真だけを返し、投稿などのAPIは持たない
+// 公開用（LANに出す）サーバー：感想の一覧と、その手元写真だけを返し、投稿などのAPIは持たない
 const VIEW_FILES = {
   '/timeline': ['timeline.html', 'text/html; charset=utf-8'],
-  '/feed': ['feed.html', 'text/html; charset=utf-8'],
   '/qrcode.js': ['qrcode.js', 'text/javascript'],
   '/fullscreen.js': ['fullscreen.js', 'text/javascript'],
   '/timeline.webmanifest': ['timeline.webmanifest', 'application/manifest+json'],
-  '/feed.webmanifest': ['feed.webmanifest', 'application/manifest+json'],
-  ...Object.fromEntries(FEED_IMAGES.map(f => ['/' + f, [f, f.endsWith('.png') ? 'image/png' : 'image/jpeg']])),
+  ...Object.fromEntries(AVATARS.map(f => ['/' + f, [f, f.endsWith('.png') ? 'image/png' : 'image/jpeg']])),
 };
 const PHOTO_RE = /^\/photo\/([\w-]{8,64})\.jpg$/;
-const isViewPath = p => p === '/api/timeline' || p === '/api/feed' || PHOTO_RE.test(p) || (p !== '/' && p in VIEW_FILES);
+const isViewPath = p => p === '/api/timeline' || PHOTO_RE.test(p) || (p !== '/' && p in VIEW_FILES);
 function serveView(req, res) {
   const url = new URL(req.url, 'http://localhost');
   if (req.method !== 'GET') return send(res, 405, { ok: false });
   if (url.pathname === '/api/timeline') return send(res, 200, { url: lanUrl() + '/timeline', profile: profile(), items: timeline() });
-  if (url.pathname === '/api/feed') return sendCached(req, res, feed());
   const pm = PHOTO_RE.exec(url.pathname);
   if (pm) {   // 一覧に出ている回の写真だけを返す（posts/ のほかのファイルや、削除・公開中止した回の写真は返さない）
     const e = postedEntries().find(x => x.sessionId === pm[1]);
@@ -469,7 +427,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   viewServer.on('error', e => console.error(`感想タイムライン用ポート ${VIEW_PORT} を開けません: ${e.message}`));
   viewServer.listen(VIEW_PORT, '0.0.0.0', () => {
     console.log(`感想タイムライン（スマホで開いてプロジェクタへ）: ${lanUrl()}/timeline`);
-    console.log(`展示用フィード（スマホで開く）: ${lanUrl()}/feed`);
   });
   server.listen(PORT, '127.0.0.1', () => {
     console.log(`Who Typed? サーバー: http://localhost:${PORT}`);

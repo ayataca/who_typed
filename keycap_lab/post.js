@@ -93,8 +93,8 @@ function fillThread(sel, posts) { stage.querySelectorAll(sel + ' .post-text').fo
 function autoScroll(el, ms) {
   if (!el) return;
   const max = el.scrollHeight - el.clientHeight; if (max <= 0) return;
-  const t0 = performance.now();
-  (function step(t) { const k = Math.min(1, (t - t0) / ms); el.scrollTop = max * k; if (k < 1 && el.isConnected) requestAnimationFrame(step); })(t0);
+  const t0 = now();   // ページの時計（一時停止のあいだは止まる）
+  (function step() { const k = Math.min(1, (now() - t0) / ms); el.scrollTop = max * k; if (k < 1 && el.isConnected) requestAnimationFrame(step); })();
 }
 // ---- 手元のカメラ（投稿の写真）。下の帯で、使うカメラを選べる（選んだものはブラウザに保存） ----
 const CAM_KEY = 'kc-camera';
