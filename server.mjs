@@ -129,6 +129,7 @@ async function handlePost(req) {
     }
     log(entry);
     if (!entry.ok) done.delete(sessionId); // 失敗した回は再送できるようにする
+    else if (!dryRun) setTimeout(readX, 3000);   // 一覧に早く出す
     return entry;
   })();
   done.set(sessionId, job);
@@ -263,28 +264,71 @@ function postedEntries() {
   const seen = new Set();
   return rows.filter(e => !(e.ids || [e.id]).some(x => x && removed.has(x)) && !seen.has(e.sessionId) && seen.add(e.sessionId));
 }
-// X に残っているかの確認：X のアプリやサイトで直接消したポストも、一覧から外す
-// 本番モードのあいだ、起動したときと X_VERIFY_MIN 分（既定 10。0 で確かめない）ごとに、新しい順に100回分の1件目を X に問い合わせる。
-// X が「見つからない」と答えたものだけを、削除として記録する（通信の失敗や API の制限のときは、何も消さない）
-const VERIFY_MIN = Number(env.X_VERIFY_MIN ?? 10);
-async function verifyOnX() {
-  const ids = postedEntries().filter(e => !e.dryRun && e.id).slice(-100).map(e => e.id);
-  if (!ids.length) return;
-  try {
-    const r = await xFetch('GET', `https://api.x.com/2/tweets?ids=${ids.join(',')}`);
-    const gone = (r?.errors || []).filter(x => x.title === 'Not Found Error').map(x => x.resource_id || x.value).filter(x => ids.includes(x));
-    if (!gone.length) return;
-    log({ deleted: gone, at: new Date().toISOString(), ok: true, by: 'x' });
-    console.log(`X で消されていたポスト ${gone.length} 件を、感想タイムラインとフィードから外しました`);
-  } catch (e) {
-    console.error(`X に残っているかの確認に失敗しました（一覧はそのまま）: ${e.message}`);
-  }
+// ---- X から読む：本番モードのあいだ、感想タイムラインとフィードは、展示のアカウントの実際のポストだけで作る ----
+// ほかの PC で投稿した分も出て、X のアプリやサイトで消したものは出ない。
+// 新しいポストは X_POLL_SEC 秒（既定 30）ごとに、新しい分だけ読む（since_id）。消されたものを外すため、X_VERIFY_MIN 分（既定 10）ごとに、
+// 新しい順に X_FETCH_MAX 件（既定 100）を読み直す。読んだものは posts/x_cache.json に残し、X が読めないあいだはそれを出す
+// （一度も読めていなければ、このPCの投稿記録から作る）
+const X_POLL_SEC = Number(env.X_POLL_SEC ?? 30), VERIFY_MIN = Number(env.X_VERIFY_MIN ?? 10), X_FETCH_MAX = Number(env.X_FETCH_MAX ?? 100);
+const X_CACHE = path.join(POSTS_DIR, 'x_cache.json');
+let xs = { userId: '', at: '', tweets: [] };   // tweets：{id, at, conv, text, photo}。新しい順
+try { xs = { ...xs, ...JSON.parse(fs.readFileSync(X_CACHE, 'utf8')) }; } catch {}
+let xBusy = false, xWaitUntil = 0;
+const unescapeX = s => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+function fromX(r) {   // X の返事 → ポスト。写真付きのポストの本文の終わりにつく t.co のリンクは外す
+  const media = new Map((r?.includes?.media || []).map(m => [m.media_key, m]));
+  return (r?.data || []).map(t => {
+    const photo = (t.attachments?.media_keys || []).map(k => media.get(k)).find(m => m?.type === 'photo')?.url || '';
+    const text = unescapeX(t.text);
+    return { id: t.id, at: t.created_at, conv: t.conversation_id || t.id, text: t.attachments ? text.replace(/\s*https:\/\/t\.co\/\w+$/, '') : text, photo };
+  });
 }
+async function readX(full = false) {
+  if (dryRun || xBusy || Date.now() < xWaitUntil) return;
+  xBusy = true;
+  try {
+    if (!xs.userId) xs.userId = (await xFetch('GET', 'https://api.x.com/2/users/me')).data.id;
+    const base = `https://api.x.com/2/users/${xs.userId}/tweets?max_results=100&exclude=retweets&tweet.fields=created_at,conversation_id&expansions=attachments.media_keys&media.fields=url,type`;
+    if (full || !xs.at || !xs.tweets.length) {   // 読み直す：読んだ範囲は X のとおりにする（消されたものが外れる）。それより古いものは、前に読んだまま残す
+      const got = []; let token = '';
+      do {
+        const r = await xFetch('GET', base + (token ? `&pagination_token=${token}` : ''));
+        got.push(...fromX(r)); token = r?.meta?.next_token || '';
+      } while (token && got.length < X_FETCH_MAX);
+      const oldest = got[got.length - 1]?.at;
+      const before = new Set(xs.tweets.map(t => t.id)), older = token && oldest ? xs.tweets.filter(t => t.at < oldest) : [];
+      const gone = xs.at ? xs.tweets.filter(t => !older.includes(t) && !got.some(g => g.id === t.id)).length : 0;
+      xs.tweets = [...got, ...older];
+      if (gone) console.log(`X で消されていたポスト ${gone} 件を、感想タイムラインとフィードから外しました`);
+      if (!before.size) console.log(`X から ${got.length} 件のポストを読みました`);
+    } else {   // 新しい分だけ
+      const got = fromX(await xFetch('GET', base + `&since_id=${xs.tweets[0].id}`));
+      if (!got.length) return;
+      xs.tweets = [...got, ...xs.tweets.filter(t => !got.some(g => g.id === t.id))];
+    }
+    xs.tweets.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+    xs.at = new Date().toISOString();
+    fs.writeFileSync(X_CACHE, JSON.stringify(xs));
+  } catch (e) {
+    if (e.status === 429) xWaitUntil = Date.now() + 15 * 60000;   // 回数の制限：15分待つ
+    console.error(`X からポストを読めませんでした（前に読んだものを出します）: ${e.message}`);
+  } finally { xBusy = false; }
+}
+// スレッドごとにまとめる（1件目と、同じ会話の続き。古い順）。スレッドは新しい順。1件目が読めていない会話（ほかの人への返信など）は出さない
+function xThreads() {
+  const by = new Map();
+  for (const t of [...xs.tweets].reverse()) { if (!by.has(t.conv)) by.set(t.conv, []); by.get(t.conv).push(t); }
+  return [...by.values()].filter(ts => ts[0].id === ts[0].conv).reverse();
+}
+const fromXReady = () => !dryRun && !!xs.at;
 // 手元写真：その回が実際に X に出たとき（模擬モードの間は、リハーサルの投稿も）だけ、LAN に出す。X と同じく、スレッドの1件目に付く
 const showable = e => dryRun || !e.dryRun;
 const photoPath = sessionId => path.join(POSTS_DIR, `${sessionId}.jpg`);
 function photoUrl(e) { return showable(e) && fs.existsSync(photoPath(e.sessionId)) ? `/photo/${e.sessionId}.jpg` : ''; }
 function timeline(limit = 50) {
+  if (fromXReady()) return xThreads().filter(ts => ts[0].text.startsWith('【来場者の声】')).slice(0, limit).map(ts => ({   // 展示のポストだけ（お知らせなどは出さない）
+    id: ts[0].id, at: ts[0].at, rating: (ts[0].text.split('\n')[0].match(/★/g) || []).length || null, text: ts.map(t => t.text).join(''), texts: ts.map(t => t.text), photo: ts[0].photo,
+  }));
   // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない（フィードと同じ）
   return postedEntries().filter(showable).slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join(''), texts: e.texts, photo: photoUrl(e) }));
 }
@@ -307,6 +351,11 @@ function profile() {
   };
 }
 function feed(limitSessions = 300) {
+  if (fromXReady()) {   // X のプロフィールと同じく、アカウントのポストをすべて
+    const posts = [];
+    for (const ts of xThreads().slice(0, limitSessions)) ts.forEach((t, i) => posts.push({ id: t.id, at: t.at, text: t.text, photo: i === 0 ? t.photo : '', hasPrev: i > 0, hasNext: i < ts.length - 1 }));
+    return { profile: profile(), total: xs.tweets.length, posts };
+  }
   // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない
   const entries = postedEntries().filter(showable);
   const posts = [];
@@ -426,5 +475,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log(`Who Typed? サーバー: http://localhost:${PORT}`);
     console.log(configured ? (dryRun ? '投稿モード: 模擬（DRY_RUN=1。Xには投稿しません）' : `投稿モード: 本番（${handle} に投稿します）`) : '投稿モード: 模擬（.env に X の鍵が未設定）');
   });
-  if (!dryRun && VERIFY_MIN > 0) { verifyOnX(); setInterval(verifyOnX, VERIFY_MIN * 60000); }
+  if (!dryRun) {
+    readX(true);
+    if (X_POLL_SEC > 0) setInterval(readX, X_POLL_SEC * 1000);
+    if (VERIFY_MIN > 0) setInterval(() => readX(true), VERIFY_MIN * 60000);
+  }
 }
