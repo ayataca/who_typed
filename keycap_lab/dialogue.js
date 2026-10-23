@@ -1,14 +1,14 @@
 // 対話 — keycap_lab の体験 "dialogue"
 // 2026/10/22 夜の構成：
-//   待機（F が2秒ごとに鼓動する。鼓動のとき F を押さえていると始まる。基板の「押さえている」が2回続いたとき）
+//   待機（F が2秒上がり、5秒下がる、をくり返す。上がっているあいだに F を押すと始まる）
 //   → インストラクター → LINE（鈴木）→ インストラクター → ブラウジング → インストラクター → X（感想を投稿。打ち終えたら手元が撮られる）
 //   → ポストの確認 → 公開中 → 問いかけ → Who typed? → 終了
 // インストラクターは名乗らない。場面の間は、画面全体が横にスライドする。
 // キーが動くのは、来場者のターン（文字を打つ・送信の Enter・下書きの消去）と、待機の鼓動だけ。
-// 来場者が選ぶ場面（3択。星だけは1択）：選択肢を5秒読んでもらってから（キーは上がらない。札も出ない）、5秒だけキー（右手の J K L）を上げて押してもらう。
+// 来場者が選ぶ場面（3択。星も3択）：選択肢を5秒読んでもらってから（キーは上がらない。札も出ない）、5秒だけキー（S D F）を上げて押してもらう。
 //   同時に上げるキーは3本まで（電源の都合）。上げるのは5秒まで（ソレノイドは10秒をこえると発熱する）。
 //   選んだものは黄緑に光る枠で囲まれる。勝手に決められる場面でも、画面では選んだものが光るだけで、場面は決められた方へ進む。
-//   キーの文字（J K L など）は、来場者には関係ないので出さない。
+//   キーの文字（S D F など）は、来場者には関係ないので出さない。
 // 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script><script src="dialogue.js"></script>。
 //   本体の道具（hit・at・toMora・fingerOf・interKey・KC_INPUT…）は、体験が動くときに参照する。
 // 文言・順番・間・触覚の割り当ては、このファイルの上のほう（台本）にまとめた。
@@ -35,13 +35,13 @@ const TX = {
   afterBrowse: '調べものは終わりましたか？',
   toX: '最後に、今日の展示の感想をXに投稿しましょう。',
   xInfo: 'あなたの姿の一部の写真と共に、実際にXに投稿されます。展示のあとで、ご自身のスマートフォンから確認できます。',
-  askStars: '星5つで、投稿しますか？',
+  askStars: '星はいくつにしますか？',
 };
 
-// 選ぶ場面：読む時間（ms）と、キーを上げて待つ時間（ms。5秒まで）。星（1択）は starReadMs だけ読む
-const CHOICE = {readMs: 5000, starReadMs: 3000, selectMs: 5000, pickMs: 600, finalMs: 600};
-const CHOICE_KEYS = 'jkl';   // 3択に使うキー（右手の人さし指・中指・薬指）。左の選択肢から順に
-const STAR_KEY = 'j';        // 星（1択）に使うキー（右手の人さし指）
+// 選ぶ場面：読む時間（ms）と、キーを上げて待つ時間（ms。5秒まで）
+const CHOICE = {readMs: 5000, selectMs: 5000, pickMs: 600, finalMs: 600};
+const CHOICE_KEYS = 'sdf';   // 3択に使うキー（左手の薬指・中指・人さし指）。左の選択肢から順に
+const STAR_CHOICES = [1, 3, 5];   // 星の3択（左から S D F）。どれを押しても星1になる
 
 // ---- ブラウジング：映画を見たかっただけなのに、選ばされるうちに危ないサイトの奥へ ----
 const MOVIE = 'みにかわ';
@@ -77,16 +77,15 @@ const SUZUKI = [
   {who: '鈴木', t: 'わかった。もう誘わない', wait: 3000},
 ];
 
-// X：星5の下書き（LLM が使えないとき）→ 右小指の連打で消される → 星1になり、辛口の感想が高速で打たれて、そのままポストされる
+// X：ほめる下書き（LLM が使えないとき）→ 右小指の連打で消される → 星1になり、辛口の感想が高速で打たれて、そのままポストされる
 const DRAFT5 = '想像{そうぞう}以上{いじょう}に楽{たの}しかったです！指先{ゆびさき}に伝{つた}わる感覚{かんかく}が新鮮{しんせん}でした。';
 const REVIEW_SPEED = p => 1.6 + 1.8 * p;   // 打った割合 p → 速さ。どんどん速くなる
 const SEND_PAUSE = 550;   // 打ち終えてから送信（Enter）を押すまでの間（ms）
 const SAVER_MSG = 'キーに指を軽く添えてください';
-const SAVER_SUB = 'はじめるときは、オレンジのキー（F）を押さえてください';
-const BEAT_MS = 2000;     // 待機の鼓動の間隔
+const SAVER_SUB = 'オレンジのキー（F）が上がったら、押してください';
+const WAKE_UP_MS = 2000;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる
+const WAKE_SLEEP_MS = 5000;   // 待機：F を下げて休ませる時間（ソレノイドの発熱を避ける）
 const BEAT_KEY = 3;       // F
-const HOLD_BEATS = 2;     // 基板の「押さえている」（KNOCK … HELD）がこの回数続いたら始める。1回だけでは、電流のゆれのことがある
-const CONFIRM_MS = 600;   // 「押さえている」が出たら、次の鼓動を待たずに、この間をおいてもう一度鼓動して確かめる
 const TITLE = 'Who typed?';                // 最後に打たれる作品名
 const TITLE_DARK = true;                   // 作品名の画面：黒地に白い字（false で白地に黒い字）
 
@@ -400,10 +399,10 @@ async function toApp(S, scr) {
 
 // ================= 場面 =================
 const clock = min => `${Math.floor(min / 60) % 24}:${String(Math.floor(min) % 60).padStart(2, '0')}`;
-const field = () => ({text: '', comp: '', pend: '', full: ''});
+const field = () => ({text: '', comp: '', pend: '', full: '', redFrom: null});
 const newLine = () => ({k: 'line', name: '鈴木', msgs: [], input: field(), n: 0, scroll: 0});
 
-// あいさつ（名乗らない）：指を置く場所（J K L）をオレンジで示す
+// あいさつ（名乗らない）：指を置く場所（S D F）をオレンジで示す
 async function stepHello(S) {
   await say(S, TX.hello, {scale: 1.15, after: 900});
   window.KC_INPUT.guide(CHOICE_KEYS);
@@ -412,7 +411,7 @@ async function stepHello(S) {
 }
 
 // ================= 選ぶ場面 =================
-// options を、キー（J K L）の上に出す。読む（5秒。キーは上がらず、札もオレンジも出ない）→ キーが上がり、札が出て選ぶ（5秒）→ 決まる。
+// options を、キー（S D F）の上に出す。読む（5秒。キーは上がらず、札もオレンジも出ない）→ キーが上がり、札が出て選ぶ（5秒）→ 決まる。
 // forced：どれを押してもそれに決まる（画面では押したものが光るだけで、場面は forced の方へ進む）。
 // 時間切れ：forced があればそれ、なければランダム。戻り値 {picked（押したもの。押さなければ -1）, final}
 async function choose(S, {options, keys = CHOICE_KEYS, forced = null, label = '', readMs = CHOICE.readMs}) {
@@ -463,14 +462,15 @@ async function lineIn(S, L, x) {
   L.msgs.push({who: 'them', text: t, full: t, stamp: x.stamp, time: clock(724 + L.n++ / 2), popT: now()});
   await beat(S, 300);
 }
-async function lineOut(S, L, src, {speed = 1, frenzy = false} = {}) {
+async function lineOut(S, L, src, {speed = 1, frenzy = false, redFrom = null} = {}) {
   const f = L.input;
+  f.redFrom = redFrom;   // ここから後ろは、勝手に打ち足された文（赤）
   S.typing = f;
   await typeMe(S, f, plan(src), {speed, frenzy});
   await beat(S, SEND_PAUSE);   // 打ち終えてから、送るまでの少しの間
   await enter2(S, () => { L.sendT = now(); });   // 送信ボタンが、右小指の Enter で押される
   S.typing = null;
-  L.msgs.push({who: 'me', text: f.full, full: f.full, read: false, time: clock(724 + L.n++ / 2), popT: now()});
+  L.msgs.push({who: 'me', text: f.full, full: f.full, redFrom, read: false, time: clock(724 + L.n++ / 2), popT: now()});
   Object.assign(f, field());
   await beat(S, 300);
 }
@@ -479,7 +479,7 @@ async function lineChoice(S, L, c) {
   const r = await choose(S, {options: c.options, forced: c.forced ?? null});
   const own = c.typed[r.final], src = own + (c.ai || ''), frac = plan(own).length / plan(src).length;
   await beat(S, 300);
-  await lineOut(S, L, src, {speed: c.ai ? p => (p < frac ? 1.0 : 1.9) : 1.05});
+  await lineOut(S, L, src, {speed: c.ai ? p => (p < frac ? 1.0 : 1.9) : 1.05, redFrom: c.ai ? strip(own).length : null});   // 打ち足された文は赤で出す
 }
 async function sceneLine(S) {
   const L = S.line;
@@ -681,18 +681,18 @@ function nextReview() {
   lsSet('kc-dlg-review', String((i + 1) % REVIEWS.length));
   return {i, src: REVIEWS[i]};
 }
-// 最後のインストラクター：Xに投稿することを伝え、星を聞く（1択：J だけが上がる）
+// 最後のインストラクター：Xに投稿することを伝え、星を聞く（3択：星1・星3・星5。どれを押しても、星1になる）
 async function stepToX(S) {
   await say(S, TX.toX, {after: 700});
   await say(S, TX.xInfo, {after: 1800});
-  const draftP = llm(S, 'review', {stars: 5});   // 星を選んでいるあいだに、星5の下書きをつくる
+  const draftP = llm(S, 'review', {stars: 5});   // 星を選んでいるあいだに、ほめる下書きをつくる
   await say(S, TX.askStars, {keep: true, after: 300});
   mark(S, 'q:askStars');
-  await choose(S, {options: ['★★★★★　星5つで投稿する'], keys: STAR_KEY, readMs: CHOICE.starReadMs});
+  const r = await choose(S, {options: STAR_CHOICES.map(n => '★'.repeat(n) + '☆'.repeat(5 - n) + '　星' + n), forced: STAR_CHOICES.indexOf(1)});
   clearCli(S);
-  return {stars: 5, draftP};
+  return {stars: STAR_CHOICES[r.picked >= 0 ? r.picked : r.final], draftP};   // X の画面は、押した星から始まり、あとで勝手に星1にされる
 }
-// X：星5の下書きが打たれ、右小指の連打で消され、星1になり、ひどい感想が高速で打たれて、「ポストする」が押される
+// X：押した星のまま、ほめる下書きが打たれ、右小指の連打で消され、星1になり、ひどい感想が高速で打たれて、「ポストする」が押される
 async function stepX(S, stars, draftP) {
   const X = S.x = {k: 'x', stars, ...field(), press: 0, scroll: 0};
   await beat(S, 700);
@@ -835,22 +835,23 @@ function begin(S) {
     if (live(S)) at(3000, restart);
   });
 }
-// 待機の鼓動：F を2秒ごとに短く押す（カチ）。そのとき F を押さえていれば、基板が「押さえている」（KNOCK … HELD）と返す。
-// それが HOLD_BEATS 回続いたら始まる（基板がキーボードとして打つ F は、基板がつながっているあいだは使わない）
+// 待機：F を2秒上げ、5秒下げて休ませる、をくり返す。上がっているあいだに押し込まれたら始まる（選ぶ場面と同じ押し込みの読み方）。
+// 長押し（押さえているかの判定）は、実機で安定しなかったのでやめた
 function startBeat(S) {
   stopBeat(S);
-  S.held = 0;
-  window.KC_INPUT.guide('f');
-  const tick = () => { if (S.dead || S.running || paused) return; S.beatT = now(); window.KC_INPUT.knock(BEAT_KEY); };
-  S.beatTimer = setInterval(tick, BEAT_MS);
-  at(800, tick);
+  const KI = window.KC_INPUT;
+  const up = () => { if (S.dead || S.running) return; if (paused) { S.beatTimer = setTimeout(up, 500); return; }
+    S.wakeUp = true; S.beatT = now(); KI.listen('f'); S.beatTimer = setTimeout(down, WAKE_UP_MS); };
+  const down = () => { S.wakeUp = false; KI.listen(0); KI.guide('f'); if (S.dead || S.running) return; S.beatTimer = setTimeout(up, WAKE_SLEEP_MS); };
+  KI.guide('f');
+  S.beatTimer = setTimeout(up, 800);
 }
-function stopBeat(S) { clearInterval(S.beatTimer); S.beatTimer = 0; window.KC_INPUT?.guide(0); }
+function stopBeat(S) { clearTimeout(S.beatTimer); S.beatTimer = 0; S.wakeUp = false; window.KC_INPUT?.listen(0); window.KC_INPUT?.guide(0); }
 function quit(S) {
   S.dead = true;
   stopBeat(S);
   removeEventListener('keydown', S.onKey);
-  removeEventListener('kc-knock', S.onKnock);
+  removeEventListener('kc-press', S.onPress);
   clearInterval(S.watch);
   window.KC_INPUT?.listen(0);
   window.KC_POST?.hide();
@@ -932,18 +933,20 @@ function drawTail(it, x, y, size, lh, x0, maxX) {
     s += ch; w += c;
   }
   segs.push([s, sx, sy, w]);
-  g.fillStyle = INK;
+  g.fillStyle = it.text.length >= (it.redFrom ?? Infinity) ? RED : INK;   // 打ち足されている途中の字は赤
   segs.forEach(([str, px, py, pw]) => { g.fillText(str, px, py); g.fillRect(px, py + size * 0.62, pw, it.conv ? 3 : 1.5); });
   const e = segs[segs.length - 1];
   return [e[1] + e[3], e[2]];
 }
-function drawBlock(it, x, y, size, lh, lines, caret, font = FONT, maxX = Infinity) {   // 確定した字は黒。その後ろに、変換前の字とローマ字
+function drawBlock(it, x, y, size, lh, lines, caret, font = FONT, maxX = Infinity) {   // 確定した字は黒（redFrom から後ろは赤）。その後ろに、変換前の字とローマ字
   g.font = `500 ${size}px ${font}`; g.textBaseline = 'middle'; g.textAlign = 'left';
-  const n = it.text.length, ci = curLine(it, lines);
+  const n = it.text.length, ci = curLine(it, lines), rf = it.redFrom ?? Infinity;
   let ex = x, ey = y + lh / 2;
   for (let i = 0; i <= ci; i++) {
     const ln = lines[i], black = ln.s.slice(0, clamp(n - ln.start, 0, ln.s.length)), yy = y + i * lh + lh / 2;
-    g.fillStyle = INK; if (black) g.fillText(black, x, yy);
+    const a = black.slice(0, clamp(rf - ln.start, 0, black.length)), b = black.slice(a.length);
+    g.fillStyle = INK; if (a) g.fillText(a, x, yy);
+    if (b) { g.fillStyle = RED; g.fillText(b, x + (a ? g.measureText(a).width : 0), yy); }
     if (i === ci) { ex = x + (black ? g.measureText(black).width : 0); ey = yy; }
   }
   const [cx, cy] = drawTail(it, ex, ey, size, lh, x, maxX);
@@ -1002,7 +1005,7 @@ function drawFloat(S, it, t, cx, cy, size, maxW, a) {
 }
 
 
-// ---- 選ぶ場面：キー（J K L）の上に選択肢。中央に「読んでください／選んでください」とタイマー ----
+// ---- 選ぶ場面：キー（S D F）の上に選択肢。中央に「読んでください／選んでください」とタイマー ----
 function badge(x, y, s, a = 1) {   // オレンジの札（キーの形だけ。キーの文字は出さない）
   g.globalAlpha = a;
   g.fillStyle = ORANGE; rr(x, y, s, s, s * 0.22); g.fill();
@@ -1659,7 +1662,7 @@ function kToX(k) {   // キーの番号（小数も）→ 画面の x
 }
 
 
-// ---- 待機：F が2秒ごとに鼓動する（カチ）。鼓動のとき F を押さえていると始まる ----
+// ---- 待機：F が2秒上がり、5秒下がる。上がっているあいだに押すと始まる ----
 const newSaver = () => ({k: 'saver'});
 function drawSaver(S, V, t, dt, pb) {
   const fs = S.fs, bt = S.beatT ? t - S.beatT : 1e9, q = Math.exp(-bt / 260);
@@ -1667,14 +1670,15 @@ function drawSaver(S, V, t, dt, pb) {
   g.fillText(SAVER_MSG, W / 2, pb * 0.24);
   g.font = `500 ${fs * 0.72}px ${FONT}`; g.fillStyle = '#555';
   g.fillText(SAVER_SUB, W / 2, pb * 0.24 + fs * 1.3);
-  // 鼓動：F の上で、輪が広がる。下の F のキーへ、細い線
-  const x = kx(BEAT_KEY), cy = pb * 0.62, r = fs * 1.5 * (1 + 0.18 * q);
-  g.strokeStyle = ORANGE; g.lineWidth = 2; g.globalAlpha = 0.5;
+  // F が上がると、F の上で輪が広がる（下がっているあいだは淡く）。下の F のキーへ、細い線
+  const x = kx(BEAT_KEY), cy = pb * 0.62, r = fs * 1.5 * (1 + 0.18 * q), on = S.wakeUp ? 1 : 0.35;
+  g.strokeStyle = ORANGE; g.lineWidth = 2; g.globalAlpha = 0.5 * on;
   g.beginPath(); g.moveTo(x, cy + r); g.lineTo(x, pb); g.stroke();
   if (bt < 900) { g.globalAlpha = 0.6 * (1 - bt / 900); g.lineWidth = 3; g.beginPath(); g.arc(x, cy, r + fs * 2.2 * (bt / 900), 0, Math.PI * 2); g.stroke(); }
-  g.globalAlpha = 1;
+  g.globalAlpha = on;
   g.fillStyle = ORANGE; g.beginPath(); g.arc(x, cy, r, 0, Math.PI * 2); g.fill();
   g.fillStyle = '#1a0e00'; g.font = `700 ${fs * 1.3}px ${FONT}`; g.fillText('F', x, cy + 2);
+  g.globalAlpha = 1;
 }
 
 function drawScr(S, scr, t, dt, pb) {
@@ -1696,21 +1700,21 @@ function drawHud(S, t) {   // 右上：経過時間と場面（スタッフ用�
   const bx = W - 14 - 180;
   g.fillStyle = INK; g.fillRect(bx, 28, 180, 1); g.fillRect(bx, 26, Math.min(180, el * 1000 / TOTAL * 180), 5);
   g.fillStyle = RED; g.fillRect(bx + DUE.toX / TOTAL * 180 - 1, 23, 2, 11);   // 感想の投稿に入る目安
-  if (S.phase === 'saver') put(`F を押さえるか、Enter か「はじめる」で開始　H で表示を切り替え　次の感想 ${(parseInt(lsGet('kc-dlg-review') ?? '0', 10) || 0) + 1}/${REVIEWS.length}`, 44);
+  if (S.phase === 'saver') put(`F が上がったら押すか、Enter か「はじめる」で開始　H で表示を切り替え　次の感想 ${(parseInt(lsGet('kc-dlg-review') ?? '0', 10) || 0) + 1}/${REVIEWS.length}`, 44);
 }
 
 // ================= 体験の登録 =================
 const EXP = {
   id: 'dialogue', name: '対話',
   note: 'インストラクターと、ブラウザ・LINE・X の画面を行き来する。来場者の発言は、来場者の指が打つ。ときどき、キーを押して選ぶ',
-  use: 'F を押さえるか、Enter か「はじめる」で開始／H で時計の表示を切り替え',
+  use: 'F が上がったら押すか、Enter か「はじめる」で開始／H で時計の表示を切り替え',
   opts: {から: START, LLM: ['あり', 'なし']},
   actions: [{label: s => s.running ? '最初から' : 'はじめる', run: s => { document.activeElement?.blur?.(); if (s.running) restart(); else begin(s); }}],
   init(S) {
     queued.fill(false);
     Object.assign(S, {phase: 'saver', running: false, dead: false, tl: [], fs: 28,
       cli: {k: 'cli', inst: null, me: null, gone: []}, sv: newSaver(), slide: null, line: null, br: null, x: null, title: null, choice: null,
-      typing: null, hud: lsGet('kc-dlg-hud') === '0' ? 0 : 1, beatT: 0, held: 0});
+      typing: null, hud: lsGet('kc-dlg-hud') === '0' ? 0 : 1, beatT: 0, wakeUp: false});
     S.scr = S.sv;
     S.onKey = e => {
       if (e.target?.tagName === 'INPUT' && e.target.type === 'text') return;
@@ -1718,14 +1722,9 @@ const EXP = {
       if ((e.key === 'Enter' || (e.code === 'KeyF' && !writer)) && !S.running && !e.repeat) { e.preventDefault(); document.activeElement?.blur?.(); begin(S); }   // F は、基板がないとき（PC のキーボードで試す）だけ
       else if (e.key === 'h' || e.key === 'H') { S.hud = S.hud ? 0 : 1; lsSet('kc-dlg-hud', String(S.hud)); }
     };
-    S.onKnock = e => {   // 基板の判定：「押さえている」が HOLD_BEATS 回続いたら始める。途中で「ふつう」が出たら数え直す
-      if (S.running || S.dead || e.detail.key !== BEAT_KEY) return;
-      S.held = e.detail.held ? S.held + 1 : 0;
-      if (S.held >= HOLD_BEATS) begin(S);
-      else if (S.held) at(CONFIRM_MS, () => { if (!S.dead && !S.running && !paused) { S.beatT = now(); window.KC_INPUT.knock(BEAT_KEY); } });
-    };
+    S.onPress = e => { if (S.wakeUp && !S.running && !S.dead && e.detail.key === BEAT_KEY) begin(S); };   // 上がっている F が押し込まれた
     addEventListener('keydown', S.onKey);
-    addEventListener('kc-knock', S.onKnock);
+    addEventListener('kc-press', S.onPress);
     S.watch = setInterval(() => { if (paused && !S.dead) quit(S); }, 400);   // 一時停止したら、止める
     startBeat(S);
     fetch('/api/status').then(r => r.json()).then(j => {

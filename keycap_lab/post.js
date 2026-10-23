@@ -96,13 +96,26 @@ function autoScroll(el, ms) {
   const t0 = performance.now();
   (function step(t) { const k = Math.min(1, (t - t0) / ms); el.scrollTop = max * k; if (k < 1 && el.isConnected) requestAnimationFrame(step); })(t0);
 }
-// ---- 手元のカメラ（投稿の写真） ----
+// ---- 手元のカメラ（投稿の写真）。下の帯で、使うカメラを選べる（選んだものはブラウザに保存） ----
+const CAM_KEY = 'kc-camera';
+const camGet = () => { try { return localStorage.getItem(CAM_KEY) || ''; } catch { return ''; } };
+const camSet = v => { try { localStorage.setItem(CAM_KEY, v); } catch {} };
+async function listCameras() {
+  const sel = $('cameraSel'); if (!sel || !navigator.mediaDevices?.enumerateDevices) return;
+  const cams = (await navigator.mediaDevices.enumerateDevices().catch(() => [])).filter(d => d.kind === 'videoinput');
+  const cur = stream?.getVideoTracks()[0]?.getSettings().deviceId || camGet();
+  sel.replaceChildren(new Option('カメラ（自動）', ''), ...cams.map((d, i) => new Option(d.label || `カメラ ${i + 1}`, d.deviceId)));
+  sel.value = cams.some(d => d.deviceId === cur) ? cur : '';
+}
 async function startCamera() {
   try {
     stream?.getTracks().forEach(t => t.stop());
-    stream = await navigator.mediaDevices.getUserMedia({video: {width: {ideal: 1280}, height: {ideal: 720}, frameRate: {ideal: 30, max: 30}}, audio: false});
+    const id = camGet(), base = {width: {ideal: 1280}, height: {ideal: 720}, frameRate: {ideal: 30, max: 30}};
+    try { stream = await navigator.mediaDevices.getUserMedia({video: id ? {...base, deviceId: {exact: id}} : base, audio: false}); }
+    catch (e) { if (!id) throw e; stream = await navigator.mediaDevices.getUserMedia({video: base, audio: false}); status('選んだカメラが見つからないので、ほかのカメラを使います', 5000); }
     const pv = $('pv-hands'); pv.srcObject = stream; pv.play().catch(() => {});
     $('cameraBtn').textContent = 'カメラ接続済み';
+    listCameras();
     return true;
   } catch (e) { $('cameraBtn').textContent = 'カメラを再試行'; status('カメラ: ' + e.message, 5000); return false; }
 }
@@ -152,6 +165,9 @@ function newSession() {
 }
 function initControls() {
   $('cameraBtn').onclick = startCamera;
+  $('cameraSel').onchange = e => { camSet(e.target.value); startCamera(); };   // 選んだら、そのカメラにつなぎ直す
+  listCameras();
+  navigator.mediaDevices?.addEventListener?.('devicechange', listCameras);
   $('stopPublish').onclick = () => {
     if (stopPublishedOnce === null) stopPublishedOnce = $('publicSession').checked;
     publishAllowed = false; postAbort?.abort('stop'); $('publicSession').checked = false;
