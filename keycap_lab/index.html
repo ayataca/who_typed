@@ -28,6 +28,8 @@ html.fs #bar{display:none}
 html.fs, html.fs *{cursor:none}
 #conn.live{border-color:var(--acc);color:var(--acc)}
 #conn.warn{border-color:#e5484d;color:#e5484d}
+#publishBtn.on,#cameraBtn.on{border-color:var(--acc);color:var(--acc)}
+#publishBtn.off,#cameraBtn.off{border-color:#e5484d;color:#e5484d}
 #bar label{display:flex;gap:6px;align-items:center}
 #bar input[type=range]{width:110px;accent-color:var(--acc)}
 #bar output{width:44px;color:var(--fg)}
@@ -101,9 +103,8 @@ html.fs, html.fs *{cursor:none}
   </div>
   <div class="row">
     <label><input type="checkbox" id="realConsent" checked> 撮影・公開について本人の実際の同意を確認済み</label>
-    <label><input type="checkbox" id="publicSession" checked> 公開セッション</label>
-    <button class="op" id="stopPublish">このセッションの公開を中止</button>
-    <button class="op" id="cameraBtn">カメラを開始</button><select class="op" id="cameraSel" title="使うカメラ"><option value="">カメラ（自動）</option></select><video id="pv-hands" muted playsinline></video>
+    <button class="op" id="publishBtn" title="押すたびに、Xに公開する／しないが切り替わる"></button>
+    <button class="op" id="cameraBtn" title="カメラをつなぐ（つながらなければ、つなぎ直す）">カメラを開始</button><select class="op" id="cameraSel" title="使うカメラ"><option value="">カメラ（自動）</option></select><video id="pv-hands" muted playsinline></video>
     <span id="xStatus">X投稿: 確認中…</span><button class="op" id="deletePost" disabled>直前の投稿をXから削除</button>
     <span id="postResult"></span>
   </div>
@@ -158,6 +159,7 @@ function onLine(l) {
   else if ((m = l.match(/^AWAKE (\d)/))) sim[+m[1]].rest = false;
   else if ((m = l.match(/^RAISED ([0-9A-F]+)/i))) { INPUT.raised = parseInt(m[1], 16); INPUT.armed &= INPUT.raised; inputUI(); }
   else if ((m = l.match(/^ARMED (\d)/))) { INPUT.armed |= 1 << m[1]; inputUI(); }
+  else if ((m = l.match(/^DOWN (\d) ([\d.]+) ([\d.]+)/))) { boardDown(+m[1]); dispatchEvent(new CustomEvent('kc-down', {detail: {key: +m[1], bump: +m[2], thr: +m[3], ratio: +m[3] ? +m[2] / +m[3] : 0}})); }   // 押し込みの強さ（しきい値の何倍か）も渡す
   else if ((m = l.match(/^DOWN (\d)/))) boardDown(+m[1]);
   else if ((m = l.match(/^UP (\d)/))) { if (INPUT.raised & 1 << m[1]) INPUT.armed &= ~(1 << m[1]); inputUI(); }
   else if (/^TIMEOUT/.test(l)) { INPUT.raised = INPUT.armed = 0; inputUI(); }
@@ -224,7 +226,7 @@ function simLevel(k, t) {
 // シリアルの DOWN は、表示と「キー入力が届いていない」の診断にだけ使う（入力の判定には使わない）
 const KEY_CODES = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon'];
 const KEY_NAMES = ['A', 'S', 'D', 'F', 'J', 'K', 'L', ';'];
-const INPUT = {mask: 0, guide: 0, labels: [], raised: 0, armed: 0, last: '', typed: new Array(8).fill(-1e9), warn: ''};
+const INPUT = {mask: 0, guide: 0, labels: [], calm: false, raised: 0, armed: 0, last: '', typed: new Array(8).fill(-1e9), warn: ''};
 const MAX_RAISED = 3;   // 電源の都合で、同時に上げてよいのは3本まで（基板も3本までしか上げない）
 function toMask(keys) {
   if (typeof keys === 'number') return keys & 0xFF;
@@ -261,6 +263,8 @@ function boardDown(k) {
     inputUI();
   }, 500);
 }
+// calm：キーが上がっていても、画面では上がった見え方にしない（選ぶ場面の、読む間。まだ押させないとき）
+function calm(on) { INPUT.calm = !!on; }
 // 画面下のキーに出す番号（選ぶ場面の①②③）：[[キー, 番号], …]。null で消す
 function labels(list) { INPUT.labels = []; (list || []).forEach(([k, n]) => INPUT.labels[k] = n); }
 // 指を置く場所を、オレンジで示すだけ（キーは上げない）
@@ -281,7 +285,7 @@ function inputUI() {
   if (w && w !== lastWarn) status(w, 8000);
   lastWarn = w;
 }
-window.KC_INPUT = {listen, guide, knock, labels, get mask() { return INPUT.mask; }, get raised() { return INPUT.raised; }, KEY_NAMES};
+window.KC_INPUT = {listen, guide, knock, labels, calm, get mask() { return INPUT.mask; }, get raised() { return INPUT.raised; }, KEY_NAMES};
 
 // ---- 時間 ----
 // 予約は、一時停止のあいだは止まり、再開すると残りの時間から続く
@@ -327,12 +331,13 @@ function drawKeys(t, dt) {
     g.fillStyle = '#1d1e22'; g.fill();
     if (s.lift > 0.02) { g.fillStyle = alpha(ACC, s.lift * 0.85); g.fill(); }
     const lit = (INPUT.mask | INPUT.guide) & 1 << i;   // 入力に使うキー（指を置く場所）：オレンジに光る。上がっているあいだは濃く
-    if (lit) { g.fillStyle = alpha(ORANGE, INPUT.raised & 1 << i ? 0.95 : 0.6 + 0.25 * Math.sin(t / 260)); g.fill(); }
+    if (lit) { g.fillStyle = alpha(ORANGE, INPUT.calm ? 0.18 : INPUT.raised & 1 << i ? 0.95 : 0.6 + 0.25 * Math.sin(t / 260)); g.fill(); }   // calm のあいだは淡く、動かさない
     g.strokeStyle = s.rest ? '#e5484d' : '#34353a'; g.lineWidth = 1.5; g.stroke();   // キーの文字（A S D F…）は、来場者には関係ないので出さない
     const n = INPUT.labels[i];
     if (n && lit) {   // 選ぶ場面：選択肢の番号（①②③）
-      g.strokeStyle = '#1a0e00'; g.lineWidth = Math.max(2, ks * 0.04); g.beginPath(); g.arc(kx(i), y, ks * 0.27, 0, Math.PI * 2); g.stroke();
-      g.fillStyle = '#1a0e00'; g.font = `800 ${ks * 0.32}px "Hiragino Sans","Noto Sans JP",system-ui,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), kx(i), y + 1);
+      const ink = INPUT.calm ? alpha(ORANGE, 0.75) : '#1a0e00';   // 淡いあいだは、番号もオレンジの線で
+      g.strokeStyle = ink; g.lineWidth = Math.max(2, ks * 0.04); g.beginPath(); g.arc(kx(i), y, ks * 0.27, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = ink; g.font = `800 ${ks * 0.32}px "Hiragino Sans","Noto Sans JP",system-ui,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), kx(i), y + 1);
     }
   }
 }

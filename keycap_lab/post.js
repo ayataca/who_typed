@@ -2,7 +2,7 @@
 // 本編（who-typed-exhibition-scenario.html）の仕組みと画面を使う（X の画面は白地のまま）：
 //   server.mjs の /api/post に、本文（125字ごとのスレッド）と手元写真を送る。鍵はブラウザに置かない。同じセッションの再送は、サーバーが最初の結果を返す
 //   画面は本編と同じ 1180×720 の大きさで組み、シナリオの画面（キーの上）に収まるよう拡大縮小する
-// 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script>。下の帯の #realConsent・#publicSession などを使う
+// 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script>。下の帯の #realConsent・#publishBtn・#cameraBtn などを使う
 (() => {
 'use strict';
 const CONFIG = {
@@ -26,7 +26,10 @@ const setLang = l => { LANG = l === 'en' ? 'en' : 'ja'; };
 const tr = (ja, en) => LANG === 'en' ? en : ja;
 // X の文字数の数え方：日本語などは1字を2、英数字などは1と数える（1ポスト280まで）
 const xLen = s => [...s].reduce((n, ch) => { const c = ch.codePointAt(0); return n + (c <= 0x10FF || (c >= 0x2000 && c <= 0x200D) || (c >= 0x2010 && c <= 0x201F) || (c >= 0x2032 && c <= 0x2037) ? 1 : 2); }, 0);
-let stream = null, postAbort = null, lastPostIds = null, publishAllowed = true, stopPublishedOnce = null;
+let stream = null, postAbort = null, lastPostIds = null;
+// X に公開するか：下の帯の1つのボタンで、押すたびに ON／OFF が切り替わる（ブラウザに保存）
+const PUB_KEY = 'kc-publish';
+let publishOn = (() => { try { return localStorage.getItem(PUB_KEY) !== '0'; } catch { return true; } })();
 
 // ---- 改行：日本語を文節ほどの塊に分け、塊の間にだけ改行できる位置（ゼロ幅スペース）を入れる（本編と同じ） ----
 // 漢字・カタカナ・英数字で始まる語（と、その直前の「お」「ご」）の前と、句読点の後だけで区切る
@@ -117,17 +120,25 @@ async function listCameras() {
   sel.replaceChildren(new Option('カメラ（自動）', ''), ...cams.map((d, i) => new Option(d.label || `カメラ ${i + 1}`, d.deviceId)));
   sel.value = cams.some(d => d.deviceId === cur) ? cur : '';
 }
+// つながらない理由（ボタンに出す）
+const CAM_ERR = {NotAllowedError: '許可されていません', SecurityError: '許可されていません', NotReadableError: 'ほかのアプリが使用中', AbortError: 'ほかのアプリが使用中', NotFoundError: '見つかりません', OverconstrainedError: '見つかりません'};
 async function startCamera() {
+  $('cameraBtn').textContent = 'カメラにつないでいます…'; $('cameraBtn').className = 'op';
   try {
-    stream?.getTracks().forEach(t => t.stop());
+    stream?.getTracks().forEach(t => t.stop()); stream = null;   // 失敗しても、止まった前の映像を「つながっている」とみなさない
     const id = camGet(), base = {width: {ideal: 1280}, height: {ideal: 720}, frameRate: {ideal: 30, max: 30}};
     try { stream = await navigator.mediaDevices.getUserMedia({video: id ? {...base, deviceId: {exact: id}} : base, audio: false}); }
     catch (e) { if (!id) throw e; stream = await navigator.mediaDevices.getUserMedia({video: base, audio: false}); status('選んだカメラが見つからないので、ほかのカメラを使います', 5000); }
     const pv = $('pv-hands'); pv.srcObject = stream; pv.play().catch(() => {});
-    $('cameraBtn').textContent = 'カメラ接続済み';
+    $('cameraBtn').textContent = 'カメラ接続済み'; $('cameraBtn').className = 'op on';
     listCameras();
     return true;
-  } catch (e) { $('cameraBtn').textContent = 'カメラを再試行'; status('カメラ: ' + e.message, 5000); return false; }
+  } catch (e) {
+    stream = null; $('pv-hands').srcObject = null;
+    $('cameraBtn').textContent = `カメラ：${CAM_ERR[e.name] || 'つながりません'}（押すと、つなぎ直す）`; $('cameraBtn').className = 'op off';
+    status('カメラ: ' + (e.name === 'NotAllowedError' ? 'このページのカメラの使用が許可されていません。アドレスバー左のアイコンから「カメラ」を許可してください' : e.name === 'NotReadableError' ? 'ほかのアプリ（ほかの Chrome のウィンドウ・Zoom など）がカメラを使っていないか確かめてください' : e.message), 10000);
+    return false;
+  }
 }
 async function capture() {
   if (!stream) return '';
@@ -161,28 +172,32 @@ async function submitPost({sessionId, rating, texts, image}) {
     return false;
   } finally { clearTimeout(timer); postAbort = null; }
 }
-const wantPost = () => publishAllowed && $('publicSession').checked;
+const wantPost = () => publishOn;
+function publishUI() {
+  const b = $('publishBtn'); if (!b) return;
+  b.textContent = publishOn ? 'Xに公開：する' : 'Xに公開：しない'; b.className = 'op ' + (publishOn ? 'on' : 'off');
+}
+function togglePublish() {
+  publishOn = !publishOn;
+  if (!publishOn) postAbort?.abort('stop');   // 投稿の途中で OFF にしたら、その投稿も止める
+  try { localStorage.setItem(PUB_KEY, publishOn ? '1' : '0'); } catch {}
+  publishUI();
+}
 // 公開する場合は、本人の実際の同意を確かめてから始める
 function canStart() {
-  if (!$('realConsent').checked && $('publicSession').checked) { status('公開する場合は、実際の同意確認が必要です', 5000); return false; }
+  if (!$('realConsent').checked && publishOn) { status('公開する場合は、実際の同意確認が必要です', 5000); return false; }
   return true;
 }
-// 次のお客さんへ：「このセッションの公開を中止」は、そのセッションだけ
 function newSession() {
-  publishAllowed = true;
-  if (stopPublishedOnce !== null) { $('publicSession').checked = stopPublishedOnce; stopPublishedOnce = null; $('stopPublish').textContent = 'このセッションの公開を中止'; $('stopPublish').disabled = false; }
   return crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 function initControls() {
-  $('cameraBtn').onclick = startCamera;
+  $('cameraBtn').onclick = () => { $('cameraBtn').blur(); startCamera(); };   // カメラをつなぐ（つながらなければ、つなぎ直す）
+  $('publishBtn').onclick = () => { $('publishBtn').blur(); togglePublish(); };
+  publishUI();
   $('cameraSel').onchange = e => { e.target.blur(); camSet(e.target.value); startCamera(); };   // 選んだら、そのカメラにつなぎ直す（選択欄からフォーカスを外す：そのままだと S D F の入力で選択が変わってしまう）
   listCameras();
   navigator.mediaDevices?.addEventListener?.('devicechange', listCameras);
-  $('stopPublish').onclick = () => {
-    if (stopPublishedOnce === null) stopPublishedOnce = $('publicSession').checked;
-    publishAllowed = false; postAbort?.abort('stop'); $('publicSession').checked = false;
-    $('stopPublish').textContent = '公開中止済み'; $('stopPublish').disabled = true;
-  };
   $('deletePost').onclick = async () => {
     if (!lastPostIds || !confirm('直前の投稿（スレッド全体）をXから削除しますか？')) return;
     const r = await fetch('/api/delete', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: lastPostIds})}).then(r => r.json()).catch(e => ({ok: false, error: e.message}));

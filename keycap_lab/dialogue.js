@@ -129,6 +129,9 @@ const SEND_PAUSE = 550;   // 打ち終えてから送信（Enter）を押すま�
 const SAVER_MSG = () => tr('キーに指を軽く添えてください', 'Rest your fingers lightly on the keys');
 const SAVER_SUB = () => tr('オレンジのキーが上がったタイミングで、押してください。', 'When the orange key rises, press it.');   // キーの文字（F）は、来場者には関係ないので出さない
 const WAKE_UP_MS = 2000;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる
+// 待機の押し込みは、勝手に始まらないよう厳しめに読む（基板がつながっているとき）：上がってから WAKE_SETTLE_MS は数えない（上がった直後の電流のゆれ）。
+// 押し込みの強さが、しきい値の WAKE_MIN_RATIO 倍以上のときだけ始める（ノイズは、しきい値すれすれのことが多い）。押し込みのたびに、強さを下の帯に出す
+const WAKE_SETTLE_MS = 500, WAKE_MIN_RATIO = 1.8;
 const WAKE_SLEEP_MS = 5000;   // 待機：F を下げて休ませる時間（ソレノイドの発熱を避ける）
 const BEAT_KEY = 3;       // F
 const TITLE = 'Who typed?';                // 最後に打たれる作品名
@@ -475,7 +478,7 @@ async function choose(S, {options, keys = CHOICE_KEYS, forced = null, label = ''
   const C = S.choice = {options, ks, label, forced, stage: 'read', t0: now(), dur: readMs, picked: -1, final: -1, tutorial: !S.tutored};   // 最初の1回だけ、選び方を添える
   S.tutored = true;
   const st = (stage, dur = 0) => Object.assign(C, {stage, t0: now(), dur});
-  KI.guide(keys); KI.labels(ks.map((k, j) => [k, j + 1]));   // 読む段階から、どのキーがどの選択肢か（①②③）を見せる。キーはまだ上げない
+  KI.guide(keys); KI.labels(ks.map((k, j) => [k, j + 1])); KI.calm(true);   // 読む段階から、どのキーがどの選択肢か（①②③）を控えめに見せる（calm：上がっても、上がった見え方にしない）
   mark(S, 'c:read');
   await wait(S, Math.max(0, readMs - CHOICE.prepMs));
   // 準備：キーを上げはじめる（電流が落ち着くのを待つ）。まだ受け付けない。押されたら、警告を強める
@@ -484,6 +487,7 @@ async function choose(S, {options, keys = CHOICE_KEYS, forced = null, label = ''
   addEventListener('kc-press', early);
   try { await wait(S, Math.min(readMs, CHOICE.prepMs)); } finally { removeEventListener('kc-press', early); }
   st('select', CHOICE.selectMs);
+  KI.calm(false);   // ここで初めて、上がったキーを強く光らせる
   mark(S, 'c:select');
   let picked = await ok(S, new Promise(resolve => {
     let fin = false;
@@ -492,7 +496,7 @@ async function choose(S, {options, keys = CHOICE_KEYS, forced = null, label = ''
     at(CHOICE.selectMs, () => done(-1));   // 一時停止のあいだは、残り時間も止まる
     addEventListener('kc-press', on);
   }));
-  KI.listen(0); KI.guide(0); KI.labels(null);
+  KI.listen(0); KI.guide(0); KI.labels(null); KI.calm(false);
   mark(S, picked < 0 ? 'c:timeout' : 'c:pick' + picked);
   C.picked = picked;
   if (picked < 0) {   // 時間切れ
@@ -851,6 +855,7 @@ function quit(S) {
   stopBeat(S);
   removeEventListener('keydown', S.onKey);
   removeEventListener('kc-press', S.onPress);
+  removeEventListener('kc-down', S.onDown);
   window.KC_INPUT?.listen(0);
   window.KC_POST?.hide();
 }
@@ -1044,10 +1049,11 @@ function drawChoice(S, C, t, pb) {
   spots.forEach((p, j) => {
     const look = cardLook(C, j, t);
     if (show) {
-      g.globalAlpha = A * 0.55 * pin; g.strokeStyle = ORANGE; g.lineWidth = 1.5;   // 札から、そのキーへ
+      g.globalAlpha = A * (sel ? 0.55 : 0.22) * pin; g.strokeStyle = ORANGE; g.lineWidth = 1.5;   // 札から、そのキーへ（読む間は淡く）
       g.beginPath(); g.moveTo(p.bx + bs / 2, rowY + bs / 2 + 2); g.lineTo(kx(p.k), pb + 1); g.stroke();
-      const s2 = bs * easeBack(pin);
-      badge(p.bx + (bs - s2) / 2, rowY - s2 / 2, s2, A * Math.min(1, pin * 2) * (sel ? 0.75 + 0.25 * Math.sin(t / 170) : 1), j + 1);
+      // 読む間：小さく淡い札（対応だけを示す）。選ぶ時間に入った瞬間、ぽんっと大きくなって脈打つ
+      const s2 = sel ? bs * (0.8 + 0.2 * easeBack(clamp((t - C.t0) / 280, 0, 1))) : bs * 0.8 * easeBack(pin);
+      badge(p.bx + (bs - s2) / 2, rowY - s2 / 2, s2, A * Math.min(1, pin * 2) * (sel ? 0.75 + 0.25 * Math.sin(t / 170) : 0.4), j + 1);
     }
     if (look.lime > 0) {   // 選んだもの：黄緑に光る枠
       const px = fs * 0.4, py = fs * 0.28, h = p.lines.length * p.lh;
@@ -1065,15 +1071,16 @@ function drawChoice(S, C, t, pb) {
     picked: chosen, timeout: forYou, final: after, out: after}[C.stage];
   if (!msg) { g.globalAlpha = 1; return; }
   const msgY = pb - fs * 4.2, color = INK, t0 = C.stage === 'final' || C.stage === 'out' ? -1e9 : C.t0;   // 「選びました」は出たまま
-  floatLine(msg, W / 2, msgY, fs * 1.05, color, t0, t, A);
+  if (C.stage !== 'read') floatLine(msg, W / 2, msgY, fs * 1.05, color, t0, t, A);
   if (C.stage === 'select') {   // 入力受付中：赤い点が脈打つ
     g.font = `600 ${fs * 0.55}px ${FONT}`; const acc = tr('入力受付中', 'Now accepting input'), w = textW(acc), x = W / 2 - (w + fs * 0.55) / 2, y = msgY - fs * 1.2;
     g.globalAlpha = A * (0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t / 160))); g.fillStyle = RED; g.beginPath(); g.arc(x + fs * 0.15, y, fs * 0.15, 0, Math.PI * 2); g.fill();
     g.globalAlpha = A; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(acc, x + fs * 0.55, y);
-  } else if (C.stage === 'read') {   // 読む間：まだ押さないように、赤で警告する。押されたら、大きくゆれる
-    const e = C.earlyT ? clamp((t - C.earlyT) / 600, 0, 1) : 1, k = 1.2 + 0.25 * (1 - e), dx = Math.sin(e * Math.PI * 6) * fs * 0.25 * (1 - e);
-    g.globalAlpha = A; g.font = `700 ${fs * 0.62 * k}px ${FONT}`; g.fillStyle = RED; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(tr('まだキーは押さないでください', "Don't press any keys yet"), W / 2 + dx, msgY - fs * 1.25);
+  } else if (C.stage === 'read') {   // 読む間：大きな太字の赤で「まだ押さないでください」。その上に小さく「選択肢を読んでください」。押されたら、大きくゆれる
+    const e = C.earlyT ? clamp((t - C.earlyT) / 600, 0, 1) : 1, k = 1 + 0.15 * (1 - e), dx = Math.sin(e * Math.PI * 6) * fs * 0.3 * (1 - e);
+    g.globalAlpha = A; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `800 ${fs * 1.25 * k}px ${FONT}`; g.fillStyle = RED; g.fillText(tr('まだキーは押さないでください', "Don't press any keys yet"), W / 2 + dx, msgY);
+    g.font = `600 ${fs * 0.62}px ${FONT}`; g.fillStyle = INK; g.fillText(msg, W / 2, msgY - fs * 1.35);
   } else if (C.stage === 'read' && C.label) {
     g.globalAlpha = A * 0.7; g.font = `500 ${fs * 0.5}px ${FONT}`; g.fillStyle = '#6b6b6b'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(C.label, W / 2, msgY - fs * 1.15);
   }
@@ -1087,7 +1094,7 @@ function drawChoice(S, C, t, pb) {
 function mirrorLook(S, B, j, t) {
   const C = S.choice;
   if (!C || !B.mirror) return null;
-  return {...cardLook(C, j, t), badge: C.stage === 'select' || C.stage === 'read', n: j + 1};
+  return {...cardLook(C, j, t), badge: C.stage === 'select' || C.stage === 'read', calm: C.stage === 'read', n: j + 1};
 }
 
 // ---- LINE（風）：鈴木との会話。配置と色だけをそれっぽくした、ロゴのない画面 ----
@@ -1332,7 +1339,7 @@ function suggestDrop(S, B, t, x, dy, bw) {
     magnifier(x + fs * 0.75, yy + h / 2, fs * 0.42);
     txt(`${B_TX.qtext} `, x + fs * 1.5, yy + h / 2, fs * 0.6, B_URL, 500);
     txt(sg, x + fs * 1.5 + textW(`${B_TX.qtext} `), yy + h / 2, fs * 0.6, B_URL, 700);
-    if (look && look.badge) badge(x + bw - fs * 1.2, yy + h * 0.15, h * 0.7, 1, look.n);
+    if (look && look.badge) badge(x + bw - fs * 1.2, yy + h * 0.15, h * 0.7, look.calm ? 0.4 : 1, look.n);   // 読む間は淡く
     setHit(B, 'sug' + j, x, yy, bw, h, {ax: 0.25});
   });
   g.globalAlpha = 1;
@@ -1608,7 +1615,15 @@ const EXP = {
       if ((e.key === 'Enter' || (e.code === 'KeyF' && !writer)) && !S.running && !e.repeat) { e.preventDefault(); document.activeElement?.blur?.(); begin(S); }   // F は、基板がないとき（PC のキーボードで試す）だけ
       else if (e.key === 'h' || e.key === 'H') { S.hud = S.hud ? 0 : 1; lsSet('kc-dlg-hud', String(S.hud)); }
     };
-    S.onPress = e => { if (S.wakeUp && !S.running && !S.dead && e.detail.key === BEAT_KEY) begin(S); };   // 上がっている F が押し込まれた
+    S.onPress = e => { if (!writer && S.wakeUp && !S.running && !S.dead && e.detail.key === BEAT_KEY) begin(S); };   // 基板がないとき（PC のキーボードで試す）：上がっている F が押された
+    S.onDown = e => {   // 基板があるとき：上がっている F の押し込みを、強さで確かめてから始める
+      const d = e.detail;
+      if (!S.wakeUp || S.running || S.dead || d.key !== BEAT_KEY) return;
+      const early = now() - S.beatT < WAKE_SETTLE_MS, strong = d.ratio >= WAKE_MIN_RATIO;
+      status(`待機の押し込み F：強さ ${d.ratio.toFixed(1)}（しきい値の倍。${WAKE_MIN_RATIO} 以上で開始）→ ${early ? '上がった直後なので無視' : strong ? '開始' : '弱いので無視'}`, 4000);
+      if (!early && strong) begin(S);
+    };
+    addEventListener('kc-down', S.onDown);
     addEventListener('keydown', S.onKey);
     addEventListener('kc-press', S.onPress);
     startBeat(S);
