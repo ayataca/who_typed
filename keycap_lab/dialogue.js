@@ -128,7 +128,7 @@ const REVIEW_SPEED = p => 1.6 + 1.8 * p;   // 打った割合 p → 速さ。ど
 const SEND_PAUSE = 550;   // 打ち終えてから送信（Enter）を押すまでの間（ms）
 const SAVER_MSG = () => tr('キーに指を軽く添えてください', 'Rest your fingers lightly on the keys');
 const SAVER_SUB = () => tr('オレンジのキーが上がったタイミングで、押してください。', 'When the orange key rises, press it.');   // キーの文字（F）は、来場者には関係ないので出さない
-const WAKE_UP_MS = 2000;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる
+const WAKE_UP_MS = 2500;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる（はじめの WAKE_SETTLE_MS は受け付けないので、押せるのは2秒）
 // 待機の押し込みは、勝手に始まらないよう厳しめに読む（基板がつながっているとき）：上がってから WAKE_SETTLE_MS は数えない（上がった直後の電流のゆれ）。
 // 押し込みの強さが、しきい値の WAKE_MIN_RATIO 倍以上のときだけ始める（ノイズは、しきい値すれすれのことが多い）。押し込みのたびに、強さを下の帯に出す
 const WAKE_SETTLE_MS = 500, WAKE_MIN_RATIO = 1.4;   // もとは 1.0（基板のしきい値そのまま）
@@ -844,12 +844,13 @@ function startBeat(S) {
   stopBeat(S);
   const KI = window.KC_INPUT;
   const up = () => { if (S.dead || S.running) return; if (paused) { S.beatTimer = setTimeout(up, 500); return; }
-    S.wakeUp = true; S.beatT = now(); KI.listen('f'); S.beatTimer = setTimeout(down, WAKE_UP_MS); };
-  const down = () => { S.wakeUp = false; KI.listen(0); KI.guide('f'); if (S.dead || S.running) return; S.beatTimer = setTimeout(up, WAKE_SLEEP_MS); };
-  KI.guide('f');
+    S.wakeUp = true; S.beatT = now(); KI.listen('f'); S.beatTimer = setTimeout(down, WAKE_UP_MS);
+    KI.calm(true); S.calmTimer = setTimeout(() => { if (S.wakeUp) KI.calm(false); }, WAKE_SETTLE_MS); };   // 受け付けるまでは、画面のキーも淡いまま
+  const down = () => { S.wakeUp = false; KI.calm(true); KI.listen(0); KI.guide('f'); if (S.dead || S.running) return; S.beatTimer = setTimeout(up, WAKE_SLEEP_MS); };
+  KI.guide('f'); KI.calm(true);   // 画面の F のキーは、受け付けているあいだだけ明るく
   S.beatTimer = setTimeout(up, 800);
 }
-function stopBeat(S) { clearTimeout(S.beatTimer); S.beatTimer = 0; S.wakeUp = false; window.KC_INPUT?.listen(0); window.KC_INPUT?.guide(0); }
+function stopBeat(S) { clearTimeout(S.beatTimer); clearTimeout(S.calmTimer); S.beatTimer = 0; S.wakeUp = false; window.KC_INPUT?.calm(false); window.KC_INPUT?.listen(0); window.KC_INPUT?.guide(0); }
 function quit(S) {
   S.dead = true;
   stopBeat(S);
@@ -1558,18 +1559,27 @@ function kToX(k) {   // キーの番号（小数も）→ 画面の x
 // ---- 待機：F が2秒上がり、5秒下がる。上がっているあいだに押すと始まる ----
 const newSaver = () => ({k: 'saver'});
 function drawSaver(S, V, t, dt, pb) {
-  const fs = S.fs, bt = S.beatT ? t - S.beatT : 1e9, q = Math.exp(-bt / 260);
+  const fs = S.fs, since = S.wakeUp ? t - S.beatT : -1, ready = S.wakeUp && since >= WAKE_SETTLE_MS;
   g.fillStyle = INK; g.font = `500 ${fs * 1.05}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText(SAVER_MSG(), W / 2, pb * 0.24);
   g.font = `500 ${fs * 0.72}px ${FONT}`; g.fillStyle = '#555';
   g.fillText(SAVER_SUB(), W / 2, pb * 0.24 + fs * 1.3);
-  // F が上がると、F の上で輪が広がる（下がっているあいだは淡く）。下の F のキーへ、細い線
-  const x = kx(BEAT_KEY), cy = pb * 0.62, r = fs * 1.5 * (1 + 0.18 * q), on = S.wakeUp ? 1 : 0.35;
+  // F の上の丸：下がっているあいだは、淡く小さい。上がりはじめ（まだ受け付けない WAKE_SETTLE_MS）は、淡いまま少しずつ大きくなる。
+  // 受け付けられるようになった瞬間に、濃いオレンジになって輪が広がる（今押していい、の合図）。下の F のキーへ、細い線
+  const x = kx(BEAT_KEY), cy = pb * 0.62, grow = S.wakeUp ? easeOut(clamp(since / WAKE_SETTLE_MS, 0, 1)) : 0;
+  const rt = ready ? since - WAKE_SETTLE_MS : 1e9, q = Math.exp(-rt / 260);
+  const r = fs * 1.5 * (0.8 + 0.2 * grow) * (1 + 0.18 * q), on = ready ? 0.9 + 0.1 * Math.sin(t / 200) : 0.3;
   g.strokeStyle = ORANGE; g.lineWidth = 2; g.globalAlpha = 0.5 * on;
   g.beginPath(); g.moveTo(x, cy + r); g.lineTo(x, pb); g.stroke();
-  if (bt < 900) { g.globalAlpha = 0.6 * (1 - bt / 900); g.lineWidth = 3; g.beginPath(); g.arc(x, cy, r + fs * 2.2 * (bt / 900), 0, Math.PI * 2); g.stroke(); }
+  if (rt < 900) { g.globalAlpha = 0.6 * (1 - rt / 900); g.lineWidth = 3; g.beginPath(); g.arc(x, cy, r + fs * 2.2 * (rt / 900), 0, Math.PI * 2); g.stroke(); }
   g.globalAlpha = on;
   g.fillStyle = ORANGE; g.beginPath(); g.arc(x, cy, r, 0, Math.PI * 2); g.fill();
+  // 弱くて無視した押し込み：丸の上に、短い声かけ（2秒）
+  if (S.weakT && t - S.weakT < 2200) {
+    g.globalAlpha = Math.min(1, (2200 - (t - S.weakT)) / 400);
+    g.font = `700 ${fs * 0.8}px ${FONT}`; g.fillStyle = RED; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(tr('もう少し、しっかり押してください', 'Press a little more firmly'), x, cy - fs * 3.2);
+  }
   g.globalAlpha = 1;
 }
 
@@ -1622,6 +1632,7 @@ const EXP = {
       const early = now() - S.beatT < WAKE_SETTLE_MS, strong = d.ratio >= WAKE_MIN_RATIO;
       status(`待機の押し込み F：強さ ${d.ratio.toFixed(1)}（しきい値の倍。${WAKE_MIN_RATIO} 以上で開始）→ ${early ? '上がった直後なので無視' : strong ? '開始' : '弱いので無視'}`, 4000);
       if (!early && strong) begin(S);
+      else if (!early) S.weakT = now();   // 弱くて無視した：画面で「もう少し、しっかり押して」と声をかける（早すぎる押し込みは、画面の表示で防ぐ）
     };
     addEventListener('kc-down', S.onDown);
     addEventListener('keydown', S.onKey);
