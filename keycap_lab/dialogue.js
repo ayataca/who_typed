@@ -131,7 +131,7 @@ const SAVER_SUB = () => tr('オレンジのキーが上がったタイミング�
 const WAKE_UP_MS = 2000;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる
 // 待機の押し込みは、勝手に始まらないよう厳しめに読む（基板がつながっているとき）：上がってから WAKE_SETTLE_MS は数えない（上がった直後の電流のゆれ）。
 // 押し込みの強さが、しきい値の WAKE_MIN_RATIO 倍以上のときだけ始める（ノイズは、しきい値すれすれのことが多い）。押し込みのたびに、強さを下の帯に出す
-const WAKE_SETTLE_MS = 500, WAKE_MIN_RATIO = 1.8;
+const WAKE_SETTLE_MS = 500, WAKE_MIN_RATIO = 1.4;   // もとは 1.0（基板のしきい値そのまま）
 const WAKE_SLEEP_MS = 5000;   // 待機：F を下げて休ませる時間（ソレノイドの発熱を避ける）
 const BEAT_KEY = 3;       // F
 const TITLE = 'Who typed?';                // 最後に打たれる作品名
