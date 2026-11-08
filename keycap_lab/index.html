@@ -95,14 +95,13 @@ html.fs, html.fs *{cursor:none}
     <button class="op" id="fsBtn">全画面で表示</button>
     <button class="op" id="conn"></button>
     <span id="status"></span>
-    <span id="keys">Enter はじめる　Space 一時停止／再開　Z 全画面　H 表示の切り替え　Esc 全画面をやめる</span>
+    <span id="keys">Enter はじめる　Space 一時停止／再開　Z 全画面　Esc 全画面をやめる</span>
   </div>
   <div class="row">
     <label>速さ <input id="spd" type="range" min="0.25" max="3" step="0.05" value="1"><output></output></label>
     <label>駆動時間 <input id="len" type="range" min="30" max="400" step="5" value="150"><output></output></label>
   </div>
   <div class="row">
-    <label><input type="checkbox" id="realConsent" checked> 撮影・公開について本人の実際の同意を確認済み</label>
     <button class="op" id="publishBtn" title="押すたびに、Xに公開する／しないが切り替わる"></button>
     <button class="op" id="cameraBtn" title="カメラをつなぐ（つながらなければ、つなぎ直す）">カメラを開始</button><select class="op" id="cameraSel" title="使うカメラ"><option value="">カメラ（自動）</option></select><video id="pv-hands" muted playsinline></video>
     <span id="xStatus">X投稿: 確認中…</span><button class="op" id="deletePost" disabled>直前の投稿をXから削除</button>

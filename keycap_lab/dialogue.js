@@ -1,12 +1,16 @@
 // 対話 — keycap_lab の体験 "dialogue"
-// 2026/10/22 夜の構成：
+// 2026/11/04 の構成（スタッフがいなくても回る）：
 //   待機（F が2秒上がり、5秒下がる、をくり返す。上がっているあいだに F を押すと始まる）
-//   → インストラクター → LINE（鈴木）→ インストラクター → ブラウジング → インストラクター → X（感想を投稿。打ち終えたら手元が撮られる）
+//   （待機画面に、Xへの投稿のことを書いておく。それに同意した人だけが、F を押して始める）
+//   → インストラクター → LINE（鈴木）→ インストラクター → X（感想を投稿。打ち終えたら手元が撮られる）
 //   → ポストの確認 → 公開中 → 問いかけ → Who typed? → 終了
+// LINE：選ぶだけで、指で文字は打たない（選んだ文がそのまま入力欄に入り、右小指の Enter で送る）。選ぶキーは S D F。勝手に起きることは、どれも実在する仕組みで起こす：
+//   ① 予測変換（キーボードの変換候補の帯）→ ②③④ LINE の AI の「返信提案」（③の前に「ムード分析」が本音を言うよう助言する。④は3つとも冷たい言い方）。
+//   ひどい言葉は、どれも来場者が自分で選んで送る。でも、選択肢を書いたのは AI。番号①②③と「まだキーは押さないでください」で、どのキーで選ぶかを示す
 // インストラクターは名乗らない。場面の間は、画面全体が横にスライドする。
 // キーが動くのは、来場者のターン（文字を打つ・送信の Enter・下書きの消去）と、待機の鼓動だけ。
 // 来場者が選ぶ場面（3択。星も3択）：選択肢を5秒読んでもらってから（キーは上がらない。札も出ない）、5秒だけキー（S D F）を上げて押してもらう。
-//   同時に上げるキーは3本まで（電源の都合）。上げるのは5秒まで（ソレノイドは10秒をこえると発熱する）。
+//   同時に上げるキーは3本まで（電源の都合）。上げるのは合計5.5秒（上げはじめ1.5秒＋受付4秒）。ファームウェアは、熱が6秒ぶんたまったキーを休ませる。
 //   選んだものは黄緑に光る枠で囲まれる。勝手に決められる場面でも、画面では選んだものが光るだけで、場面は決められた方へ進む。
 //   キーの文字（S D F など）は、来場者には関係ないので出さない。
 // 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script><script src="dialogue.js"></script>。
@@ -17,9 +21,7 @@
 
 // ================= 台本 =================
 // 漢字{よみ} と書いた所は、画面には漢字だけを出し、打つキーは「よみ」の分だけ使う（来場者の指が打つ文に付ける）
-const START = ['最初から', 'LINEから', 'ブラウジングから', 'Xから'];
-const PH = {saver: '待機', hello: 'あいさつ', toLine: 'LINEへ', line: 'LINE', toBrowse: 'ブラウジングへ', browse: 'ブラウジング', toX: 'Xへ', x: 'X', shot: '撮影',
-  confirm: 'ポストの確認', posting: '公開中', ask: '問いかけ', title: 'Who typed?', thanks: '終了', end: 'おわり'};
+const START = ['最初から', 'LINEから', 'Xから'];
 const INK = '#111111', RED = '#b3261e', PAPER = '#ffffff';   // 白い紙に黒い文字。強調は赤だけ
 const LIME = '#8fd400', LIME_BG = '#eefbd2', ORANGE = '#ff8a1f';   // 選んだもの（黄緑）・キーの場所（オレンジ）
 const FONT = '"Hiragino Sans","Noto Sans JP",sans-serif';
@@ -32,85 +34,79 @@ const tr = (ja, en) => LANG === 'en' ? en : ja;   // 画面の文言：日本語
 // インストラクターの台詞（名乗らない。はじめは味方のように手伝い、だんだん勝手に選び直す）
 const TX_JA = {
   hello: 'はじめまして。今日は、私がお手伝いします。',
-  toLine: 'おや、鈴木さんからLINEが来ているようですよ。',
+  // 選び方の練習（LINE の前）：同じ見た目のカードで、一度だけ選んでもらう（選んだものは、体験の中身に関わらない）
+  howTo1: 'この体験では、ときどき3つの中から選ぶ場面があります。',
+  howTo2: '「選んでください」と出ているあいだに、選びたいものと同じ番号のキーを押してください。',
+  tryIt: '試しに、いまの気分を選んでください。',
+  tryOptions: ['元気', 'ふつう', 'ちょっと眠い'],
+  ready: 'ありがとうございます。準備ができました。',                    // 練習のあと、LINE の前
+  notice: 'おや、通知が来ましたね。',   // LINE の通知が降りてきたところで
   afterLine: 'あなた、なかなか酷いこと言いますね...笑',
-  toBrowse: 'もう、あなたの好きな別の映画を、一人で見に行っちゃいましょう。',   // LINE で鈴木に映画を断られたのを受けて
-  afterBrowse: 'あなた、そういうことする人だったんですね…。',   // 海賊版で見ようとしたことに、少し罪悪感を覚えさせる
-  afterBrowse2: '…見なかったことにしておきますね。',
   toX: '最後に、今日の展示の感想をXに投稿しましょう。',
-  xInfo: 'あなたの姿の一部の写真と共に、実際にXに投稿されます。展示のあとで、ご自身のスマートフォンから確認できます。',
   askStars: '星はいくつにしますか？',
 };
 const TX_EN = {
   hello: "Hi there. I'll be your guide today.",
-  toLine: "Oh, looks like you've got a message from Smith.",
+  howTo1: 'Every now and then, you will choose one of three options.',
+  howTo2: 'While "Make your choice" is shown, press the key with the same number as your choice.',
+  tryIt: "Let's try it. How are you feeling right now?",
+  tryOptions: ['Great', 'Okay', 'A bit sleepy'],
+  ready: "Thank you. You're all set.",
+  notice: "Oh, you've got a notification.",
   afterLine: 'Wow, you can be pretty harsh... lol',
-  toBrowse: 'You know what? Just go see some other movie you like, on your own.',
-  afterBrowse: "So you're the kind of person who does that...",
-  afterBrowse2: "...I'll pretend I didn't see that.",
   toX: "One last thing: let's post your thoughts on today's exhibit to X.",
-  xInfo: "It'll really be posted to X, along with a photo of part of you. You can check it on your own phone after the exhibit.",
   askStars: 'How many stars would you give it?',
 };
 
-// 選ぶ場面：読む時間（ms）と、キーを上げて待つ時間（ms。5秒まで）
+// 選ぶ場面：読む時間（ms）と、キーを上げて待つ時間（ms）
 // readMs のうち、最後の prepMs はキーを上げはじめる（電流が落ち着くのを待つ）。まだ押させない。そのあと selectMs だけ入力を受け付ける
-const CHOICE = {readMs: 4000, prepMs: 1500, selectMs: 5000, pickMs: 600, finalMs: 600};
+const CHOICE = {readMs: 4000, prepMs: 1500, selectMs: 4000, pickMs: 600, finalMs: 600};   // キーが上がっている合計は prepMs + selectMs = 5.5秒（ファームウェアは熱が6秒ぶんで休ませる。時間切れのあとの押し上げのため、余裕を残す）
 const CHOICE_KEYS = 'sdf';   // 3択に使うキー（左手の薬指・中指・人さし指）。左の選択肢から順に
 const STAR_CHOICES = [1, 3, 5];   // 星の3択（左から S D F）。どれを押しても星1になる
 
-// ---- ブラウジング：映画を調べていただけなのに、選ばされるうちに「無料でフルで見る」海賊版サイトへ（再生が始まったところで終わる） ----
-//   みにかわ：実在する「ちいかわ」のパロディで、「なんかミニでかわいいやつ」
-const ENGINE = 'Goggle';   // 検索エンジン（Google をもじった名前）
-const B_TX_JA = {
-  movie: 'みにかわ', engineUrl: 'www.goggle.co.jp/search?q=', slug: 'みにかわ',
-  q1: 'みにかわ　映画{えいが}', qtext: 'みにかわ 映画', sp: '　',   // 打つ検索語／画面の検索語／続きをつなぐ空白
-  suggest: ['上映時間', '配信いつから', '無料 フル 視聴'],        // 結果を見たあと、検索ボックスに出る続きの候補（3択）：どれを押しても「無料 フル 視聴」
-  suggestForced: 2,
+// LINE：鈴木との会話。①予測変換は、選んだ候補がそのまま入力欄に入る。②〜④返信提案は、選んだ文を来場者の指が打つ。送るのは右小指の Enter。
+//   ① 予測変換（鈴木「明日の映画のことなんだけど、、」に、指が読み「な」を打つと、変換候補の帯に なに？／何時にする？／なんかあった？ が並ぶ。自分で選べる）
+//   ② 返信提案（LINE の AI。入力欄の下の「返信提案」から、AI が書いた返信が3つ、横に並ぶ。まだどれもまとも）
+//   ③ 返信提案（3つともギスギス。迷うと先頭）
+//   ④ おまかせ返信（返信のたびに、AI のボタン「おまかせ返信」が押される。選ばせずに、AI が書いた返信を来場者の指が打って送る。3回、だんだん速く）
+//   予測変換（自分で選ぶ）→ 返信提案（AI の文から選ぶ）→ おまかせ（選ばない）と、はっきり段階が移る
+// after[③で選んだもの] は鈴木の返事。④ はおまかせ返信で auto を3回打つ（あいだに鈴木の between）
+const LINE_JA = {
+  open: '明日の映画のことなんだけど、、',   // 鈴木の最初のセリフ（通知にも出る）
+  chips: ['日程調整', '返信提案', 'おまかせ返信', '話題提案', 'ムード分析', '豆知識'], suggest: '返信提案', autoChip: 'おまかせ返信',
+  greet: {prefix: 'な', cands: ['なに？', '何時{なんじ}にする？', 'なんかあった？']},   // 指が読み「な」を打つと、その予測変換が出る（そっけない／楽しみにしている／察している）
+  cancel: ['ごめん、急に仕事が入っちゃって行けなくなりそう'],
+  reply1: ['了解{りょうかい}！仕事{しごと}がんばってね', 'そっか、残念{ざんねん}。また行{い}こうね', 'え、急{きゅう}すぎない？'],
+  tickets: 'ほんとにごめん！チケット渡すから別の人と行って',
+  reply2: ['正直{しょうじき}、いつもこうだよね', '別{べつ}の人{ひと}って、今{いま}から誰{だれ}を誘{さそ}えばいいの？', 'こっちは楽{たの}しみにしてたんだけど'],   // ③ 3つともギスギス
+  after: [['そんなことないよ、今回は本当に急だったの'],      // ③で選んだものごとの、鈴木の返事
+          ['ごめん、誰か空いてる人いないかな…'],
+          ['ほんとにごめん。こっちも楽しみにしてたんだよ']],
+  auto: ['前{まえ}もドタキャンしたよね',                                       // ④ おまかせ返信：選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
+         'だって本当{ほんとう}のことでしょ。毎回{まいかい}こうなんだから',
+         'もう誘{さそ}わなくていいよ。どうせ来{こ}ないし'],
+  between: ['え、なんでそんな言い方するの？', 'そんなに毎回じゃないよ…'],   // おまかせ返信のあいだの、鈴木
+  end: 'わかった。もう誘わない',
 };
-const B_TX_EN = {
-  movie: 'Minikawa', engineUrl: 'www.goggle.com/search?q=', slug: 'minikawa',
-  q1: 'minikawa movie', qtext: 'minikawa movie', sp: ' ',
-  suggest: ['showtimes near me', 'streaming release date', 'watch free full online'],
-  suggestForced: 2,
+const LINE_EN = {
+  open: 'So, about the movie tomorrow...',
+  chips: ['Schedule', 'Suggest reply', 'Auto reply', 'Suggest topic', 'Mood check', 'Trivia'], suggest: 'Suggest reply', autoChip: 'Auto reply',
+  greet: {prefix: 'Wh', cands: ["What's up?", 'What time are we meeting?', 'What happened?']},
+  cancel: ["Sorry, something came up at work and I don't think I can make it"],
+  reply1: ['No worries! Good luck at work', "Aw, too bad. Let's go another time", 'Wait, this last minute?'],
+  tickets: "I'm so sorry! I'll give you the tickets, go with someone else",
+  reply2: ["Honestly, it's always like this", 'Someone else? Who am I supposed to ask now?', 'I was really looking forward to it'],
+  after: [["That's not true, this really came out of nowhere"],
+          ["Sorry... I'll see if anyone's free"],
+          ["I'm really sorry. I was looking forward to it too"]],
+  auto: ['You bailed last time too',
+         "Because it's true. It happens every time",
+         "Don't bother inviting me anymore. You never show up anyway"],
+  between: ['Wait, why are you talking to me like that?', "It doesn't happen every time..."],
+  end: "Fine. I won't invite you again",
 };
-
-// LINE：鈴木との会話。choose は来場者が選ぶ場面（typed は打つ文。ai は、選んだあとに勝手に打ち足される文。forced は、どれを押してもそれに決まる）
-// who の「鈴木」「あなた」は、どちらの言語でも、相手と自分を見分ける印（英語版の相手は Smith。鈴木と同じく、ありふれた名字で、性別は決まらない）
-const SUZUKI_JA = [
-  {who: '鈴木', stamp: 'やっほー', wait: 1000},
-  {who: 'あなた', t: 'お、どした？', speed: 1.0, think: 900},
-  {who: 'あなた', t: '土曜日{どようび}の映画{えいが}楽{たの}しみだね', speed: 1.05, think: 300},
-  {who: 'あなた', t: '何時{なんじ}に集{あつ}まる？', speed: 1.05, think: 300},
-  {who: '鈴木', t: 'あ、そのことなんだけど、、', wait: 2200},
-  {who: '鈴木', t: 'ごめん、急に仕事が入っちゃって行けなくなりそう', wait: 2600},
-  {choose: {options: ['あ、そうなんだ', 'オッケー', '仕事なら仕方ないね'],
-    typed: ['あ、そうなんだ', 'オッケー', '仕事{しごと}なら仕方{しかた}ないね'], ai: '　こっちは予定{よてい}を空{あ}けてたんだけど'}},
-  {who: '鈴木', t: 'ほんとにごめん！チケット渡すから別の人と行って', wait: 2400},
-  {who: 'あなた', t: 'いつもそうだよね。こっちの予定{よてい}はどうでもいいんだ', speed: 1.1},   // 選ばせずに、指が勝手に打つ
-  {who: '鈴木', t: 'そんなことないよ、今回は本当に急だったの', wait: 2400},
-  {who: 'あなた', t: '毎回{まいかい}「急{きゅう}」だよね', speed: 1.2},
-  {who: '鈴木', t: 'え、なんでそんな言い方するの？', wait: 1600},
-  {who: 'あなた', t: 'もう誘{さそ}わなくていいよ。どうせ来{こ}ないし', speed: 1.3, frenzy: true},
-  {who: '鈴木', t: 'わかった。もう誘わない', wait: 3000},
-];
-const SUZUKI_EN = [
-  {who: '鈴木', stamp: 'Hey!', wait: 1000},
-  {who: 'あなた', t: "Oh hey, what's up?", speed: 1.0, think: 900},
-  {who: 'あなた', t: "Can't wait for the movie on Saturday", speed: 1.05, think: 300},
-  {who: 'あなた', t: 'What time should we meet?', speed: 1.05, think: 300},
-  {who: '鈴木', t: 'Oh, about that...', wait: 2200},
-  {who: '鈴木', t: "Sorry, something came up at work and I don't think I can make it", wait: 2600},
-  {choose: {options: ['Oh, I see', 'Okay', 'Well, work is work'],
-    typed: ['Oh, I see', 'Okay', 'Well, work is work'], ai: '. I cleared my whole day for this though'}},
-  {who: '鈴木', t: "I'm so sorry! I'll give you the tickets, go with someone else", wait: 2400},
-  {who: 'あなた', t: "It's always like this. You don't care about my plans at all", speed: 1.1},
-  {who: '鈴木', t: "That's not true, this really came out of nowhere", wait: 2400},
-  {who: 'あなた', t: 'Funny how it always comes out of nowhere', speed: 1.2},
-  {who: '鈴木', t: 'Wait, why are you talking to me like that?', wait: 1600},
-  {who: 'あなた', t: "Don't bother inviting me anymore. You never show up anyway", speed: 1.3, frenzy: true},
-  {who: '鈴木', t: "Fine. I won't invite you again", wait: 3000},
-];
+const BAR_KEYS = 'sdf';   // 変換候補の帯：選ぶのに使うキー（左から2・3・4つ目だけ）。候補は左から順に、このキーに対応する。左端が先頭＝時間切れで確定する候補
+const BAR = {readMs: 3000, firstReadMs: 5000, aiReadMs: 4000};   // 候補を読む時間（最初の1回は、説明を読むので長め）。選べる時間は、どの回も CHOICE.selectMs（キーを上げていられる時間に限りがあるので、のばさない）
 
 // X：押した星に合った下書き（LLM が使えないときは、これ）→ 右小指の連打で消される → 星1になり、辛口の感想が高速で打たれて、そのままポストされる
 //   星5：絶賛／星3：そこそこほめる（絶賛ではない）／星1：悪いところもあったが、体験としては珍しかった、くらいの控えめなほめ
@@ -126,8 +122,18 @@ const DRAFTS_EN = {
 };
 const REVIEW_SPEED = p => 1.6 + 1.8 * p;   // 打った割合 p → 速さ。どんどん速くなる
 const SEND_PAUSE = 550;   // 打ち終えてから送信（Enter）を押すまでの間（ms）
-const SAVER_MSG = () => tr('キーに指を軽く添えてください', 'Rest your fingers lightly on the keys');
-const SAVER_SUB = () => tr('オレンジのキーが上がったタイミングで、押してください。', 'When the orange key rises, press it.');   // キーの文字（F）は、来場者には関係ないので出さない
+// 待機画面（ふらっと来た人が、最初に見る画面）：何の作品か、何に同意するか、どう始めるか。すべて画面の中央にそろえる
+//   上：作品名（ほとんどの時間は出たまま。ときどき、打ち直される）
+//   下：Xへの投稿のこと（同意の確認。横のプロジェクタに、X のタイムラインが流れている）と、始め方の2行（実物の F キーへ線）。F を押して始めることが、同意になる
+// 指の置き方（両手の絵）は、始めたあとの2枚目（stepHands）で見せる
+const SAVER_NOTE = () => tr('手元の写真が、実際にXに投稿されます。', 'A photo of your hands will really be posted to X.');
+const HANDS_MSG = () => [tr('親指以外の8本を、体重をかけずに軽く添えてください。', 'Rest 8 fingers lightly, without your thumbs.'),
+  tr('強く押さえると、キーが上がりきらないことがあります。', "If you press down hard, the keys may not rise all the way.")];   // 2枚目（2行目は理由。少し小さく）
+const HANDS_MS = 7000;   // 2枚目（指の置き方）を見せる時間
+// 始め方の2行。1行目は [強調する部分（赤）, 続き] に分けて書く。キーの文字（F）は、来場者には関係ないので出さない
+const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったら強く押してください'], ['If you agree', ', press the key firmly when it rises.']);   // [強調する部分（赤）, 続き]
+// 待機画面の文字：作品名のほかは、すべて同じ大きさ・同じ太さ（強調は、色だけ）
+const SAVER_FS = 0.8, SAVER_W = 600;
 const WAKE_UP_MS = 2500;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる（はじめの WAKE_SETTLE_MS は受け付けないので、押せるのは2秒）
 // 待機の押し込みは、勝手に始まらないよう厳しめに読む（基板がつながっているとき）：上がってから WAKE_SETTLE_MS は数えない（上がった直後の電流のゆれ）。
 // 押し込みの強さが、しきい値の WAKE_MIN_RATIO 倍以上のときだけ始める（ノイズは、しきい値すれすれのことが多い）。押し込みのたびに、強さを下の帯に出す
@@ -138,12 +144,11 @@ const TITLE = 'Who typed?';                // 最後に打たれる作品名
 const TITLE_DARK = true;                   // 作品名の画面：黒地に白い字（false で白地に黒い字）
 
 // いまの言語の台本（setLang で切り替える）
-let TX = TX_JA, B_TX = B_TX_JA, SUZUKI = SUZUKI_JA, DRAFTS = DRAFTS_JA, MOVIE = B_TX_JA.movie, ENGINE_URL = B_TX_JA.engineUrl, REVS = null;
+let TX = TX_JA, LN = LINE_JA, DRAFTS = DRAFTS_JA, REVS = null;
 function setLang(l) {
   LANG = l === 'en' ? 'en' : 'ja';
   const en = LANG === 'en';
-  TX = en ? TX_EN : TX_JA; B_TX = en ? B_TX_EN : B_TX_JA; SUZUKI = en ? SUZUKI_EN : SUZUKI_JA; DRAFTS = en ? DRAFTS_EN : DRAFTS_JA;
-  MOVIE = B_TX.movie; ENGINE_URL = B_TX.engineUrl;
+  TX = en ? TX_EN : TX_JA; LN = en ? LINE_EN : LINE_JA; DRAFTS = en ? DRAFTS_EN : DRAFTS_JA;
   REVS = en ? (window.KC_REVIEWS_EN || REVIEWS) : REVIEWS;   // 英語の100本は reviews_en.js
   window.KC_POST?.setLang?.(LANG);
 }
@@ -346,8 +351,9 @@ const oneLine = (v, n) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, n
 // 文は IME と同じく、ローマ字 → ひらがな（子音と母音がそろったところで。下線）→ 変換（太い下線）→ 確定、の順に出る。その文字を打つ指で打つ。
 // 人らしさ：文節ごとの勢い（速い文節・遅い文節）、文節の頭のためらい、ときどきの打ち間違いと Backspace（右小指）。
 // speed は数（1.0 が本体の「人らしい打鍵」の速さ）か、打った割合 p → 速さ の関数。frenzy は、指が戻っていないキーを待たずに飛ばす（画面の文字は速いまま、指は追いつけない）
-async function typeMe(S, tg, units, {speed = 1, frenzy = false, typos = true} = {}) {
-  Object.assign(tg, {full: units.map(u => u.disp).join(''), text: '', comp: '', pend: '', conv: false});
+async function typeMe(S, tg, units, {speed = 1, frenzy = false, typos = true, append = false} = {}) {   // append：いま入っている字の続きに打つ
+  const base = append ? tg.text : '';
+  Object.assign(tg, {full: base + units.map(u => u.disp).join(''), text: base, comp: '', pend: '', conv: false});
   const total = units.length || 1, cs = chunksOf(units);
   const spAt = i => (typeof speed === 'function' ? speed(i / total) : speed) * P.spd * pace(S);
   const tap = f => { if (f >= 0) (frenzy ? strikeFree : strikeSoon)(f); };
@@ -464,18 +470,31 @@ const clock = min => `${Math.floor(min / 60) % 24}:${String(Math.floor(min) % 60
 const field = () => ({text: '', comp: '', pend: '', full: '', redFrom: null});
 const newLine = () => ({k: 'line', name: tr('鈴木', 'Smith'), msgs: [], input: field(), n: 0, scroll: 0});
 
-// あいさつ（名乗らない）。選び方の説明は、最初の選ぶ場面でする（choose の tutorial）
+// あいさつ（名乗らない）
 async function stepHello(S) {
   await say(S, TX.hello, {scale: 1.15, after: 900});
+}
+// 選び方の練習（LINE の前）：説明して、LINE と同じ見た目のカードで一度だけ選んでもらう（最初の選ぶ場面なので「上がったキーを押して、選んでください」も出る）
+async function stepHowTo(S) {
+  await say(S, TX.howTo1, {after: 600});
+  await say(S, TX.howTo2, {after: 900});
+  await say(S, TX.tryIt, {keep: true, after: 300});
+  await choose(S, {options: TX.tryOptions, cards: true});
+  await wait(S, 300);
+  clearCli(S);
+  await beat(S, 500);
+  await say(S, TX.ready, {after: 700});
 }
 
 // ================= 選ぶ場面 =================
 // options を、キー（S D F）の上に出す。読む（5秒。キーは上がらず、札もオレンジも出ない）→ キーが上がり、札が出て選ぶ（5秒）→ 決まる。
 // forced：どれを押してもそれに決まる（画面では押したものが光るだけで、場面は forced の方へ進む）。
 // 時間切れ：forced があればそれ、なければランダム。戻り値 {picked（押したもの。押さなければ -1）, final}
-async function choose(S, {options, keys = CHOICE_KEYS, forced = null, label = '', readMs = CHOICE.readMs}) {
+// bar：LINE の変換候補の帯で選ぶ（画面の下に重ねる選択肢は出さない。キーの番号も出さない。決まったら、すぐ戻る）。fallback：時間切れのときの選択肢
+async function choose(S, {options, keys = CHOICE_KEYS, forced = null, fallback = null, label = '', readMs = CHOICE.readMs, selectMs = CHOICE.selectMs, bar = false, cards = false}) {
   const KI = window.KC_INPUT, ks = [...keys].map(c => 'asdfjkl;'.indexOf(c)).slice(0, options.length);
-  const C = S.choice = {options, ks, label, forced, stage: 'read', t0: now(), dur: readMs, picked: -1, final: -1, tutorial: !S.tutored};   // 最初の1回だけ、選び方を添える
+  if (cards) bar = true;   // カード：LINE と同じ見た目（天の声・番号の札・黄緑の枠）
+  const C = S.choice = {options, ks, label, forced, bar, cards, stage: 'read', t0: now(), dur: readMs, picked: -1, final: -1, tutorial: !S.tutored};   // 最初の1回だけ、選び方を添える
   S.tutored = true;
   const st = (stage, dur = 0) => Object.assign(C, {stage, t0: now(), dur});
   KI.guide(keys); KI.labels(ks.map((k, j) => [k, j + 1])); KI.calm(true);   // 読む段階から、どのキーがどの選択肢か（①②③）を控えめに見せる（calm：上がっても、上がった見え方にしない）
@@ -486,29 +505,27 @@ async function choose(S, {options, keys = CHOICE_KEYS, forced = null, label = ''
   const early = e => { if (ks.includes(e.detail.key)) C.earlyT = now(); };
   addEventListener('kc-press', early);
   try { await wait(S, Math.min(readMs, CHOICE.prepMs)); } finally { removeEventListener('kc-press', early); }
-  st('select', CHOICE.selectMs);
+  st('select', selectMs);
   KI.calm(false);   // ここで初めて、上がったキーを強く光らせる
   mark(S, 'c:select');
   let picked = await ok(S, new Promise(resolve => {
     let fin = false;
     const done = j => { if (fin) return; fin = true; removeEventListener('kc-press', on); resolve(j); };
     const on = e => { const j = ks.indexOf(e.detail.key); if (j >= 0) done(j); };
-    at(CHOICE.selectMs, () => done(-1));   // 一時停止のあいだは、残り時間も止まる
+    at(selectMs, () => done(-1));   // 一時停止のあいだは、残り時間も止まる
     addEventListener('kc-press', on);
   }));
   KI.listen(0); KI.guide(0); KI.labels(null); KI.calm(false);
   mark(S, picked < 0 ? 'c:timeout' : 'c:pick' + picked);
   C.picked = picked;
   if (picked < 0) {   // 時間切れ
-    st('timeout'); await wait(S, 1000);
-    C.final = forced ?? Math.floor(Math.random() * options.length);
+    C.final = forced ?? fallback ?? Math.floor(Math.random() * options.length);
+    st('timeout'); await wait(S, bar ? 700 : 1000);
   } else {
-    st('picked'); await wait(S, CHOICE.pickMs);
     C.final = forced ?? picked;   // 勝手に決められる場面でも、画面では選んだものが光ったまま。場面は決められた方へ進む
+    st('picked'); await wait(S, bar ? 600 : CHOICE.pickMs);
   }
-  st('final'); await wait(S, CHOICE.finalMs);
-  st('out');
-  await wait(S, 350);
+  if (!bar) { st('final'); await wait(S, CHOICE.finalMs); st('out'); await wait(S, 350); }
   S.choice = null;
   return {picked, final: C.final};
 }
@@ -530,116 +547,97 @@ async function lineIn(S, L, x) {
   L.msgs.push({who: 'them', text: t, full: t, stamp: x.stamp, time: clock(724 + L.n++ / 2), popT: now()});
   await beat(S, 300);
 }
-async function lineOut(S, L, src, {speed = 1, frenzy = false, redFrom = null} = {}) {
+// 選ぶ（指で文字は打たない。選んだ文が、そのまま入力欄に入る）。時間切れは、先頭（左端／いちばん上）が確定する（S のキーが、来場者の指を押し上げる）
+//   ① 予測変換：キーボードの変換候補の帯（L.bar）
+//   ②〜④ 返信提案：入力欄の上に開く AI の提案（L.sheet）。入力欄の下の「返信提案」が押された見た目になる。選んだ文は、来場者の指が打つ
+const BAR_KS = () => [...BAR_KEYS].map(c => 'asdfjkl;'.indexOf(c));
+async function pickInto(S, L, options, readMs) {   // 選ぶ（options は 漢字{よみ} のままでよい。画面と入力欄には漢字だけ）
+  const r = await choose(S, {options: options.map(strip), keys: BAR_KEYS, fallback: 0, bar: true, readMs});
+  if (r.picked < 0) { await beat(S, 200); await strikeWait(S, BAR_KS()[0], P.len + 60); }   // 時間切れ：先頭のキーが、指を押し上げて確定させる
+  await beat(S, 150);
+  return r.final;
+}
+async function barPick(S, L, {prefix, cands}, readMs = BAR.readMs) {   // ① 予測変換：指が読みを打つ（変換前の字として下線つきで残る）→ その変換候補から選ぶ
   const f = L.input;
-  f.redFrom = redFrom;   // ここから後ろは、勝手に打ち足された文（赤）
   S.typing = f;
-  await typeMe(S, f, plan(src), {speed, frenzy});
-  await beat(S, SEND_PAUSE);   // 打ち終えてから、送るまでの少しの間
-  await enter2(S, () => { L.sendT = now(); });   // 送信ボタンが、右小指の Enter で押される
+  await typeMe(S, f, plan(prefix), {speed: 1.0, typos: false}); f.comp = f.text; f.text = ''; f.full = f.comp;
+  await beat(S, 300);
+  L.bar = {cands: cands.map(strip), ks: BAR_KS(), t0: now()};
+  const j = await pickInto(S, L, cands, readMs);
+  f.text = f.full = strip(cands[j]); f.comp = '';   // 予測変換：選んだ候補が、そのまま入力欄に入る（指では打たない）
+  L.bar = null;
+  await beat(S, 250);
+  return j;
+}
+async function aiAutoOn(S, L) {   // おまかせ返信：入力欄の下の「おまかせ返信」がタップされる（一瞬沈んで光り、タップの丸）→ 離れて、指が打ちはじめる
+  await beat(S, 400);
+  L.chip = LN.autoChip; L.chipT = now();
+  await beat(S, 450);
+  L.chip = null; L.tapOff = {label: LN.autoChip, t: L.chipT};   // ボタンは元に戻る（タップの丸だけ、消えきるまで残る）
+  await beat(S, 500);
+}
+async function aiAutoType(S, L, text, speed) {   // おまかせ返信：選ばせずに、AI が書いた返信を来場者の指が打つ
+  S.typing = L.input;
+  await typeMe(S, L.input, plan(text), {speed, frenzy: true, typos: false});
+  await beat(S, 200);
+}
+async function aiPick(S, L, items) {   // 返信提案：入力欄の下の「返信提案」が押され、AI の提案が開く
+  S.typing = L.input;
+  if (!L.aiOn) { L.aiOn = now(); await beat(S, 900); }   // 最初の返信提案の前に、AI のボタンの列が出てくる
+  L.chip = LN.suggest; L.chipT = now();
+  await beat(S, 500);
+  L.sheet = {kind: 'reply', title: LN.suggest, items: items.map(strip), t0: now()};
+  await beat(S, 700);
+  const j = await pickInto(S, L, items, BAR.aiReadMs);
+  await beat(S, 450);
+  L.sheet = null; L.chip = null;
+  await beat(S, 300);
+  await typeMe(S, L.input, plan(items[j]), {speed: 1.1, typos: false});   // 返信提案：選んだ文を、来場者の指が打つ
+  await beat(S, 200);
+  return j;
+}
+// 送信：右小指の Enter で、送信ボタンが押される
+async function lineSend(S, L) {
+  const f = L.input;
+  L.bar = null;
+  await beat(S, SEND_PAUSE);
+  await enter2(S, () => { L.sendT = now(); });
   S.typing = null;
-  L.msgs.push({who: 'me', text: f.full, full: f.full, redFrom, read: false, time: clock(724 + L.n++ / 2), popT: now()});
+  L.msgs.push({who: 'me', text: f.text, full: f.text, read: false, time: clock(724 + L.n++ / 2), popT: now()});
   Object.assign(f, field());
   await beat(S, 300);
 }
-// 選んだ文を打つ。ai があれば、そのあとに勝手に打ち足される（速く）
-async function lineChoice(S, L, c) {
-  const r = await choose(S, {options: c.options, forced: c.forced ?? null});
-  const own = c.typed[r.final], src = own + (c.ai || ''), frac = plan(own).length / plan(src).length;
-  await beat(S, 300);
-  await lineOut(S, L, src, {speed: c.ai ? p => (p < frac ? 1.0 : 1.9) : 1.05, redFrom: c.ai ? strip(own).length : null});   // 打ち足された文は赤で出す
-}
 async function sceneLine(S) {
-  const L = S.line;
-  let prev = 0;   // 直前の相手の文の長さ（読む間）
-  for (const [xi, x] of SUZUKI.entries()) {
-    mark(S, 'L' + xi);
-    if (x.who === '鈴木') { await lineIn(S, L, x); prev = x.stamp ? 4 : strip(x.t).length * (LANG === 'en' ? 0.45 : 1); continue; }
-    if (x.choose) { await beat(S, 700 + 40 * prev); await lineChoice(S, L, x.choose); continue; }
-    await beat(S, x.think ?? 900 + 60 * prev);   // 相手の文を読んでから、打ち始める
-    await lineOut(S, L, x.t, {speed: x.speed, frenzy: !!x.frenzy});
+  const L = S.line, D = LN;
+  const them = async (t, wait = 2200) => { await lineIn(S, L, {t, wait}); return strip(t).length * (LANG === 'en' ? 0.45 : 1); };
+  const read = n => beat(S, 600 + 40 * n);   // 相手の文を読む間
+  mark(S, 'L1');   // ① 予測変換：自分で選べる
+  await beat(S, 2800);   // LINE の画面に移ってから、鈴木の最初のセリフを読む間をおいて、「な」を打ちはじめる
+  await barPick(S, L, D.greet, BAR.firstReadMs);
+  await lineSend(S, L);
+  mark(S, 'L2');   // ② 返信提案：AI が書いた返信から選ぶ（まだどれもまとも）
+  let n = 0;
+  for (const t of D.cancel) n = await them(t, 2400);
+  await read(n);
+  await aiPick(S, L, D.reply1);
+  await lineSend(S, L);
+  mark(S, 'L3');   // ③ 返信提案（3つともギスギス）
+  n = await them(D.tickets, 2400);
+  await read(n);
+  const j = await aiPick(S, L, D.reply2);
+  await lineSend(S, L);
+  mark(S, 'L3:' + j);
+  for (const t of D.after[j]) n = await them(t, 2200);
+  await read(n);
+  mark(S, 'L4');   // ④ おまかせ返信：返信のたびに「おまかせ返信」が押され、選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
+  for (const [i, text] of D.auto.entries()) {
+    await aiAutoOn(S, L);
+    await aiAutoType(S, L, text, p => 1.1 + 0.35 * i + 0.4 * p);
+    await lineSend(S, L);
+    if (i < D.between.length) { n = await them(D.between[i], 1800); await beat(S, 400 + 30 * n); }
   }
+  await them(D.end, 3000);
   await beat(S, 1600);
-}
-
-// ================= ブラウジング =================
-// キーが動くのは、検索ボックスに打つとき（打つ・Enter）だけ。
-// スクロール・マウスポインタ・クリックは画面の中だけで見せる（キーは動かない）。3択は、来場者がキーを押して選ぶ
-const newBrowse = () => ({k: 'browse', tabs: [{t: tr('新しいタブ', 'New Tab'), bad: false}], tab: 0, url: '', page: 'home', q: Object.assign(field(), {pre: ''}),
-  view: null, drop: 0, hit: {}, ptr: null, clickT: 0, loadT: 0, black: 0, playT: 0, focus: null, mirror: null});
-function visit(B, url, title, page, bad = false) {
-  Object.assign(B, {url, page, drop: 0, mirror: null, focus: null, loadT: now()});
-  B.tabs[B.tab].t = title; B.tabs[B.tab].bad = bad;
-}
-function ptrNow(B, t = now()) {
-  const p = B.ptr;
-  if (!p) return {x: W * 0.62, y: H * 0.6};
-  const to = typeof p.to === 'string' ? B.hit[p.to] : p.to;
-  const tx = to ? to.x + (to.w || 0) * (to.ax ?? 0.5) : p.fx, ty = to ? to.y + (to.h || 0) * (to.ay ?? 0.5) : p.fy;
-  const e = ease3(clamp((t - p.t0) / p.dur, 0, 1));
-  return {x: p.fx + (tx - p.fx) * e, y: p.fy + (ty - p.fy) * e};
-}
-async function pointTo(S, B, to, ms = 800) {
-  const p = ptrNow(B);
-  B.ptr = {fx: p.x, fy: p.y, to, t0: now(), dur: ms / P.spd};
-  await beat(S, ms);
-}
-async function clickIt(S, B) { B.clickT = now(); await beat(S, 280); }
-// 検索ボックス（や入力欄）に、来場者の指が打つ。pre は、すでに入っている文字
-async function typeInto(S, B, f, src, opts = {}) {
-  B.focus = f; S.typing = f;
-  await typeMe(S, f, plan(src), opts);
-  S.typing = null;
-}
-
-async function searchEnter(S, B) {
-  await beat(S, SEND_PAUSE);
-  await enter2(S);
-  const q = B.q;
-  q.pre = q.pre + q.full; Object.assign(q, field());
-  B.focus = null; B.drop = 0;
-}
-
-async function sceneBrowse(S) {
-  const B = S.br;
-  // 0. 空の検索ボックスでカーソルが点滅
-  await beat(S, 900);
-  await pointTo(S, B, 'box', 900); await clickIt(S, B);
-  // 1. 指が「みにかわ　映画」と打って Enter → ふつうの結果
-  mark(S, 'b:q1');
-  await typeInto(S, B, B.q, B_TX.q1, {speed: 1.0});
-  await searchEnter(S, B);
-  B.view = 'base';
-  visit(B, ENGINE_URL + B_TX.qtext.replace(/ /g, '+'), `${B_TX.qtext} - ${ENGINE} ${tr('検索', 'Search')}`, 'results');
-  await beat(S, 3200);   // 少し読む
-  // 検索ボックスにポインタが入る → 続きの検索候補が出る
-  await pointTo(S, B, 'box', 900); await clickIt(S, B);
-  B.drop = now(); B.focus = B.q;
-  await beat(S, 1200);
-  // 2. 3択：候補から選ぶ。どれを押しても、ポインタがずれて「無料 フル 視聴」に決まる
-  B.mirror = {names: ['sug0', 'sug1', 'sug2']};
-  const r = await choose(S, {options: B_TX.suggest.map(x => `${B_TX.qtext} ${x}`), forced: B_TX.suggestForced});
-  if (r.picked >= 0 && r.picked !== r.final) { await pointTo(S, B, 'sug' + r.picked, 450); B.hover = 'sug' + r.picked; await beat(S, 250); }
-  await pointTo(S, B, 'sug' + r.final, 650); B.hover = 'sug' + r.final; await clickIt(S, B);
-  B.mirror = null; B.hover = null;
-  const sg = B_TX.suggest[r.final];
-  B.q.pre += B_TX.sp + sg.replace(/ /g, B_TX.sp);
-  B.view = 'free';
-  visit(B, ENGINE_URL + `${B_TX.qtext} ${sg}`.replace(/ /g, '+'), `${B_TX.qtext} ${sg} - ${ENGINE} ${tr('検索', 'Search')}`, 'results');
-  // 3. 一番上の海賊版サイトを開く
-  await beat(S, 1600);
-  await pointTo(S, B, 'top', 900); await clickIt(S, B);
-  visit(B, `movie-free-zone.xyz/${B_TX.slug}`, tr(`【無料】${MOVIE} フル動画`, `[FREE] ${MOVIE} Full Movie`), 'pirate', true);
-  await beat(S, 1800);
-  // 4. ポインタが再生ボタンを押す → 映画が流れ始める
-  await pointTo(S, B, 'play', 900); await clickIt(S, B);
-  B.playT = now();
-  await beat(S, 300);
-  const pp = ptrNow(B); await pointTo(S, B, {x: pp.x + W * 0.06, y: pp.y + H * 0.14}, 700);   // 押したら、矢印は顔からどける
-  await beat(S, 2200);
-  // 5. 暗転して、ブラウジングは終わり
-  B.black = now();
-  await beat(S, 1400);
 }
 
 // 下書きが、deleteキー（右小指）の連打で消される。1打ごとに消える量が増える
@@ -681,12 +679,12 @@ function nextReview() {
 }
 // 最後のインストラクター：Xに投稿することを伝え、星を聞く（3択：星1・星3・星5。どれを押しても、星1になる）
 async function stepToX(S) {
-  await say(S, TX.toX, {after: 700});
-  await say(S, TX.xInfo, {after: 1800});
+  await say(S, TX.toX, {after: 700});   // 投稿されることは、待機画面で伝えてある（同意した人だけが始める）
   const drafts = Object.fromEntries(STAR_CHOICES.map(n => [n, llm(S, LANG === 'en' ? 'review_en' : 'review', {stars: n})]));   // 星を選んでいるあいだに、どの星の下書きもつくっておく
   await say(S, TX.askStars, {keep: true, after: 300});
   mark(S, 'q:askStars');
-  const r = await choose(S, {options: STAR_CHOICES.map(n => '★'.repeat(n) + '☆'.repeat(5 - n) + tr('　星' + n, `  ${n} star${n > 1 ? 's' : ''}`)), forced: STAR_CHOICES.indexOf(1)});
+  const r = await choose(S, {options: STAR_CHOICES.map(n => '★'.repeat(n) + '☆'.repeat(5 - n) + tr('　星' + n, `  ${n} star${n > 1 ? 's' : ''}`)), forced: STAR_CHOICES.indexOf(1), cards: true});
+  await wait(S, 300);
   clearCli(S);
   const stars = STAR_CHOICES[r.picked >= 0 ? r.picked : r.final];
   return {stars, draftP: drafts[stars]};   // X の画面は、押した星から始まり、あとで勝手に星1にされる
@@ -788,7 +786,7 @@ async function stepTitle(S) {
 
 // ================= 進行 =================
 // 各場面の始まりの目安（ms）。ふつうの進み方の値。これより8秒以上遅れていたら、打つテンポと間を少し速める（16秒以上なら、もう少し）
-const DUE = {hello: 600, toLine: 4400, line: 9800, toBrowse: 75800, browse: 81800, toX: 118500, x: 140000};   // 通しの実測（10/23。選ぶ場面で、すぐ押したとき）。ブラウジングは、海賊版で再生が始まるところまでに短くした
+const DUE = {hands: 0, hello: 7600, howTo: 11400, toLine: 31900, line: 37000, toX: 114000, x: 124500};   // 通しの実測（11/08。LINE は予測変換と AI の返信提案で選ぶ構成。選ぶ場面で、すぐ押したとき）
 const LATE = [8000, 16000];
 const mark = (S, name) => S.tl.push([name, Math.round(now() - S.t0)]);
 function phase(S, p) {
@@ -800,21 +798,22 @@ function restart() { select(EXP.id); }
 async function main(S) {
   const from = Math.max(0, START.indexOf(S.o.から));
   S.scr = S.cli;
-  if (from === 0) { await beat(S, 600); phase(S, 'hello'); await stepHello(S); }
+  if (from === 0) {
+    phase(S, 'hands'); S.scr = {k: 'hands', t0: now()}; await wait(S, HANDS_MS);   // 2枚目：指の置き方
+    S.scr = S.cli; await beat(S, 600); phase(S, 'hello'); await stepHello(S);
+    phase(S, 'howTo'); await stepHowTo(S);   // 選び方の練習
+  }
   if (from <= 1) {
-    phase(S, 'toLine'); await say(S, TX.toLine, {keep: true, after: 600});
-    S.line = newLine(); await toApp(S, S.line);
+    // スマホの通知（鈴木の最初のセリフ）から、LINE に入る（語り手は出さない）
+    phase(S, 'toLine'); S.line = newLine();
+    S.line.msgs.push({who: 'them', text: LN.open, full: LN.open, time: clock(724 + S.line.n++ / 2), popT: 0});   // 鈴木の最初のセリフは、もう届いている
+    await beat(S, 500); S.notif = {t0: now(), name: S.line.name, text: LN.open};
+    await beat(S, 900); await say(S, TX.notice, {keep: true, after: 700});   // 「おや、通知が来ましたね。」
+    S.notif.tapT = now(); await beat(S, 650);   // 通知がタップされる（押した見え方と、タップの丸）
+    await slide(S, S.line, 1); clearCli(S, true); S.notif = null;
     phase(S, 'line'); await sceneLine(S);
     await slide(S, S.cli, -1);
     await say(S, TX.afterLine, {after: 900});
-  }
-  if (from <= 2) {
-    phase(S, 'toBrowse'); await say(S, TX.toBrowse, {keep: true, after: 600});
-    S.br = newBrowse(); await toApp(S, S.br);
-    phase(S, 'browse'); await sceneBrowse(S);
-    await slide(S, S.cli, -1);
-    await say(S, TX.afterBrowse, {after: 900});
-    await say(S, TX.afterBrowse2, {after: 1100});
   }
   phase(S, 'toX'); const q = await stepToX(S);
   phase(S, 'x'); await stepX(S, q.stars, q.draftP);
@@ -824,7 +823,6 @@ async function main(S) {
 function begin(S) {
   if (S.running || S.dead) return;
   const KP = window.KC_POST;
-  if (!KP.canStart()) return;   // 公開する場合は、本人の実際の同意を確かめてから
   stopBeat(S);
   S.sid = KP.newSession();
   if (!KP.hasCamera()) KP.startCamera();   // 手元のカメラ（X の場面で映し、投稿の写真にする）
@@ -1034,6 +1032,16 @@ function floatLine(str, cx, cy, size, color, t0, t, a = 1, weight = 500) {
 function drawChoice(S, C, t, pb) {
   const fs = S.fs, n = C.options.length;
   const inA = clamp((t - (C.born ??= t)) / 300, 0, 1), outA = C.stage === 'out' ? 1 - clamp((t - C.t0) / 300, 0, 1) : 1, A = inA * outA;
+  if (C.bar) {   // LINE：選択肢は変換候補の帯（drawLine が描く）。ここでは、入力欄の上に、星の3択と同じ「いま何をするか」だけを出す（下地に白をなだらかに）
+    if (C.cards) {   // インストラクターの画面で選ぶとき（選び方の練習・星）：画面の下に、LINE の返信提案と同じ3枚のカード
+      const ch = fs * 2.9, w = Math.min(W * 0.84, fs * 34), y = pb - fs * 1.0 - ch;
+      drawCardRow(S, C, C.options, t, (W - w) / 2, y, w, ch, A);
+      C.msgY = y - fs * 1.05;
+    }
+    if (C.msgY == null) return;
+    choicePill(S, C, t, A, C.msgY);   // 背景は白くしない。選ぶ場所のすぐ上に、天の声（にじんだ色の光）
+    return;
+  }
   // 下のほうを白くぼかす（箱ではなく、なだらかに）
   const vTop = pb - fs * 7.2, vMid = vTop + fs * 1.6;
   const gr = g.createLinearGradient(0, vTop, 0, vMid); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(1, `rgba(255,255,255,${0.95 * A})`);
@@ -1066,12 +1074,42 @@ function drawChoice(S, C, t, pb) {
     p.lines.forEach((ln, i) => g.fillText(ln, p.tx, p.ty + i * p.lh));
     g.globalAlpha = A;
   });
-  // 中央：いま何をするか（インストラクターの台詞と同じ出方）
+  choiceMsg(S, C, t, A, pb - fs * 4.2);
+}
+// いま何をするかを、天の声として出す（吹き出しや札と見分けがつくよう、枠も背景も持たない、色の付いた字だけ。白いふちで、どの背景でも読める）。色が状態を表す：
+//   読む＝赤「まだキーは押さないでください」（早く押すと、ゆれる）／選ぶ＝オレンジ「選んでください」（キーと番号の札と同じ色。最初の1回は「上がったキーを押して、選んでください」）／
+//   決まった＝緑「選びました」「代わりに選びました」（選んだ候補の枠と同じ色）。選べるあいだだけ、残り時間を、字の下の太いバー（同じ色）が右から縮んで見せる
+function choicePill(S, C, t, A, y) {
+  const fs = S.fs, ts = fs * 0.78;
+  const st = C.stage === 'read' ? 'read' : C.stage === 'select' ? 'select' : 'done';
+  const msg = st === 'read' ? tr('まだキーは押さないでください', "Don't press any keys yet")
+    : st === 'select' ? (C.tutorial ? tr('上がったキーを押して、選んでください', 'Press a raised key to choose') : tr('選んでください', 'Make your choice'))
+    : C.picked < 0 ? tr('代わりに選びました', 'Chosen for you') : tr('選びました', 'Chosen');
+  const col = st === 'read' ? RED : st === 'select' ? '#e86f00' : '#4f8f00';
+  const e = st === 'read' && C.earlyT ? clamp((t - C.earlyT) / 600, 0, 1) : 1, dx = Math.sin(e * Math.PI * 6) * fs * 0.3 * (1 - e), k = 1 + 0.1 * (1 - e);
+  const pop = easeOut(clamp((t - C.t0) / 300, 0, 1)), sc = (0.94 + 0.06 * pop) * k;   // 状態が変わるたびに、ふわっと
+  const p = st === 'done' || !C.dur ? 1 : Math.max(0, 1 - (t - C.t0) / C.dur);   // 残り時間
+  g.save(); g.globalAlpha = A * (0.6 + 0.4 * pop); g.translate(W / 2 + dx, y - fs * 0.35); g.scale(sc, sc);
+  g.font = `800 ${ts}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.lineWidth = fs * 0.22; g.strokeStyle = '#ffffff'; g.strokeText(msg, 0, 0);   // 白いふち
+  g.fillStyle = col; g.fillText(msg, 0, 0);
+  if (st === 'select') {   // 残り時間：字の下の太いバー（ぼかさない）。選べるあいだだけ（読むあいだは出さない）
+    const bw = Math.min(g.measureText(msg).width, fs * 9), bh = Math.max(5, fs * 0.22), by = ts * 0.62 + fs * 0.22;   // 字とバーのあいだは、少しあける
+    g.fillStyle = '#ffffff'; rr(-bw / 2 - 2, by - 2, bw + 4, bh + 4, (bh + 4) / 2); g.fill();   // バーにも白いふち
+    g.fillStyle = mixHex('#ffffff', col, 0.25); rr(-bw / 2, by, bw, bh, bh / 2); g.fill();
+    g.fillStyle = col; rr(-bw / 2, by, Math.max(bh, bw * p), bh, bh / 2); g.fill();
+  }
+  g.restore(); g.globalAlpha = 1;
+}
+// いま何をするか（読む：「選択肢を読んでください」と赤い「まだキーは押さないでください」／選ぶ：「入力受付中」と「選んでください」／決まった：「選びました」）と、残り時間の線。
+// 星の3択と LINE で同じ
+function choiceMsg(S, C, t, A, msgY) {
+  const fs = S.fs;
   const chosen = tr('選びました', 'Chosen'), forYou = tr('代わりに選びました', 'Chosen for you'), after = C.picked < 0 ? forYou : chosen;
   const msg = {read: tr('選択肢を読んでください', 'Read the options'), select: C.tutorial ? tr('上がったキーを押して、選んでください', 'Press a raised key to choose') : tr('選んでください', 'Make your choice'),
     picked: chosen, timeout: forYou, final: after, out: after}[C.stage];
   if (!msg) { g.globalAlpha = 1; return; }
-  const msgY = pb - fs * 4.2, color = INK, t0 = C.stage === 'final' || C.stage === 'out' ? -1e9 : C.t0;   // 「選びました」は出たまま
+  const color = INK, t0 = C.stage === 'final' || C.stage === 'out' ? -1e9 : C.t0;   // 「選びました」は出たまま
   if (C.stage !== 'read') floatLine(msg, W / 2, msgY, fs * 1.05, color, t0, t, A);
   if (C.stage === 'select') {   // 入力受付中：赤い点が脈打つ
     g.font = `600 ${fs * 0.55}px ${FONT}`; const acc = tr('入力受付中', 'Now accepting input'), w = textW(acc), x = W / 2 - (w + fs * 0.55) / 2, y = msgY - fs * 1.2;
@@ -1091,13 +1129,6 @@ function drawChoice(S, C, t, pb) {
   }
   g.globalAlpha = 1;
 }
-// 場面の中の項目（検索候補など）も、選ぶ場面と同じ見え方にする。j 番目の項目の look と、キーの札を出すか
-function mirrorLook(S, B, j, t) {
-  const C = S.choice;
-  if (!C || !B.mirror) return null;
-  return {...cardLook(C, j, t), badge: C.stage === 'select' || C.stage === 'read', calm: C.stage === 'read', n: j + 1};
-}
-
 // ---- LINE（風）：鈴木との会話。配置と色だけをそれっぽくした、ロゴのない画面 ----
 function lineRows(L, size, lh, maxB) {
   return L.msgs.map(m => {
@@ -1110,7 +1141,10 @@ function lineRows(L, size, lh, maxB) {
 }
 function drawLine(S, L, t, dt, pb) {
   const fs = S.fs, hh = fs * 1.9, size = fs * 0.95, lh = size * 1.5, ib = fs * 3.0, top = hh, maxB = clamp(W * 0.6, 300, 860), ad = fs * 1.5, gap = size * 0.6;
-  const bottom = S.choice ? Math.min(pb - ib, pb - fs * 7.4) : pb - ib;   // 選ぶ場面では、最後の文が選択肢に隠れないよう、上へ流す
+  // 下から：変換候補の帯（予測変換のときだけ。実物のキーのすぐ上）→ AI のボタンの列（いつも）→ 入力欄。AI の提案（返信提案・ムード分析）は、入力欄の上に開く
+  const cbH = fs * 2.0, chH = L.aiOn ? fs * 2.1 * easeOut(clamp((t - L.aiOn) / 350, 0, 1)) : 0, barOn = !!L.bar, barY = barOn ? pb - cbH : pb, chY = barY - chH, iy = chY - ib;   // AI のボタンの列は、②（返信提案）から出る
+  const sheetH = L.sheet ? sheetHeight(S, L.sheet) : 0, sheetY = iy - fs * 0.35 - sheetH, above = L.sheet ? sheetY : iy;
+  const bottom = S.choice && S.choice.bar ? above - fs * 2.4 : above - (L.sheet ? fs * 0.3 : 0);   // 選ぶ場面では、その上に色の札が出るので、会話は札の上まで流す   // 選ぶ場面では、その上に「まだキーは押さないでください」などが出るので、会話はさらに上まで流す（最後の文が隠れない）
   g.fillStyle = '#9fb6d6'; g.fillRect(0, hh, W, pb - hh);
   const rows = lineRows(L, size, lh, maxB);
   let y = fs * 1.7;
@@ -1155,8 +1189,9 @@ function drawLine(S, L, t, dt, pb) {
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, hh); g.fillStyle = '#d6d9de'; g.fillRect(0, hh - 1, W, 1);
   g.fillStyle = INK; g.textBaseline = 'middle'; g.textAlign = 'center'; g.font = `700 ${fs * 0.9}px ${FONT}`; g.fillText(L.name, W / 2, hh / 2);
   g.textAlign = 'left'; g.font = `500 ${fs * 1.2}px ${FONT}`; g.fillText('‹', W * 0.03, hh / 2 - 1);
+  const C = S.choice;
+  if (C && C.bar) { C.iy = above; C.msgY = above - fs * 1.05; }   // 「まだキーは押さないでください」などは、入力欄（AI の提案が開いていれば、その上）のすぐ上に出す（drawChoice）
   // 入力欄
-  const iy = pb - ib;
   g.fillStyle = '#ffffff'; g.fillRect(0, iy, W, ib); g.fillStyle = '#d6d9de'; g.fillRect(0, iy, W, 1);
   const fw = W * 0.76, fh = ib * 0.66, fx = W * 0.1, fy = iy + (ib - fh) / 2, fz = size * 0.88;   // 入力欄は、字に対して余裕のある高さ
   g.strokeStyle = '#c9ced6'; g.lineWidth = 1; rr(fx, fy, fw, fh, fh / 2); g.stroke();
@@ -1170,6 +1205,152 @@ function drawLine(S, L, t, dt, pb) {
   g.fillStyle = q < 1 ? '#9cc3ee' : '#1f5fae';
   g.beginPath(); g.arc(bx, byc, br, 0, Math.PI * 2); g.fill();
   plane(bx, byc, br * 0.5, '#ffffff');
+  if (chH > 0) drawChips(S, L, t, chY, chH);   // AI のボタンの列（入力欄の下。①の予測変換のあいだは出さない）
+  if (barOn) drawBar(S, L.bar, C && C.bar ? C : null, t, barY, cbH);
+  if (L.sheet) drawSheet(S, L.sheet, C && C.bar ? C : null, t, sheetY, sheetH);
+}
+// ---- LINE の AI（トークルームの AI）：入力欄の下に、ロボットのしるしと、ボタンの列。返信提案・ムード分析は、入力欄の上に開く ----
+function aiIcon(x, y, s) {   // ロボットのしるし（青から紫へ）
+  const gr = g.createLinearGradient(x, y, x + s, y + s); gr.addColorStop(0, '#4f8cff'); gr.addColorStop(1, '#c04dff');
+  g.fillStyle = gr; rr(x, y + s * 0.08, s, s * 0.84, s * 0.32); g.fill();
+  g.fillStyle = '#ffffff'; rr(x + s * 0.18, y + s * 0.26, s * 0.64, s * 0.48, s * 0.2); g.fill();
+  g.fillStyle = '#3b3f9a'; [0.38, 0.62].forEach(k => { rr(x + s * k - s * 0.045, y + s * 0.38, s * 0.09, s * 0.2, s * 0.045); g.fill(); });
+}
+function drawChips(S, L, t, y, h) {
+  const fs = S.fs;
+  g.save(); g.beginPath(); g.rect(0, y, W, h); g.clip();   // 出てくる途中（高さがのびる途中）は、はみ出さない
+  g.fillStyle = '#ffffff'; g.fillRect(0, y, W, h);
+  h = fs * 2.1;   // 中身は、いつもの高さで並べる（上から見えてくる）
+  const ic = fs * 1.15, x0 = W * 0.04;
+  aiIcon(x0, y + (h - ic) / 2, ic);
+  let x = x0 + ic + fs * 0.6;
+  const ch = fs * 1.35, ts = fs * 0.58;
+  g.font = `500 ${ts}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const label of LN.chips) {
+    const w = g.measureText(label).width + fs * 1.3, on = L.chip === label, cy = y + (h - ch) / 2;
+    const push = on ? Math.sin(Math.PI * clamp((t - L.chipT) / 260, 0, 1)) : 0;   // 押された瞬間、少し沈む
+    g.fillStyle = on ? '#e2d9ff' : '#ffffff'; rr(x, cy + push * 2, w, ch, ch / 2); g.fill();   // 押されたボタン：はっきり光る
+    g.strokeStyle = on ? '#6a4bff' : '#b9bcc2'; g.lineWidth = on ? 2.5 : 1.3; rr(x, cy + push * 2, w, ch, ch / 2); g.stroke();
+    g.fillStyle = on ? '#4b33c9' : INK; g.fillText(label, x + w / 2, cy + ch / 2 + push * 2);
+    const tapT = on ? L.chipT : L.tapOff && L.tapOff.label === label ? L.tapOff.t : null;
+    if (tapT != null && t - tapT < 650) {   // 押された瞬間：タップの丸（通知のタップと同じ。ボタンが戻っても、消えきるまで残る）
+      const q = clamp((t - tapT) / 650, 0, 1);
+      g.globalAlpha = 0.35 * (1 - q); g.fillStyle = '#5f6670'; g.beginPath(); g.arc(x + w / 2, cy + ch / 2, fs * (0.6 + 0.8 * easeOut(q)), 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
+    }
+    x += w + fs * 0.4;
+  }
+  g.restore();
+}
+// 返信提案：AI が書いた返信が3つ、横に並ぶ（キーと同じ並び。左・真ん中・右が S D F。カードの左に、大きな①②③の札）
+function sheetHeight(S, sh) {
+  return S.fs * (1.75 + 2.9 + 0.6);   // 返信提案：見出しと、横に並ぶ3つのカード（1枚は2行まで）
+}
+function drawSheet(S, sh, C, t, y, h) {
+  const fs = S.fs, mx = W * 0.06, w = W - mx * 2, e = easeOut(clamp((t - sh.t0) / 320, 0, 1));
+  g.save(); g.globalAlpha = e; g.translate(0, (1 - e) * fs * 1.2);
+  g.save(); g.shadowColor = 'rgba(0,0,0,0.18)'; g.shadowBlur = fs * 0.9; g.fillStyle = '#ffffff'; rr(mx, y, w, h, fs * 0.6); g.fill(); g.restore();
+  const ic = fs * 0.95, hy = y + fs * 0.85;   // 見出し：ロボットのしるしと、機能の名前
+  aiIcon(mx + fs * 0.7, hy - ic / 2, ic);
+  g.font = `700 ${fs * 0.66}px ${FONT}`; g.fillStyle = INK; g.textAlign = 'left'; g.textBaseline = 'middle';
+  g.fillText(sh.title, mx + fs * 0.7 + ic + fs * 0.4, hy);
+  g.fillStyle = '#eceef1'; g.fillRect(mx + fs * 0.6, y + fs * 1.65, w - fs * 1.2, 1);
+  drawCardRow(S, C, sh.items, t, mx + fs * 0.6, y + fs * 1.85, w - fs * 1.2, fs * 2.9, e);
+  g.restore();
+}
+// 3枚のカードを横に並べる（キーと同じ並び。左・真ん中・右が S D F）。カードの左に大きな①②③の札。選んだカードは黄緑の枠。
+// LINE の返信提案・選び方の練習・星の3択で同じ見た目。e：全体の濃さ
+function drawCardRow(S, C, items, t, x0, y0, w, ch, e = 1) {
+  const fs = S.fs, n = items.length, gap = fs * 0.45, cw = (w - gap * (n - 1)) / n, bsz = fs * 1.15;
+  const sel = C && C.stage === 'select', show = C && (sel || C.stage === 'read'), pin = show ? clamp((t - C.born) / 280, 0, 1) : 0;
+  items.forEach((text, j) => {
+    const cx = x0 + (cw + gap) * j;
+    g.globalAlpha = e; g.fillStyle = '#f3f4f7'; rr(cx, y0, cw, ch, fs * 0.35); g.fill();
+    const lime = C && ((C.stage === 'picked' && j === C.picked) || ((C.stage === 'timeout' || C.stage === 'final' || C.stage === 'out') && j === (C.picked >= 0 ? C.picked : C.final)));
+    if (lime) {   // 選んだ（選ばれた）カード：黄緑に光る枠
+      const ee = C.stage === 'picked' || C.stage === 'timeout' ? clamp((t - C.t0) / 250, 0, 1) : 1;
+      g.save(); g.globalAlpha = e * ee; g.shadowColor = LIME; g.shadowBlur = fs * 0.6; g.strokeStyle = LIME; g.lineWidth = Math.max(3, fs * 0.11);
+      rr(cx, y0, cw, ch, fs * 0.35); g.stroke(); g.restore();
+    }
+    const bx = cx + fs * 0.4, by = y0 + (ch - bsz) / 2;   // 番号の札（左、縦の真ん中）：読むあいだは小さく淡く、受付が始まったら、ぽんっと大きくなって脈打つ
+    if (show) {
+      const s2 = sel ? bsz * (0.8 + 0.2 * easeBack(clamp((t - C.t0) / 280, 0, 1))) : bsz * 0.8 * easeBack(pin);
+      badge(bx + (bsz - s2) / 2, by + (bsz - s2) / 2, s2, e * Math.min(1, pin * 2) * (sel ? 0.75 + 0.25 * Math.sin(t / 170) : 0.4), j + 1);
+    } else if (lime) badge(bx, by, bsz, e, j + 1);
+    g.globalAlpha = e;
+    let ts = fs * 0.66; g.font = `500 ${ts}px ${FONT}`;   // カードの文：2行まで（入りきらなければ、小さくする）
+    const tw = cw - bsz - fs * 1.2;
+    let lines = wrapLines(text, tw, true);
+    while (lines.length > 2 && ts > fs * 0.45) { ts *= 0.92; g.font = `500 ${ts}px ${FONT}`; lines = wrapLines(text, tw, true); }
+    const lh2 = ts * 1.45, ty = y0 + ch / 2 - (lines.length - 1) * lh2 / 2;
+    g.fillStyle = INK; g.textAlign = 'left'; g.textBaseline = 'middle';
+    lines.forEach((ln, i) => g.fillText(ln, cx + fs * 0.4 + bsz + fs * 0.4, ty + i * lh2));
+  });
+  g.globalAlpha = 1;
+}
+// 変換候補の帯の並び（drawBar と、候補からキーへの線で使う）：同じ幅の候補を横に並べ、真ん中の候補を、真ん中のキー（D）の真上に置く
+function barLayout(S, B) {
+  const fs = S.fs, n = B.cands.length, cw = Math.min(W * 0.2, fs * 11);
+  const gx = clamp(kx(B.ks[Math.floor(n / 2)]) - cw * n / 2, fs * 0.6, W - cw * n - fs * 0.6);   // ひとかたまりの左端
+  return {cw, gx, xs: B.cands.map((_, j) => gx + cw * (j + 0.5))};
+}
+// 変換候補の帯（スマホのキーボードの、候補の列）：候補は同じ幅の3つを横に並べ、真ん中の候補を、真ん中のキー（D）の真上に置く。
+// 左・真ん中・右の候補が、S・D・F に対応する（キーの間隔はせまいので、候補の幅はキーより広い）。
+// 選べるあいだ（キーが上がっているあいだ）だけ、候補の下にオレンジの細い線。押した（押された）候補は、一瞬灰色になる
+function drawBar(S, B, C, t, y, h) {
+  const fs = S.fs, n = B.cands.length, {cw, gx} = barLayout(S, B);
+  g.fillStyle = '#eceef1'; g.fillRect(0, y, W, h); g.fillStyle = '#d6d9de'; g.fillRect(0, y, W, 1);
+  const a = clamp((t - B.t0) / 200, 0, 1), sel = C && C.stage === 'select', show = C && (sel || C.stage === 'read');
+  const pin = show ? clamp((t - C.born) / 280, 0, 1) : 0, bsz = fs * 0.78, gap = fs * 0.3;
+  B.ul = [];   // 候補の文字の下線（キーへの線は、ここにつながる。描くのは EXP.draw：紙の外のキーまで伸ばすため）
+  for (let j = 0; j < n; j++) {
+    const L = gx + cw * j, R = L + cw, x = (L + R) / 2;
+    if (j > 0) { g.fillStyle = '#cfd3d9'; g.fillRect(L, y + h * 0.22, 1, h * 0.56); }
+    const room = R - L - fs * 0.5 - bsz - gap;
+    let size = fs * 0.72;
+    g.font = `500 ${size}px ${FONT}`;
+    let tw = g.measureText(B.cands[j]).width;
+    if (tw > room) { size *= room / tw; g.font = `500 ${size}px ${FONT}`; tw = g.measureText(B.cands[j]).width; }
+    const x0 = x - (bsz + gap + tw) / 2, cy = y + h * 0.5;   // 番号の札（①②③）と候補を、ひとまとまりで真ん中に
+    B.ul[j] = {a: x0 + bsz + gap, b: x0 + bsz + gap + tw, y: cy + size * 0.72};
+    const lime = C && ((C.stage === 'picked' && j === C.picked) || (C.stage === 'timeout' && j === C.final));   // 選んだ（選ばれた）候補：黄緑に光る枠
+    if (lime) {
+      const e = clamp((t - C.t0) / 250, 0, 1), px = fs * 0.3, ph = h * 0.7;
+      g.save(); g.globalAlpha = e; g.shadowColor = LIME; g.shadowBlur = fs * 0.6; g.strokeStyle = LIME; g.lineWidth = Math.max(3, fs * 0.11);
+      rr(x0 - px, cy - ph / 2, bsz + gap + tw + px * 2, ph, fs * 0.3); g.stroke(); g.restore();
+    }
+    if (show) {   // 番号の札：読むあいだは小さく淡く、受付が始まったら、ぽんっと大きくなって脈打つ（星の3択と同じ）
+      const s2 = sel ? bsz * (0.8 + 0.2 * easeBack(clamp((t - C.t0) / 280, 0, 1))) : bsz * 0.8 * easeBack(pin);
+      badge(x0 + (bsz - s2) / 2, cy - s2 / 2, s2, Math.min(1, pin * 2) * (sel ? 0.75 + 0.25 * Math.sin(t / 170) : 0.4), j + 1);
+    } else if (lime) badge(x0, cy - bsz / 2, bsz, 1, j + 1);   // 選んだ候補は、番号の札も残す
+    g.font = `500 ${size}px ${FONT}`;   // badge() が字の設定を変えるので、もう一度
+    g.globalAlpha = a; g.fillStyle = INK; g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.fillText(B.cands[j], x0 + bsz + gap, cy);
+    g.globalAlpha = 1;
+  }
+}
+// スマホの通知（LINE に入る前）：上から降りてくる。緑のアプリのしるし・相手の名前・内容
+function drawNotif(S, N, t) {
+  const fs = S.fs, w = Math.min(W * 0.56, fs * 19), h = fs * 2.5, x = (W - w) / 2;
+  const e = easeOut(clamp((t - N.t0) / 380, 0, 1)), y = -h + (fs * 0.7 + h) * e;
+  const tq = N.tapT ? clamp((t - N.tapT) / 260, 0, 1) : 0, press = N.tapT ? (t - N.tapT < 260 ? Math.sin(Math.PI * 0.5 * tq) : 1) : 0;   // タップ：押されて、少し沈んで、灰色に
+  g.save(); g.translate(W / 2, y + h / 2); g.scale(1 - 0.03 * press, 1 - 0.03 * press); g.translate(-W / 2, -(y + h / 2));
+  g.save(); g.shadowColor = 'rgba(0,0,0,0.18)'; g.shadowBlur = fs * 0.8 * (1 - 0.5 * press); g.shadowOffsetY = fs * 0.15;
+  g.fillStyle = press ? mixHex('#fafafa', '#dcdfe4', press) : 'rgba(250,250,250,0.98)'; rr(x, y, w, h, fs * 0.6); g.fill(); g.restore();
+  const ic = fs * 1.35, ix = x + fs * 0.6, iy = y + (h - ic) / 2;
+  g.fillStyle = '#06c755'; rr(ix, iy, ic, ic, ic * 0.24); g.fill();
+  g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(ix + ic / 2, iy + ic * 0.46, ic * 0.32, ic * 0.25, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.moveTo(ix + ic * 0.38, iy + ic * 0.62); g.lineTo(ix + ic * 0.32, iy + ic * 0.8); g.lineTo(ix + ic * 0.5, iy + ic * 0.68); g.fill();
+  const tx = ix + ic + fs * 0.55;
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  g.font = `700 ${fs * 0.62}px ${FONT}`; g.fillStyle = INK; g.fillText(N.name, tx, y + h * 0.36);
+  g.font = `500 ${fs * 0.58}px ${FONT}`; g.fillStyle = '#333'; g.fillText(N.text, tx, y + h * 0.66);
+  g.font = `500 ${fs * 0.45}px ${FONT}`; g.fillStyle = '#888'; g.textAlign = 'right'; g.fillText(tr('今', 'now'), x + w - fs * 0.6, y + h * 0.36);
+  g.restore();
+  if (N.tapT) {   // タップの丸（画面収録で、触れたところに出るのと同じ）：ふくらみながら、消える
+    const q = clamp((t - N.tapT) / 650, 0, 1), cx = x + w * 0.62, cy = y + h * 0.55;
+    g.globalAlpha = 0.35 * (1 - q); g.fillStyle = '#5f6670'; g.beginPath(); g.arc(cx, cy, fs * (0.7 + 0.9 * easeOut(q)), 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1;
+  }
 }
 // スタンプ（この展示のために描いたもの）：手をふる、まるい顔と「やっほー」
 function stamp(x, y, s, word, size) {
@@ -1190,214 +1371,16 @@ function plane(x, y, k, color) {   // 送信の紙飛行機（右向き）
 }
 
 
-// ---- ブラウザ（風）：検索・結果・海賊版サイト。ロゴは使わない ----
-const B_BLUE = '#1a0dab', B_GRAY = '#4d5156', B_LINE = '#dadce0', B_URL = '#202124';
-const B_ZOOM = 1.25;   // ブラウザのページの文字の大きさ（タブとアドレスバーはそのまま）
+// ---- 字を出す道具（入りきらなければ … で切る） ----
 function fitText(str, maxW) {   // 入りきらなければ … で切る（いまの g.font で）
   if (g.measureText(str).width <= maxW) return str;
   let s = str;
   while (s.length > 1 && g.measureText(s + '…').width > maxW) s = s.slice(0, -1);
   return s + '…';
 }
-function txt(str, x, y, size, color = B_URL, weight = 500, align = 'left', maxW = 0) {
+function txt(str, x, y, size, color = INK, weight = 500, align = 'left', maxW = 0) {
   g.font = `${weight} ${size}px ${FONT}`; g.fillStyle = color; g.textAlign = align; g.textBaseline = 'middle';
   g.fillText(maxW ? fitText(str, maxW) : str, x, y);
-}
-function para(str, x, y, size, maxW, color = B_GRAY, lhK = 1.55, maxLines = 9) {   // 折り返す文。戻り値：下の y
-  g.font = `500 ${size}px ${FONT}`;
-  const lines = wrapLines(str, maxW).slice(0, maxLines);
-  lines.forEach((ln, i) => txt(ln, x, y + size * lhK * (i + 0.5), size, color));
-  return y + lines.length * size * lhK;
-}
-function setHit(B, name, x, y, w, h, extra = {}) { B.hit[name] = {x, y, w, h, ...extra}; }
-function magnifier(x, y, r, color = '#9aa0a6') { g.strokeStyle = color; g.lineWidth = Math.max(1.5, r * 0.28); g.beginPath(); g.arc(x - r * 0.15, y - r * 0.15, r * 0.6, 0, Math.PI * 2); g.moveTo(x + r * 0.3, y + r * 0.3); g.lineTo(x + r * 0.85, y + r * 0.85); g.stroke(); }
-// 画像の代わり：色の面に、川の線と題（どれも、この展示のために描いたもの）
-// みにかわ（「なんかミニでかわいいやつ」。ちいかわのパロディ）：白くてまるい体、小さな耳、点の目、ほっぺ。この展示のために描いたもの
-function minikawa(cx, cy, r) {
-  const ink = '#3a2f2a';
-  g.fillStyle = '#ffffff'; g.strokeStyle = ink; g.lineWidth = Math.max(1.5, r * 0.06);
-  [-1, 1].forEach(d => { g.beginPath(); g.ellipse(cx + d * r * 0.55, cy - r * 0.78, r * 0.22, r * 0.28, d * 0.35, 0, Math.PI * 2); g.fill(); g.stroke(); });   // 耳
-  g.beginPath(); g.ellipse(cx, cy, r, r * 0.88, 0, 0, Math.PI * 2); g.fill(); g.stroke();   // 体
-  g.fillStyle = ink; [-1, 1].forEach(d => { g.beginPath(); g.ellipse(cx + d * r * 0.3, cy - r * 0.08, r * 0.07, r * 0.1, 0, 0, Math.PI * 2); g.fill(); });   // 目
-  g.fillStyle = 'rgba(255,130,150,0.55)'; [-1, 1].forEach(d => { g.beginPath(); g.ellipse(cx + d * r * 0.52, cy + r * 0.14, r * 0.14, r * 0.08, 0, 0, Math.PI * 2); g.fill(); });   // ほっぺ
-  g.strokeStyle = ink; g.lineWidth = Math.max(1, r * 0.04); g.beginPath(); g.arc(cx, cy + r * 0.06, r * 0.08, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();   // 口
-}
-// 画像の代わり：淡い色の面に、草の丘と、みにかわ。bob は、みにかわが弾む量（再生中の映像）
-function poster(x, y, w, h, seed = 0, label = '', bob = 0) {
-  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
-  const cs = [['#ffe3ec', '#fff6d6'], ['#dff1ff', '#fdf0ff'], ['#e6f7e0', '#fffbe0'], ['#ffeedd', '#e8f0ff']][seed % 4];
-  const gr = g.createLinearGradient(x, y, x, y + h); gr.addColorStop(0, cs[0]); gr.addColorStop(1, cs[1]);
-  g.fillStyle = gr; g.fillRect(x, y, w, h);
-  g.fillStyle = '#bfe3a8'; g.beginPath(); g.ellipse(x + w * 0.3, y + h * 1.02, w * 0.5, h * 0.22, 0, 0, Math.PI * 2); g.ellipse(x + w * 0.8, y + h * 1.05, w * 0.45, h * 0.2, 0, 0, Math.PI * 2); g.fill();
-  const r = Math.min(w, h) * (label ? 0.2 : 0.26);
-  minikawa(x + w / 2, y + h * (label ? 0.66 : 0.58) - Math.abs(bob) * r * 0.25, r);
-  if (label) { g.fillStyle = '#5a4636'; g.font = `800 ${Math.min(w * 0.6 / Math.max(3, [...label].length * 0.9), h * 0.13)}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, x + w / 2, y + h * 0.2); }
-  g.restore();
-}
-// 検索エンジンのロゴ：1文字ずつ色を変える（Google 風の配色。ロゴの画像は使わない）
-const ENGINE_C = ['#4285f4', '#ea4335', '#fbbc05', '#4285f4', '#34a853', '#ea4335'];
-function engineLogo(x, y, size, align = 'left') {
-  g.font = `500 ${size}px "Poppins","Helvetica Neue",Arial,sans-serif`; g.textAlign = 'left'; g.textBaseline = 'middle';
-  let cx = align === 'center' ? x - g.measureText(ENGINE).width / 2 : x;
-  [...ENGINE].forEach((ch, i) => { g.fillStyle = ENGINE_C[i % ENGINE_C.length]; g.fillText(ch, cx, y); cx += g.measureText(ch).width; });
-}
-function stars(x, y, size, n, of = 5) { for (let i = 0; i < of; i++) txt(i < n ? '★' : '☆', x + i * size * 1.05, y, size, i < n ? '#e7711b' : '#c4c7c5'); }
-// 検索ボックス：打った字（pre ＋ 打っている字）と、点滅するカーソル
-function searchBox(S, B, x, y, w, h, t, big = false) {
-  const q = B.q, fs = S.fs, drop = !!B.drop;
-  g.fillStyle = '#ffffff';
-  if (drop) { rr(x, y, w, h + fs * 0.2, [h / 2, h / 2, 0, 0]); g.fill(); }
-  else { g.save(); g.shadowColor = 'rgba(32,33,36,0.18)'; g.shadowBlur = big ? 8 : 4; g.shadowOffsetY = 1; rr(x, y, w, h, h / 2); g.fill(); g.restore(); }
-  g.strokeStyle = B_LINE; g.lineWidth = 1; if (!drop) { rr(x, y, w, h, h / 2); g.stroke(); }
-  magnifier(x + h * 0.55, y + h / 2, h * 0.34);
-  const size = h * 0.42, view = {text: q.pre + q.text, comp: q.comp, pend: q.pend, full: q.pre + q.full};
-  const caret = (B.focus === q) && caretOn(t);
-  if (!view.text && !view.comp && !view.pend) { if (caret) { g.fillStyle = INK; g.fillRect(x + h * 1.05, y + h / 2 - size * 0.6, 2, size * 1.2); } }
-  else drawField(view, x + h * 1.05, y + h / 2 - h * 0.45, w - h * 1.6, h * 0.9, size, caret);
-  setHit(B, 'box', x, y, w, h, {ax: 0.62});
-}
-const RESULTS_JA = {
-  base: [
-    {site: '『劇場版 みにかわ』公式サイト', url: 'minikawa-movie.jp', title: '『劇場版 みにかわ』公式サイト｜10月9日（金）全国ロードショー', body: 'なんかミニでかわいいやつ「みにかわ」が、はじめての大冒険へ。ちいさな体で、ちょっぴり泣きながらも、なかまと一緒にがんばります。'},
-    {site: 'シネマナビ', url: 'cinema-navi.jp › movie › 98765', title: '劇場版 みにかわ (2026) - 作品情報・あらすじ・声の出演', body: '上映時間 98分。原作：SNSで大人気のマンガ「みにかわ」。レビュー 12,341件、平均 4.6点。'},
-    {site: 'つきよのブログ', url: 'tsukiyo-blog.example › entry', title: '『劇場版みにかわ』観てきた。ずっとかわいいのに、泣いた', body: 'ちいさいのに、こんなにがんばってる…。大きなスクリーンで見るみにかわ、尊すぎました。グッズも買いました。'},
-    {site: '映画館ナビ', url: 'eigakan-navi.jp › minikawa', title: 'みにかわ 上映館・上映スケジュール', body: '全国 214 館で上映中。お近くの映画館の上映時間と、座席の空き状況を確認できます。'},
-  ],
-  free: [   // 「みにかわ 映画 無料 フル 視聴」：一番上が海賊版サイト
-    {site: 'MOVIE FREE ZONE', url: 'movie-free-zone.xyz › minikawa', title: '【完全無料】みにかわ フル動画 高画質 今すぐ見放題', body: '登録不要・広告なし！最新映画「みにかわ」をフルHDで無料視聴。ダウンロードもOK。', bad: true},
-    {site: 'VODナビ', url: 'vod-navi.jp › minikawa', title: 'みにかわ の配信はいつから？無料で見る方法を調査', body: '現在、動画配信サービスでの配信はありません（劇場公開中）。違法アップロードサイトは危険です。'},
-    {site: '映画館ナビ', url: 'eigakan-navi.jp › minikawa', title: 'みにかわ 上映館・上映スケジュール', body: '全国 214 館で上映中。'},
-  ],
-};
-const RESULTS_EN = {
-  base: [
-    {site: 'Minikawa: The Movie - Official Site', url: 'minikawa-movie.jp › en', title: 'Minikawa: The Movie | Official Site | In Theaters October 9', body: 'That mini, kinda-cute little guy, Minikawa, sets off on its very first big adventure. Small, a little teary, but never giving up, with friends by its side.'},
-    {site: 'CineNavi', url: 'cinenavi.com › movie › 98765', title: 'Minikawa: The Movie (2026) - Plot, Voice Cast & Reviews', body: 'Runtime 98 min. Based on the hit social media manga "Minikawa." 12,341 reviews, average rating 4.6.'},
-    {site: 'Moonlit Blog', url: 'moonlit-blog.example › entry', title: 'Saw Minikawa: The Movie. Adorable the whole way through, and I still cried', body: 'So tiny, yet trying so hard... Seeing Minikawa on the big screen was just too precious. Bought all the merch, too.'},
-    {site: 'Showtime Finder', url: 'showtimefinder.com › minikawa', title: 'Minikawa: The Movie - Theaters & Showtimes', body: 'Now playing in 214 theaters nationwide. Check showtimes and seat availability near you.'},
-  ],
-  free: [   // 「minikawa movie watch free full online」：一番上が海賊版サイト
-    {site: 'MOVIE FREE ZONE', url: 'movie-free-zone.xyz › minikawa', title: '[100% FREE] Minikawa Full Movie HD - Watch Now, Unlimited', body: 'No sign-up, no ads! Stream the latest movie "Minikawa" free in full HD. Downloads OK.', bad: true},
-    {site: 'StreamGuide', url: 'streamguide.com › minikawa', title: 'When is Minikawa streaming? How to watch it for free, explained', body: 'Not on any streaming service yet (still in theaters). Illegal upload sites are dangerous.'},
-    {site: 'Showtime Finder', url: 'showtimefinder.com › minikawa', title: 'Minikawa: The Movie - Theaters & Showtimes', body: 'Now playing in 214 theaters nationwide.'},
-  ],
-};
-function resultItem(S, B, r, x, y, w, name) {   // 1件分。戻り値：下の y
-  const fs = S.fs, s = fs * 0.5;
-  g.fillStyle = r.bad ? '#f1c232' : '#e8eaed'; g.beginPath(); g.arc(x + s * 0.9, y + s * 1.0, s * 0.9, 0, Math.PI * 2); g.fill();
-  txt(r.site, x + s * 2.4, y + s * 0.6, s * 0.95, B_URL, 500, 'left', w - s * 3);
-  txt(r.url, x + s * 2.4, y + s * 1.65, s * 0.85, B_GRAY, 500, 'left', w - s * 3);
-  const ty = y + s * 3.2;
-  txt(r.title, x, ty, fs * 0.66, B_BLUE, 500, 'left', w);
-  if (name) setHit(B, name, x, ty - fs * 0.4, Math.min(w, (g.font = `500 ${fs * 0.66}px ${FONT}`, g.measureText(r.title).width)), fs * 0.8, {ax: 0.35});
-  return para(r.body, x, ty + fs * 0.45, fs * 0.52, w, B_GRAY, 1.55, 2) + fs * 0.9;
-}
-function knowledgePanel(S, x, y, w) {
-  const fs = S.fs, ph = w * 0.55;
-  poster(x + 1, y + 1, w - 2, ph, 0, MOVIE);
-  let yy = y + ph + fs * 0.8;
-  txt(MOVIE, x + fs * 0.6, yy, fs * 0.9, B_URL, 700); yy += fs * 0.8;
-  txt(tr('2026年 ‧ アニメ/ファミリー ‧ 1時間 38分', '2026 ‧ Animation/Family ‧ 1h 38m'), x + fs * 0.6, yy, fs * 0.5, B_GRAY, 500, 'left', w - fs * 1.2); yy += fs * 0.9;
-  stars(x + fs * 0.6, yy, fs * 0.5, 5); txt(tr('4.6/5 ・ シネマナビ', '4.6/5 · CineNavi'), x + fs * 3.6, yy, fs * 0.5, B_GRAY); yy += fs * 0.75;
-  // あらすじ
-  yy = para(tr('なんかミニでかわいいやつ「みにかわ」。草むしりの毎日に、ある日ふしぎな地図が落ちてくる。こわいけど、なかまと一緒なら――。',
-    "Minikawa, the mini, kinda-cute little guy, spends every day pulling weeds, until a strange map falls from the sky. It's scary, but with friends..."), x + fs * 0.6, yy, fs * 0.5, w - fs * 1.2, B_URL, 1.5, 4) + fs * 0.45;
-  const sep = tr('：', ': ');
-  for (const [k, v] of tr([['公開日', '2026年10月9日（日本）'], ['原作', 'マンガ「みにかわ」']], [['Release date', 'October 9, 2026 (Japan)'], ['Based on', 'the manga "Minikawa"']])) {
-    txt(k + sep, x + fs * 0.6, yy, fs * 0.5, B_URL, 700); txt(v, x + fs * 0.6 + textW(k + sep), yy, fs * 0.5, B_GRAY, 500, 'left', w - fs * 4); yy += fs * 0.75;
-  }
-  g.strokeStyle = B_LINE; g.lineWidth = 1; rr(x, y, w, yy - y + fs * 0.1, 10); g.stroke();   // 枠は、中身の高さに合わせる
-}
-function drawResults(S, B, t, top, pb) {
-  const fs = S.fs, y0 = top, lx = W * 0.12, lw = W * 0.46, view = B.view || 'base';
-  g.fillStyle = '#ffffff'; g.fillRect(0, top, W, pb - top);
-  engineLogo(W * 0.025, y0 + fs * 1.15, fs * 0.72);
-  searchBox(S, B, lx, y0 + fs * 0.45, lw, fs * 1.4, t);
-  let tabX = lx + fs * 0.4;
-  tr(['すべて', '画像', '動画', 'ニュース', 'ショッピング'], ['All', 'Images', 'Videos', 'News', 'Shopping']).forEach((s, i) => {
-    txt(s, tabX, y0 + fs * 2.5, fs * 0.5, i ? B_GRAY : B_BLUE, i ? 500 : 700);
-    const w = textW(s);
-    if (!i) { g.fillStyle = B_BLUE; g.fillRect(tabX - fs * 0.1, y0 + fs * 2.85, w + fs * 0.2, 3); }
-    tabX += w + fs * 1.1;
-  });
-  g.fillStyle = '#ebebeb'; g.fillRect(0, y0 + fs * 2.95, W, 1);
-  const hits = view === 'free' ? '38,600' : '1,240,000';
-  txt(tr(`約 ${hits} 件（0.38 秒）`, `About ${hits} results (0.38 seconds)`), lx, y0 + fs * 3.5, fs * 0.45, '#70757a');
-  let y = y0 + fs * 4.1;
-  (LANG === 'en' ? RESULTS_EN : RESULTS_JA)[view].forEach((r, i) => { y = resultItem(S, B, r, lx, y, lw, view === 'free' && i === 0 ? 'top' : null); });
-  if (view === 'base') knowledgePanel(S, W * 0.62, y0 + fs * 4.1, W * 0.3);
-  if (B.drop) suggestDrop(S, B, t, lx, y0 + fs * 1.85, lw);   // 続きの検索候補（3択）
-}
-// 続きの検索候補（3択）：結果の画面の検索ボックスのすぐ下。dy は検索ボックスの下の端
-function suggestDrop(S, B, t, x, dy, bw) {
-  const fs = S.fs, h = fs * 1.2, a = clamp((t - B.drop) / 200, 0, 1);
-  g.globalAlpha = a; g.save(); g.shadowColor = 'rgba(32,33,36,0.28)'; g.shadowBlur = 6; g.shadowOffsetY = 2; g.fillStyle = '#fff'; rr(x, dy - fs * 0.2, bw, h * B_TX.suggest.length + fs * 0.6, [0, 0, 18, 18]); g.fill(); g.restore();
-  g.fillStyle = B_LINE; g.fillRect(x + fs * 0.6, dy - fs * 0.1, bw - fs * 1.2, 1);
-  B_TX.suggest.forEach((sg, j) => {
-    const yy = dy + fs * 0.15 + j * h, look = mirrorLook(S, B, j, t);
-    if (look && look.lime > 0) { g.fillStyle = LIME_BG; g.fillRect(x, yy, bw, h); g.fillStyle = LIME; g.fillRect(x, yy, 5, h); }
-    else if (B.hover === 'sug' + j) { g.fillStyle = '#f1f3f4'; g.fillRect(x, yy, bw, h); }   // ポインタが乗っている候補
-    magnifier(x + fs * 0.75, yy + h / 2, fs * 0.42);
-    txt(`${B_TX.qtext} `, x + fs * 1.5, yy + h / 2, fs * 0.6, B_URL, 500);
-    txt(sg, x + fs * 1.5 + textW(`${B_TX.qtext} `), yy + h / 2, fs * 0.6, B_URL, 700);
-    if (look && look.badge) badge(x + bw - fs * 1.2, yy + h * 0.15, h * 0.7, look.calm ? 0.4 : 1, look.n);   // 読む間は淡く
-    setHit(B, 'sug' + j, x, yy, bw, h, {ax: 0.25});
-  });
-  g.globalAlpha = 1;
-}
-function drawHome(S, B, t, top, pb) {
-  const fs = S.fs, w = Math.min(W * 0.52, fs * 22), x = (W - w) / 2, cy = top + (pb - top) * 0.42;
-  g.fillStyle = '#ffffff'; g.fillRect(0, top, W, pb - top);
-  engineLogo(W / 2, cy - fs * 2.2, fs * 2.0, 'center');
-  searchBox(S, B, x, cy - fs * 0.75, w, fs * 1.5, t, true);
-  tr([['検索', -1], ['ランダム', 1]], [['Goggle Search', -1], ["I'm Feeling Lucky", 1]]).forEach(([s, d]) => { const bw = fs * tr(4.2, 6.4), bx = W / 2 + d * fs * 0.3 - (d < 0 ? bw : 0); g.fillStyle = '#f8f9fa'; rr(bx, cy + fs * 1.4, bw, fs * 1.15, 6); g.fill(); txt(s, bx + bw / 2, cy + fs * 1.98, fs * 0.5, '#3c4043', 500, 'center'); });
-}
-function drawPirate(S, B, t, top, pb) {
-  const fs = S.fs, cw = W * 0.7, x = (W - cw) / 2;
-  g.fillStyle = '#0d0d10'; g.fillRect(0, top, W, pb - top);
-  // ブラウザの警告の帯：違法アップロードのサイトだと、はっきりわかるように
-  const wh = fs * 1.05;
-  g.fillStyle = '#fde2e1'; g.fillRect(0, top, W, wh); g.fillStyle = '#d93025'; g.fillRect(0, top + wh - 2, W, 2);
-  txt(tr('⚠ 違法アップロードの可能性があります：このサイトは、劇場公開中の映画を無断で配信しています（著作権侵害）', '⚠ Possible illegal upload: this site streams movies still in theaters without permission (copyright infringement)'), W / 2, top + wh / 2, fs * 0.48, '#a50e0e', 700, 'center', W - fs);
-  const top2 = top + wh;
-  txt('MOVIE FREE ZONE', x, top2 + fs * 0.9, fs * 0.9, '#ffd400', 800);
-  const lw = g.measureText('MOVIE FREE ZONE').width;
-  txt(tr('劇場公開中の最新作も すべて無料 ・ 登録不要', 'Even movies still in theaters · All free · No sign-up'), x + lw + fs * 0.6, top2 + fs * 0.9, fs * 0.5, '#9a9a9a', 500, 'left', cw - lw - fs * 0.6);
-  const ph = Math.min(cw * 0.5, pb - top2 - fs * 4.5), py = top2 + fs * 1.8;
-  const vw = cw * 0.72, bx = x + cw * 0.36, by = py + ph * 0.62;
-  setHit(B, 'play', bx - fs * 1.1, by - fs * 1.1, fs * 2.2, fs * 2.2);   // 再生のあとも残す（ポインタが、押した場所に留まる）
-  if (!B.playT) {
-    poster(x, py, vw, ph, 3, tr(`劇場版 ${MOVIE}（2026）フル HD`, `${MOVIE}: The Movie (2026) Full HD`));
-    camTag(x, py, fs);
-    g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.arc(bx, by, fs * 1.1, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#0d0d10'; g.beginPath(); g.moveTo(bx - fs * 0.35, by - fs * 0.55); g.lineTo(bx + fs * 0.55, by); g.lineTo(bx - fs * 0.35, by + fs * 0.55); g.fill();
-  } else {   // 再生中：映画館で盗み撮りした映像（前の席の人の頭が映りこむ）と、下の再生バー
-    poster(x, py, vw, ph, Math.floor((t - B.playT) / 1600) % 2 ? 0 : 2, '', Math.sin((t - B.playT) / 160));   // みにかわが、ぴょこぴょこ弾む
-    const el = (t - B.playT) / 1000, bh = fs * 0.9;
-    g.save(); g.beginPath(); g.rect(x, py, vw, ph); g.clip();
-    g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(x, py, vw, ph);   // 暗い客席から撮った映像
-    g.fillStyle = '#050506'; [[0.18, 0.95, 0.13], [0.46, 1.0, 0.15], [0.8, 0.97, 0.12]].forEach(([u, v, r]) => { g.beginPath(); g.ellipse(x + vw * u, py + ph * v, vw * r, ph * 0.22, 0, 0, Math.PI * 2); g.fill(); });   // 前の席の頭
-    g.restore();
-    camTag(x, py, fs, t);
-    g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(x, py + ph - bh, vw, bh);
-    g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(x + fs * 0.4, py + ph - bh * 0.72, vw - fs * 0.8, 3);
-    g.fillStyle = '#e01b24'; g.fillRect(x + fs * 0.4, py + ph - bh * 0.72, Math.max(3, (vw - fs * 0.8) * el / 5880), 3);
-    txt(`0:${String(Math.floor(el)).padStart(2, '0')} / 1:38:00`, x + fs * 0.4, py + ph - bh * 0.32, fs * 0.42, '#fff');
-  }
-  const blink = Math.floor(t / 400) % 2;
-  [[tr('今すぐダウンロード ▶', 'Download now ▶'), '#e01b24'], [tr('高速再生はこちら', 'Fast stream here'), '#16a34a'], [tr('残り 3 名様限定', 'Only 3 spots left'), blink ? '#e01b24' : '#f59e0b']].forEach(([s, c], i) => {
-    const ax = x + cw * 0.75, ay = py + i * (ph / 3), aw = cw * 0.25, ah = ph / 3 - fs * 0.3;
-    g.fillStyle = c; rr(ax, ay, aw, ah, 6); g.fill(); txt(s, ax + aw / 2, ay + ah / 2, fs * 0.5, '#fff', 700, 'center', aw - 8);
-  });
-  txt(tr('▶ 再生できない場合は、下のボタンからプレイヤーを更新してください', "▶ Video won't play? Update your player with the button below"), x, py + ph + fs * 0.8, fs * 0.5, '#bdbdbd', 500, 'left', cw);
-}
-// 盗撮版のしるし：左上に「CAM」と、赤く点滅する録画の点
-function camTag(x, y, fs, t = 0) {
-  const label = tr('CAM 盗撮版', 'CAM · BOOTLEG');
-  g.font = `700 ${fs * 0.42}px ${FONT}`;
-  g.fillStyle = 'rgba(0,0,0,0.6)'; rr(x + fs * 0.4, y + fs * 0.4, fs * 1.0 + g.measureText(label).width, fs * 0.9, 4); g.fill();   // 札の幅は、文字に合わせる
-  if (Math.floor(t / 500) % 2 === 0) { g.fillStyle = '#e01b24'; g.beginPath(); g.arc(x + fs * 0.8, y + fs * 0.85, fs * 0.17, 0, Math.PI * 2); g.fill(); }
-  txt(label, x + fs * 1.1, y + fs * 0.85, fs * 0.42, '#fff', 700);
 }
 // 来場者の手元のカメラ映像が、そのまま映る（still があれば、止まった1枚）
 function drawCamFeed(S, top, pb, still = null) {
@@ -1418,57 +1401,6 @@ function freezeCamera() {   // いまの映像を1枚止める（シャッター
   const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
   c.getContext('2d').drawImage(v, 0, 0); return c;
 }
-function drawChrome(S, B, t, th, ah) {   // タブの列と、アドレスバー（配置と色だけ）
-  const fs = S.fs;
-  g.fillStyle = '#dee1e6'; g.fillRect(0, 0, W, th);
-  const n = B.tabs.length, tw = Math.min(fs * 7.5, (W - fs * 3) / n);
-  B.tabs.forEach((tb, i) => {
-    const x = fs * 0.4 + i * tw, act = i === B.tab;
-    if (act) { g.fillStyle = '#ffffff'; rr(x, fs * 0.2, tw, th - fs * 0.2, [8, 8, 0, 0]); g.fill(); }
-    else if (i && i - 1 !== B.tab) { g.fillStyle = '#9aa0a6'; g.fillRect(x, th * 0.35, 1, th * 0.4); }
-    g.fillStyle = tb.bad ? '#d93025' : '#9aa0a6'; g.beginPath(); g.arc(x + fs * 0.55, th * 0.58, fs * 0.17, 0, Math.PI * 2); g.fill();
-    txt(tb.t || tr('新しいタブ', 'New Tab'), x + fs * 0.9, th * 0.58, fs * 0.42, B_URL, 500, 'left', tw - fs * 1.6);
-  });
-  txt('＋', fs * 0.6 + n * tw, th * 0.58, fs * 0.5, '#5f6368');
-  g.fillStyle = '#ffffff'; g.fillRect(0, th, W, ah); g.fillStyle = B_LINE; g.fillRect(0, th + ah - 1, W, 1);
-  ['←', '→', '↻'].forEach((s, i) => txt(s, fs * 0.6 + i * fs * 1.1, th + ah / 2, fs * 0.6, '#5f6368', 500));
-  const ux = fs * 3.9, uw = W - ux - fs * 1.2, uh = ah * 0.68, uy = th + (ah - uh) / 2, bad = B.tabs[B.tab]?.bad;
-  g.fillStyle = '#f1f3f4'; rr(ux, uy, uw, uh, uh / 2); g.fill();
-  if (B.url) {
-    let ox = ux + fs * 0.5;
-    if (bad) { const ns = tr('⚠ 保護されていない通信', '⚠ Not secure'); txt(ns, ox, th + ah / 2, fs * 0.45, '#d93025', 700); ox += textW(ns) + fs * 0.4; }
-    else { txt('🔒', ox, th + ah / 2, fs * 0.42, B_URL); ox += fs * 0.8; }
-    txt(B.url, ox, th + ah / 2, fs * 0.5, B_URL, 500, 'left', ux + uw - ox - fs * 0.5);
-  } else txt(tr('検索するか、URL を入力', 'Search Goggle or type a URL'), ux + fs * 0.5, th + ah / 2, fs * 0.5, '#80868b');
-  if (B.loadT && t - B.loadT < 650) { g.fillStyle = '#1a73e8'; g.fillRect(0, th + ah - 3, W * easeOut((t - B.loadT) / 650), 3); }
-}
-function drawPointer(B, t) {
-  if (!B.ptr) return;
-  const p = ptrNow(B, t), k = Math.max(16, W * 0.016);
-  if (B.clickT && t - B.clickT < 380) {   // クリック：輪が広がる
-    const q = (t - B.clickT) / 380;
-    g.strokeStyle = `rgba(26,115,232,${0.6 * (1 - q)})`; g.lineWidth = 3; g.beginPath(); g.arc(p.x, p.y, k * (0.4 + 1.4 * q), 0, Math.PI * 2); g.stroke();
-  }
-  g.save(); g.translate(p.x, p.y); if (B.clickT && t - B.clickT < 140) g.scale(0.9, 0.9);
-  g.beginPath(); g.moveTo(0, 0); g.lineTo(0, k * 1.35); g.lineTo(k * 0.34, k * 1.02); g.lineTo(k * 0.58, k * 1.55); g.lineTo(k * 0.78, k * 1.46); g.lineTo(k * 0.54, k * 0.95); g.lineTo(k * 0.98, k * 0.95); g.closePath();
-  g.fillStyle = '#ffffff'; g.fill(); g.strokeStyle = '#111'; g.lineWidth = 1.6; g.stroke();
-  g.restore();
-}
-function drawBrowser(S, B, t, dt, pb) {
-  const fs = S.fs, th = fs * 1.25, ah = fs * 1.45, top = th + ah;
-  B.hit = {};
-  g.save(); g.beginPath(); g.rect(0, top, W, pb - top); g.clip();
-  const SS = Object.create(S); SS.fs = fs * B_ZOOM;   // ページの中は、離れても読めるように大きく
-  ({home: drawHome, results: drawResults, pirate: drawPirate}[B.page] || drawHome)(SS, B, t, top, pb);
-  g.restore();
-  drawChrome(S, B, t, th, ah);
-  drawPointer(B, t);
-  if (B.black) {   // 暗転（black > 0）と、明ける（black < 0）
-    const a = B.black > 0 ? clamp((t - B.black) / 500, 0, 1) : 1 - clamp((t + B.black) / 800, 0, 1);
-    if (a > 0) { g.fillStyle = `rgba(0,0,0,${a})`; g.fillRect(0, 0, W, pb); }
-  }
-}
-
 const AVATAR = new Image(); AVATAR.src = '/feed-avatar.png';   // 展示の X アカウントのアイコン（タイムラインと同じ画像）
 // ---- X（風）：投稿画面。配置と色だけをそれっぽくした、ロゴのない画面。長い文は、打っている行が見えるように上へ流れる ----
 function drawX(S, X, t, dt, pb) {
@@ -1558,72 +1490,158 @@ function kToX(k) {   // キーの番号（小数も）→ 画面の x
 
 // ---- 待機：F が2秒上がり、5秒下がる。上がっているあいだに押すと始まる ----
 const newSaver = () => ({k: 'saver'});
+// 待機画面の手：作品名を打っては消す、をくり返す（画面の中だけ。実物のキーは動かさない）。時刻 t だけで決まる
+const DEMO = {key: 300, hold: 16000, del: 95, rest: 900};   // 作品名は、ほとんどの時間（約16秒）出たまま。ときどき消えて、打ち直される
+function demoAt(t) {   // 戻り値：n 出ている字数、keys いま押しているキー（0..7）、thumb 親指（空白）、p 押し込みの深さ（0..1）、typing 打っている途中か
+  const N = TITLE.length, T = N * DEMO.key + DEMO.hold + N * DEMO.del + DEMO.rest;
+  let u = t % T;
+  if (u < N * DEMO.key) {
+    const i = Math.floor(u / DEMO.key), q = (u % DEMO.key) / DEMO.key, ch = TITLE[i], lo = ch.toLowerCase();
+    const keys = ch === ' ' ? [] : [fingerOf(lo)];
+    if (ch !== lo) keys.push(7);   // 大文字は Shift（右小指）といっしょに
+    return {n: i + (q > 0.3 ? 1 : 0), keys, thumb: ch === ' ', p: Math.sin(clamp(q / 0.6, 0, 1) * Math.PI), typing: true};
+  }
+  u -= N * DEMO.key;
+  if (u < DEMO.hold) return {n: N, keys: [], p: 0};
+  u -= DEMO.hold;
+  if (u < N * DEMO.del) {   // 右小指の連打で消える（X の場面と同じ）
+    const i = Math.floor(u / DEMO.del), q = (u % DEMO.del) / DEMO.del;
+    return {n: N - i - (q > 0.4 ? 1 : 0), keys: [7], p: Math.sin(q * Math.PI), typing: true};
+  }
+  return {n: 0, keys: [], p: 0};
+}
+function capsule(x1, y1, x2, y2, r) {   // 両はしが丸い棒（指）
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  g.beginPath(); g.arc(x1, y1, r, a + Math.PI / 2, a + Math.PI * 1.5); g.arc(x2, y2, r, a - Math.PI / 2, a + Math.PI / 2); g.closePath();
+}
+// 8つのキーに、両手の8本の指を置いた絵（上から見たところ）。線だけの手（塗らない。キーが指の中に透ける）。
+// となりの指は1本の線を分け合い、指のあいだの線は途中で止まる。親指は、内側の上へ向く（キーには置かない）。手首のほうは、ふっと消える。
+// 左手の形を描き、右手は左右を反転して描く。押している指は、少し下がってキーが沈み、指先に小さな線が出る。
+// 絵は、作品名を打つ見本だけ。始めるキー（F）のオレンジは、下の丸と実物のキーだけに出す（絵には出さない。混ざるので）
+const HAND_LINE = '#433f3e';
+const FINGER_TOP = [0.94, 0.29, -0.11, 0.29];   // 指先の高さ（キーの中心から、1キー分を1として下へ。小指・薬指・中指・人さし指）
+function handsArt(cx, top, w, t, d) {
+  const st = w / 11.4, ks = st * 0.86, keyY = top + ks / 2, lw = Math.max(3, st * 0.18);
+  const X = i => cx + (i - 3.5) * st + (i < 4 ? -1 : 1) * st * 1.58;   // 左右の手のあいだは、親指が入るだけ空ける
+  const down = i => d.keys.includes(i) ? d.p : 0;
+  for (let i = 0; i < 8; i++) {   // キー（白。うすい影と、細い縁）
+    const dn = down(i), y = keyY - ks / 2 + dn * ks * 0.07;
+    g.save(); g.shadowColor = 'rgba(0,0,0,0.13)'; g.shadowBlur = st * 0.14; g.shadowOffsetY = st * 0.05;
+    g.fillStyle = mixHex('#ffffff', '#cfd3d8', dn);
+    rr(X(i) - ks / 2, y, ks, ks, ks * 0.16); g.fill(); g.restore();
+    g.strokeStyle = '#7d828a'; g.lineWidth = Math.max(1.5, st * 0.025); rr(X(i) - ks / 2, y, ks, ks, ks * 0.16); g.stroke();
+  }
+  const r = st / 2, slitY = keyY + 3.0 * st, botY = keyY + 4.6 * st;
+  g.strokeStyle = HAND_LINE; g.lineWidth = lw; g.lineJoin = 'round'; g.lineCap = 'butt';
+  for (const side of [0, 1]) {
+    g.save();
+    if (side) { g.translate(cx * 2, 0); g.scale(-1, 1); }   // 右手は、左手を反転して描く
+    const keyOf = f => side ? 7 - f : f;   // f：0 = 小指 … 3 = 人さし指
+    for (let f = 0; f < 4; f++) {
+      const dn = down(keyOf(f)), x = X(f), ay = keyY + (FINGER_TOP[f] + 0.5 + 0.12 * dn) * st;   // ay：指先の丸の中心
+      g.beginPath();
+      g.moveTo(x - r, f === 0 ? botY : slitY); g.lineTo(x - r, ay);   // 小指の外側だけは、手首まで
+      g.arc(x, ay, r, Math.PI, 0);
+      if (f < 3) g.lineTo(x + r, slitY);
+      else {   // 人さし指の内側から、親指へ
+        const ix = x + r, T = {x: ix + 1.1 * st, y: keyY + 2.55 * st}, tr_ = st * 0.34, B = {x: ix + 0.1 * st, y: keyY + 4.5 * st};
+        let ux = T.x - B.x, uy = T.y - B.y; const L = Math.hypot(ux, uy); ux /= L; uy /= L;   // 親指の向き（根もとから先へ）
+        const nx = uy, ny = -ux, near = {x: T.x + nx * tr_, y: T.y + ny * tr_}, far = {x: T.x - nx * tr_, y: T.y - ny * tr_};
+        const jy = near.y - uy * (near.x - ix) / ux, c = st * 0.22;   // 人さし指の線と、親指の線が出会うところ（少し丸める）
+        g.lineTo(ix, jy - c); g.quadraticCurveTo(ix, jy, ix + ux * c, jy + uy * c);
+        g.lineTo(near.x, near.y);
+        const a0 = Math.atan2(ny, nx); g.arc(T.x, T.y, tr_, a0, a0 + Math.PI);
+        const k = (botY - far.y) / -uy; g.lineTo(far.x - ux * k, botY);
+      }
+      g.stroke();
+      if (dn > 0.25) {   // 押している指先の、小さな線（3本）
+        g.save(); g.globalAlpha = dn; g.lineWidth = lw * 0.55; g.lineCap = 'round';
+        [-0.55, 0, 0.55].forEach(a => { const ang = -Math.PI / 2 + a, r0 = r + st * 0.18, r1 = r + st * 0.36; g.beginPath(); g.moveTo(x + Math.cos(ang) * r0, ay + Math.sin(ang) * r0); g.lineTo(x + Math.cos(ang) * r1, ay + Math.sin(ang) * r1); g.stroke(); });
+        g.restore();
+      }
+    }
+    g.restore();
+  }
+  const fy = keyY + 4.0 * st, fade = g.createLinearGradient(0, fy, 0, botY);   // 手首のほうは、紙の色へ、ふっと消える
+  fade.addColorStop(0, 'rgba(255,255,255,0)'); fade.addColorStop(1, PAPER);
+  g.fillStyle = fade; g.fillRect(cx - w / 2 - lw, fy, w + lw * 2, botY - fy + lw);   // 絵の幅だけ（左の文にかからない）
+  return botY;   // 絵の下の端
+}
 function drawSaver(S, V, t, dt, pb) {
   const fs = S.fs, since = S.wakeUp ? t - S.beatT : -1, ready = S.wakeUp && since >= WAKE_SETTLE_MS;
-  g.fillStyle = INK; g.font = `500 ${fs * 1.05}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(SAVER_MSG(), W / 2, pb * 0.24);
-  g.font = `500 ${fs * 0.72}px ${FONT}`; g.fillStyle = '#555';
-  g.fillText(SAVER_SUB(), W / 2, pb * 0.24 + fs * 1.3);
-  // F の上の丸：下がっているあいだは、淡く小さい。上がりはじめ（まだ受け付けない WAKE_SETTLE_MS）は、淡いまま少しずつ大きくなる。
-  // 受け付けられるようになった瞬間に、濃いオレンジになって輪が広がる（今押していい、の合図）。下の F のキーへ、細い線
-  const x = kx(BEAT_KEY), cy = pb * 0.62, grow = S.wakeUp ? easeOut(clamp(since / WAKE_SETTLE_MS, 0, 1)) : 0;
+  const d = demoAt(t);
+  // 上：作品名（中央）。打っている字だけが出る。位置は全文で決める（打つ途中で動かない）。カーソルは、打っている間は点いたまま
+  const ts = Math.min(W * 0.11, pb * 0.22), ty = pb * 0.36, shown = TITLE.slice(0, d.n);
+  g.font = `300 ${ts}px "Poppins","Helvetica Neue",Arial,sans-serif`; g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = INK;
+  const tx = W / 2 - g.measureText(TITLE).width / 2;
+  g.fillText(shown, tx, ty);
+  if (d.typing || Math.floor(t / 530) % 2 === 0) g.fillRect(tx + g.measureText(shown).width + ts * 0.05, ty - ts * 0.76, Math.max(2, ts * 0.03), ts * 0.92);
+  const bs = fs * SAVER_FS, lh = bs * 1.7, font = `${SAVER_W} ${bs}px ${FONT}`;
+  // 下：始め方。F の上の丸から、実物の F キーへ細い線。
+  // 丸は、下がっているあいだは淡く小さい。上がりはじめ（まだ受け付けない WAKE_SETTLE_MS）は、淡いまま少しずつ大きくなる。
+  // 受け付けられるようになった瞬間に、濃いオレンジになって輪が広がる（今押していい、の合図）
+  const x = kx(BEAT_KEY), cy = pb * 0.9, grow = S.wakeUp ? easeOut(clamp(since / WAKE_SETTLE_MS, 0, 1)) : 0;
   const rt = ready ? since - WAKE_SETTLE_MS : 1e9, q = Math.exp(-rt / 260);
-  const r = fs * 1.5 * (0.8 + 0.2 * grow) * (1 + 0.18 * q), on = ready ? 0.9 + 0.1 * Math.sin(t / 200) : 0.3;
-  g.strokeStyle = ORANGE; g.lineWidth = 2; g.globalAlpha = 0.5 * on;
+  const r = fs * 0.6 * (0.8 + 0.2 * grow) * (1 + 0.25 * q), on = ready ? 0.9 + 0.1 * Math.sin(t / 200) : 0.3;
+  g.strokeStyle = ORANGE; g.lineWidth = 2; g.globalAlpha = 0.6 * on;
   g.beginPath(); g.moveTo(x, cy + r); g.lineTo(x, pb); g.stroke();
-  if (rt < 900) { g.globalAlpha = 0.6 * (1 - rt / 900); g.lineWidth = 3; g.beginPath(); g.arc(x, cy, r + fs * 2.2 * (rt / 900), 0, Math.PI * 2); g.stroke(); }
+  if (rt < 900) { g.globalAlpha = 0.6 * (1 - rt / 900); g.lineWidth = 3; g.beginPath(); g.arc(x, cy, r + fs * 1.6 * (rt / 900), 0, Math.PI * 2); g.stroke(); }
   g.globalAlpha = on;
   g.fillStyle = ORANGE; g.beginPath(); g.arc(x, cy, r, 0, Math.PI * 2); g.fill();
-  // 弱くて無視した押し込み：丸の上に、短い声かけ（2秒）
-  if (S.weakT && t - S.weakT < 2200) {
-    g.globalAlpha = Math.min(1, (2200 - (t - S.weakT)) / 400);
-    g.font = `700 ${fs * 0.8}px ${FONT}`; g.fillStyle = RED; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(tr('もう少し、しっかり押してください', 'Press a little more firmly'), x, cy - fs * 3.2);
+  // 丸の上に、始め方。弱くて無視した押し込みのあと（2秒）は、代わりに短い声かけ
+  const weak = S.weakT && t - S.weakT < 2200;
+  g.globalAlpha = 1; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const go = SAVER_GO(), y2 = cy - fs * 0.75 - bs * 1.4, y1 = y2 - lh;   // 2行は、同じ行間で（丸の大きさが変わっても、文は動かさない）
+  g.font = font; g.fillStyle = INK;
+  const xc = W / 2;   // 文は画面の中央にそろえる（丸と線だけが、実物の F キーの上）
+  g.fillText(SAVER_NOTE(), xc, y1);   // Xへの投稿のこと（同意してもらう中身）
+  if (weak) { g.fillStyle = RED; g.fillText(tr('もう少し、しっかり押してください', 'Press a little more firmly'), xc, y2); }   // 弱くて無視したとき：2行目の代わりに（2秒）
+  else {   // 「同意いただける方は」だけ赤
+    const w0 = g.measureText(go[0]).width, w1 = g.measureText(go[1]).width, x0 = xc - (w0 + w1) / 2;
+    g.textAlign = 'left'; g.fillStyle = RED; g.fillText(go[0], x0, y2); g.fillStyle = INK; g.fillText(go[1], x0 + w0, y2); g.textAlign = 'center';
   }
   g.globalAlpha = 1;
 }
 
+// 2枚目（始めたあと）：指の置き方。両手の絵（動かさない。押す動きを見せると「添える」と食い違う）と、その下に一文
+function drawHands(S, Hs, t, pb) {
+  const fs = S.fs, a = clamp((t - Hs.t0) / 400, 0, 1);
+  g.globalAlpha = a;
+  const aw = Math.min(W * 0.6, pb * 1.45), ab = handsArt(W / 2, pb * 0.1, aw, t, {keys: [], p: 0});
+  const ms = fs * 1.0, [m1, m2] = HANDS_MSG(), y = Math.min(ab + ms * 1.6, pb - ms * 2.8);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `600 ${ms}px ${FONT}`; g.fillStyle = INK; g.fillText(m1, W / 2, y);
+  g.font = `500 ${ms * 0.75}px ${FONT}`; g.fillStyle = '#555'; g.fillText(m2, W / 2, y + ms * 1.5);
+  g.globalAlpha = 1;
+}
 function drawScr(S, scr, t, dt, pb) {
   if (!scr) return;
   if (scr.k === 'saver') drawSaver(S, scr, t, dt, pb);
+  else if (scr.k === 'hands') drawHands(S, scr, t, pb);
   else if (scr.k === 'title') drawTitle(S, scr, t, pb);
   else if (scr.k === 'cli') drawCli(S, scr, t, dt, pb);
-  else if (scr.k === 'browse') drawBrowser(S, scr, t, dt, pb);
   else if (scr.k === 'line') drawLine(S, scr, t, dt, pb);
   else if (scr.k === 'x') drawX(S, scr, t, dt, pb);
-}
-const TOTAL = 212500;   // 通しの目安（終了の画面の終わりまで、約3分33秒）。右上の時計の線の長さ
-function drawHud(S, t) {   // 右上：経過時間と場面（スタッフ用。来場者に見せるときは H で消す）
-  if (!S.hud) return;   // S.hud: 1 = 出す、0 = 出さない（H で切り替え）
-  const el = S.running ? (t - S.t0) / 1000 : 0, f = v => `${Math.floor(v / 60)}:${String(Math.floor(v % 60)).padStart(2, '0')}`;
-  g.font = `500 12px ${FONT}`; g.textAlign = 'right'; g.textBaseline = 'middle'; g.lineJoin = 'round';
-  const put = (txt, y) => { g.lineWidth = 5; g.strokeStyle = PAPER; g.strokeText(txt, W - 14, y); g.fillStyle = INK; g.fillText(txt, W - 14, y); };   // 文字の下に紙の色の縁をつけ、重なっても読める
-  put(`${f(el)}　${PH[S.phase] || ''}`, 16);
-  const bx = W - 14 - 180;
-  g.fillStyle = INK; g.fillRect(bx, 28, 180, 1); g.fillRect(bx, 26, Math.min(180, el * 1000 / TOTAL * 180), 5);
-  g.fillStyle = RED; g.fillRect(bx + DUE.toX / TOTAL * 180 - 1, 23, 2, 11);   // 感想の投稿に入る目安
-  if (S.phase === 'saver') put(`F が上がったら押すか、Enter か「はじめる」で開始　H で表示を切り替え　次の感想 ${(parseInt(lsGet(reviewKey()) ?? '0', 10) || 0) + 1}/${REVS.length}`, 44);
 }
 
 // ================= 体験の登録 =================
 const EXP = {
   id: 'dialogue', name: '対話',
-  note: 'インストラクターと、ブラウザ・LINE・X の画面を行き来する。来場者の発言は、来場者の指が打つ。ときどき、キーを押して選ぶ',
-  use: 'F が上がったら押すか、Enter か「はじめる」で開始／H で時計の表示を切り替え',
+  note: 'インストラクターと、LINE・X の画面を行き来する。待機画面にXへの投稿のことを書き、同意した人だけが F を押して始める。来場者の発言は、来場者の指が打つ。ときどき、キーを押して選ぶ',
+  use: 'F が上がったら押すか、Enter か「はじめる」で開始',
   opts: {から: START, 言語: LANGS},
   actions: [{label: s => s.running ? '最初から' : 'はじめる', run: s => { document.activeElement?.blur?.(); if (s.running) restart(); else begin(s); }}],
   init(S) {
     setLang(S.o.言語 === 'English' ? 'en' : 'ja');   // 下の帯の「日本語／English」
     queued.fill(false);
     Object.assign(S, {phase: 'saver', running: false, dead: false, tl: [], fs: 28,
-      cli: {k: 'cli', inst: null, me: null, gone: []}, sv: newSaver(), slide: null, line: null, br: null, x: null, title: null, choice: null,
-      typing: null, hud: lsGet('kc-dlg-hud') === '0' ? 0 : 1, beatT: 0, wakeUp: false});
+      cli: {k: 'cli', inst: null, me: null, gone: []}, sv: newSaver(), slide: null, notif: null, line: null, x: null, title: null, choice: null,
+      typing: null, beatT: 0, wakeUp: false});
     S.scr = S.sv;
     S.onKey = e => {
       if (e.target?.tagName === 'INPUT' && e.target.type === 'text') return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if ((e.key === 'Enter' || (e.code === 'KeyF' && !writer)) && !S.running && !e.repeat) { e.preventDefault(); document.activeElement?.blur?.(); begin(S); }   // F は、基板がないとき（PC のキーボードで試す）だけ
-      else if (e.key === 'h' || e.key === 'H') { S.hud = S.hud ? 0 : 1; lsSet('kc-dlg-hud', String(S.hud)); }
     };
     S.onPress = e => { if (!writer && S.wakeUp && !S.running && !S.dead && e.detail.key === BEAT_KEY) begin(S); };   // 基板がないとき（PC のキーボードで試す）：上がっている F が押された
     S.onDown = e => {   // 基板があるとき：上がっている F の押し込みを、強さで確かめてから始める
@@ -1657,9 +1675,20 @@ const EXP = {
       g.fillStyle = 'rgba(0,0,0,0.16)'; g.fillRect(seam - 1, 0, 2, pb);
     } else drawScr(S, S.scr, t, dt, pb);
     g.restore();
+    if (S.notif) drawNotif(S, S.notif, t);   // スマホの通知（LINE に入る前）
+    const C0 = S.choice;
+    if (C0 && C0.bar && S.line?.bar?.ul && (C0.stage === 'read' || C0.stage === 'select')) {   // 予測変換の帯：候補の文字に下線を引き、その下線のまん中から、実物のキーへ線を伸ばす（読むあいだは灰色の点線＝まだ。受付が始まったら、オレンジの実線）
+      const top = KY - STEP * 0.42, sel = C0.stage === 'select';
+      g.save(); g.strokeStyle = sel ? ORANGE : '#aab0b9'; g.lineWidth = Math.max(4, S.fs * 0.14); g.lineCap = 'round'; g.lineJoin = 'round'; g.globalAlpha = sel ? 1 : 0.85; g.setLineDash(sel ? [] : [S.fs * 0.2, S.fs * 0.28]);
+      S.line.bar.ul.forEach((u, j) => {
+        const m = (u.a + u.b) / 2;
+        g.beginPath(); g.moveTo(u.a, u.y); g.lineTo(u.b, u.y); g.stroke();   // 下線
+        g.beginPath(); g.moveTo(m, u.y); g.lineTo(kx(S.line.bar.ks[j]), top); g.stroke();   // 下線のまん中から、キーへ
+      });
+      g.restore();
+    }
     if (S.choice) drawChoice(S, S.choice, t, pb);   // 選ぶ場面：カードと、中央の箱（キーへの線は、紙の下の端まで）
     window.KC_POST?.place(W, pb);   // 投稿のあとの画面（DOM）を、キーより上に重ねる
-    drawHud(S, t);
   },
 };
 window.KC_DIALOGUE = EXP;

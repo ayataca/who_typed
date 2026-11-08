@@ -2,7 +2,7 @@
 // 本編（who-typed-exhibition-scenario.html）の仕組みと画面を使う（X の画面は白地のまま）：
 //   server.mjs の /api/post に、本文（125字ごとのスレッド）と手元写真を送る。鍵はブラウザに置かない。同じセッションの再送は、サーバーが最初の結果を返す
 //   画面は本編と同じ 1180×720 の大きさで組み、シナリオの画面（キーの上）に収まるよう拡大縮小する
-// 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script>。下の帯の #realConsent・#publishBtn・#cameraBtn などを使う
+// 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script>。下の帯の #publishBtn・#cameraBtn などを使う（同意は、体験のはじめに来場者が画面で選ぶ。dialogue.js の stepConsent）
 (() => {
 'use strict';
 const CONFIG = {
@@ -183,11 +183,6 @@ function togglePublish() {
   try { localStorage.setItem(PUB_KEY, publishOn ? '1' : '0'); } catch {}
   publishUI();
 }
-// 公開する場合は、本人の実際の同意を確かめてから始める
-function canStart() {
-  if (!$('realConsent').checked && publishOn) { status('公開する場合は、実際の同意確認が必要です', 5000); return false; }
-  return true;
-}
 function newSession() {
   return crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
@@ -214,5 +209,5 @@ function initControls() {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initControls); else initControls();
 
 window.KC_POST = {CONFIG, setLang, show, hide, place, buildPosts, threadHTML, fillThread, autoScroll, phraseBreak,
-  startCamera, capture, hasCamera: () => !!stream, submitPost, showPostResult, wantPost, canStart, newSession};
+  startCamera, capture, hasCamera: () => !!stream, submitPost, showPostResult, wantPost, newSession};
 })();

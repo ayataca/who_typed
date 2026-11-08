@@ -130,7 +130,7 @@ async function handlePost(req) {
     }
     log(entry);
     if (!entry.ok) done.delete(sessionId); // 失敗した回は再送できるようにする
-    else if (!dryRun) setTimeout(readX, 3000);   // 一覧に早く出す
+    else if (!dryRun) { addLocal(entry); setTimeout(readX, 3000); }   // 投稿できたら、X から読み直すのを待たずに、すぐ一覧の先頭に出す
     return entry;
   })();
   done.set(sessionId, job);
@@ -310,8 +310,9 @@ async function readX(full = false) {
       } while (token && got.length < X_FETCH_MAX);
       const oldest = got[got.length - 1]?.at;
       const before = new Set(xs.tweets.map(t => t.id)), older = token && oldest ? xs.tweets.filter(t => t.at < oldest) : [];
-      const gone = xs.at ? xs.tweets.filter(t => !older.includes(t) && !got.some(g => g.id === t.id)).length : 0;
-      xs.tweets = [...got, ...older];
+      const fresh = xs.tweets.filter(t => t.local && Date.now() - t.local < LOCAL_KEEP_MS && !got.some(g => g.id === t.id));   // このPCが投稿したばかりで、X の一覧にまだ載っていないもの
+      const gone = xs.at ? xs.tweets.filter(t => !older.includes(t) && !fresh.includes(t) && !got.some(g => g.id === t.id)).length : 0;
+      xs.tweets = [...fresh, ...got, ...older];
       if (gone) console.log(`X で消されていたポスト ${gone} 件を、感想タイムラインから外しました`);
       if (!before.size) console.log(`X から ${got.length} 件のポストを読みました`);
     } else {   // 新しい分だけ
@@ -326,6 +327,15 @@ async function readX(full = false) {
     if (e.status === 429) xWaitUntil = Date.now() + 15 * 60000;   // 回数の制限：15分待つ
     console.error(`X からポストを読めませんでした（前に読んだものを出します）: ${e.message}`);
   } finally { xBusy = false; }
+}
+// このPCが投稿したもの：投稿できた時点で、一覧の先頭に入れる（写真はこのPCの手元写真）。X から同じポストを読んだら、そちらに置き換わる。
+// X の一覧への反映が遅れても消えないよう、LOCAL_KEEP_MS のあいだは、読み直しても残す
+const LOCAL_KEEP_MS = 5 * 60000;
+function addLocal(e) {
+  if (!xs.at || !Array.isArray(e.ids)) return;
+  const add = e.ids.map((id, i) => ({ id, at: e.at, conv: e.ids[0], text: e.texts[i] || '', photo: i === 0 ? `/photo/${e.sessionId}.jpg` : '', local: Date.now() }));
+  xs.tweets = [...add, ...xs.tweets.filter(t => !e.ids.includes(t.id))];
+  xs.tweets.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 }
 // スレッドごとにまとめる（1件目と、同じ会話の続き。古い順）。スレッドは新しい順。1件目が読めていない会話（ほかの人への返信など）は出さない
 function xThreads() {
