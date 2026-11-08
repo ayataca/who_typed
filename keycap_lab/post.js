@@ -2,7 +2,7 @@
 // 本編（who-typed-exhibition-scenario.html）の仕組みと画面を使う（X の画面は白地のまま）：
 //   server.mjs の /api/post に、本文（125字ごとのスレッド）と手元写真を送る。鍵はブラウザに置かない。同じセッションの再送は、サーバーが最初の結果を返す
 //   画面は本編と同じ 1180×720 の大きさで組み、シナリオの画面（キーの上）に収まるよう拡大縮小する
-// 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script>。下の帯の #publishBtn・#cameraBtn などを使う（同意は、体験のはじめに来場者が画面で選ぶ。dialogue.js の stepConsent）
+// 読み込み：index.html の本体スクリプトより前に <script src="post.js"></script>。下の帯の #publishBtn・#cameraBtn などを使う（同意は、待機画面の文を読んで F を押して始めることで取る。dialogue.js の SAVER_NOTE・SAVER_GO）
 (() => {
 'use strict';
 const CONFIG = {
