@@ -5,7 +5,7 @@
 //   → インストラクター → LINE（鈴木）→ インストラクター → X（感想を投稿。打ち終えたら手元が撮られる）
 //   → ポストの確認 → 公開中 → 問いかけ → Who typed? → 終了
 // LINE：選ぶだけで、指で文字は打たない（選んだ文がそのまま入力欄に入り、右小指の Enter で送る）。選ぶキーは S D F。勝手に起きることは、どれも実在する仕組みで起こす：
-//   ① 予測変換（キーボードの変換候補の帯）→ ②③④ LINE の AI の「返信提案」（③の前に「ムード分析」が本音を言うよう助言する。④は3つとも冷たい言い方）。
+//   ① 予測変換（キーボードの変換候補の帯）→ ② LINE の AI の「返信提案」（3つともギスギス）→ ③「おまかせ返信」（選ばせずに、指が打つ）。
 //   ひどい言葉は、どれも来場者が自分で選んで送る。でも、選択肢を書いたのは AI。番号①②③と「まだキーは押さないでください」で、どのキーで選ぶかを示す
 // インストラクターは名乗らない。場面の間は、画面全体が横にスライドする。
 // キーが動くのは、来場者のターン（文字を打つ・送信の Enter・下書きの消去）と、待機の鼓動だけ。
@@ -66,13 +66,12 @@ const CHOICE = {readMs: 4000, prepMs: 1500, selectMs: 4000, pickMs: 600, finalMs
 const CHOICE_KEYS = 'sdf';   // 3択に使うキー（左手の薬指・中指・人さし指）。左の選択肢から順に
 const STAR_CHOICES = [1, 3, 5];   // 星の3択（左から S D F）。どれを押しても星1になる
 
-// LINE：鈴木との会話。①予測変換は、選んだ候補がそのまま入力欄に入る。②〜④返信提案は、選んだ文を来場者の指が打つ。送るのは右小指の Enter。
+// LINE：鈴木との会話。①予測変換は、選んだ候補がそのまま入力欄に入る。②返信提案は、選んだ文を来場者の指が打つ。送るのは右小指の Enter。
 //   ① 予測変換（鈴木「明日の映画のことなんだけど、、」に、指が読み「な」を打つと、変換候補の帯に なに？／何時にする？／なんかあった？ が並ぶ。自分で選べる）
-//   ② 返信提案（LINE の AI。入力欄の下の「返信提案」から、AI が書いた返信が3つ、横に並ぶ。まだどれもまとも）
-//   ③ 返信提案（3つともギスギス。迷うと先頭）
-//   ④ おまかせ返信（返信のたびに、AI のボタン「おまかせ返信」が押される。選ばせずに、AI が書いた返信を来場者の指が打って送る。3回、だんだん速く）
+//   ② 返信提案（鈴木のドタキャンの2通に。LINE の AI。入力欄の下の「返信提案」から、AI が書いた返信が3つ、横に並ぶ。3つともギスギス。迷うと先頭。返信提案はこの1回だけ）
+//   ③ おまかせ返信（返信のたびに、AI のボタン「おまかせ返信」が押される。選ばせずに、AI が書いた返信を来場者の指が打って送る。3回、だんだん速く）
 //   予測変換（自分で選ぶ）→ 返信提案（AI の文から選ぶ）→ おまかせ（選ばない）と、はっきり段階が移る
-// after[③で選んだもの] は鈴木の返事。④ はおまかせ返信で auto を3回打つ（あいだに鈴木の between）
+// after[②で選んだもの] は鈴木の返事。③ はおまかせ返信で auto を3回打つ（あいだに鈴木の between）
 const LINE_JA = {
   // それまでのトーク履歴（LINE を開いたときに、もう見えている）：先週も鈴木が直前に来られなくなり、その代わりに今回の映画を約束した
   history: [{sep: '11月2日(月)'},
@@ -84,13 +83,12 @@ const LINE_JA = {
   chips: ['日程調整', '返信提案', 'おまかせ返信', '話題提案', 'ムード分析', '豆知識'], suggest: '返信提案', autoChip: 'おまかせ返信',
   greet: {prefix: 'な', cands: ['なに？', '何時{なんじ}にする？', 'なんかあった？']},   // 指が読み「な」を打つと、その予測変換が出る（そっけない／楽しみにしている／察している）
   cancel: ['ごめん、急に仕事が入っちゃって行けなくなりそう'],
-  reply1: ['了解{りょうかい}！仕事{しごと}がんばってね', 'そっか、残念{ざんねん}。また行{い}こうね', 'え、急{きゅう}すぎない？'],
   tickets: 'ほんとにごめん！チケット渡すから別の人と行って',
-  reply2: ['正直{しょうじき}、いつもこうだよね', '別{べつ}の人{ひと}って、今{いま}から誰{だれ}を誘{さそ}えばいいの？', 'こっちは楽{たの}しみにしてたんだけど'],   // ③ 3つともギスギス
-  after: [['そんなことないよ、今回は本当に急だったの'],      // ③で選んだものごとの、鈴木の返事
+  reply2: ['正直{しょうじき}、いつもこうだよね', '別{べつ}の人{ひと}って、今{いま}から誰{だれ}を誘{さそ}えばいいの？', 'こっちは楽{たの}しみにしてたんだけど'],   // ② 3つともギスギス
+  after: [['そんなことないよ、今回は本当に急だったの'],      // ②で選んだものごとの、鈴木の返事
           ['ごめん、誰か空いてる人いないかな…'],
           ['ほんとにごめん。こっちも楽しみにしてたんだよ']],
-  auto: ['前{まえ}もドタキャンしたよね',                                       // ④ おまかせ返信：選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
+  auto: ['前{まえ}もドタキャンしたよね',                                       // ③ おまかせ返信：選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
          'だって本当{ほんとう}のことでしょ。毎回{まいかい}こうなんだから',
          'もう誘{さそ}わなくていいよ。どうせ来{こ}ないし'],
   between: ['え、なんでそんな言い方するの？', 'そんなに毎回じゃないよ…'],   // おまかせ返信のあいだの、鈴木
@@ -106,7 +104,6 @@ const LINE_EN = {
   chips: ['Schedule', 'Suggest reply', 'Auto reply', 'Suggest topic', 'Mood check', 'Trivia'], suggest: 'Suggest reply', autoChip: 'Auto reply',
   greet: {prefix: 'Wh', cands: ["What's up?", 'What time are we meeting?', 'What happened?']},
   cancel: ["Sorry, something came up at work and I don't think I can make it"],
-  reply1: ['No worries! Good luck at work', "Aw, too bad. Let's go another time", 'Wait, this last minute?'],
   tickets: "I'm so sorry! I'll give you the tickets, go with someone else",
   reply2: ["Honestly, it's always like this", 'Someone else? Who am I supposed to ask now?', 'I was really looking forward to it'],
   after: [["That's not true, this really came out of nowhere"],
@@ -563,7 +560,7 @@ async function lineIn(S, L, x) {
 }
 // 選ぶ（指で文字は打たない。選んだ文が、そのまま入力欄に入る）。時間切れは、先頭（左端／いちばん上）が確定する（S のキーが、来場者の指を押し上げる）
 //   ① 予測変換：キーボードの変換候補の帯（L.bar）
-//   ②〜④ 返信提案：入力欄の上に開く AI の提案（L.sheet）。入力欄の下の「返信提案」が押された見た目になる。選んだ文は、来場者の指が打つ
+//   ② 返信提案：入力欄の上に開く AI の提案（L.sheet）。入力欄の下の「返信提案」が押された見た目になる。選んだ文は、来場者の指が打つ
 const BAR_KS = () => [...BAR_KEYS].map(c => 'asdfjkl;'.indexOf(c));
 async function pickInto(S, L, options, readMs) {   // 選ぶ（options は 漢字{よみ} のままでよい。画面と入力欄には漢字だけ）
   const r = await choose(S, {options: options.map(strip), keys: BAR_KEYS, fallback: 0, bar: true, readMs});
@@ -632,21 +629,17 @@ async function sceneLine(S) {
   await beat(S, 5000);   // カーソルが出てから、トーク履歴を読んで状況をつかむ間をおいて、「な」を打ちはじめる
   await barPick(S, L, D.greet, BAR.firstReadMs);
   await lineSend(S, L);
-  mark(S, 'L2');   // ② 返信提案：AI が書いた返信から選ぶ（まだどれもまとも）
+  mark(S, 'L2');   // ② 返信提案：鈴木のドタキャンの2通に、AI が書いた返信から選ぶ（3つともギスギス）。返信提案は、この1回だけ
   let n = 0;
-  for (const t of D.cancel) n = await them(t, 2400);
-  await read(n);
-  await aiPick(S, L, D.reply1);
-  await lineSend(S, L);
-  mark(S, 'L3');   // ③ 返信提案（3つともギスギス）
-  n = await them(D.tickets, 2400);
+  for (const t of D.cancel) n += await them(t, 2400);
+  n += await them(D.tickets, 1800);   // 続けて、もう1通
   await read(n);
   const j = await aiPick(S, L, D.reply2);
   await lineSend(S, L);
-  mark(S, 'L3:' + j);
+  mark(S, 'L2:' + j);
   for (const t of D.after[j]) n = await them(t, 2200);
   await read(n);
-  mark(S, 'L4');   // ④ おまかせ返信：返信のたびに「おまかせ返信」が押され、選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
+  mark(S, 'L3');   // ③ おまかせ返信：返信のたびに「おまかせ返信」が押され、選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
   for (const [i, text] of D.auto.entries()) {
     await aiAutoOn(S, L);
     await aiAutoType(S, L, text, p => 1.1 + 0.35 * i + 0.4 * p);
@@ -803,7 +796,7 @@ async function stepTitle(S) {
 
 // ================= 進行 =================
 // 各場面の始まりの目安（ms）。ふつうの進み方の値。これより8秒以上遅れていたら、打つテンポと間を少し速める（16秒以上なら、もう少し）
-const DUE = {hands: 0, hello: 7600, howTo: 11400, toLine: 35100, line: 40200, toX: 121900, x: 132400};   // 通しの実測（11/09。LINE を開いてから5秒、状況を読む間をおく。LINE は予測変換と AI の返信提案で選ぶ構成。選ぶ場面で、すぐ押したとき）
+const DUE = {hands: 0, hello: 7600, howTo: 11400, toLine: 35100, line: 40200, toX: 116100, x: 128200};   // 通しの実測（11/09。LINE を開いてから5秒、状況を読む間をおく。LINE は予測変換と AI の返信提案で選ぶ構成。選ぶ場面で、すぐ押したとき）
 const LATE = [8000, 16000];
 const mark = (S, name) => S.tl.push([name, Math.round(now() - S.t0)]);
 function phase(S, p) {
