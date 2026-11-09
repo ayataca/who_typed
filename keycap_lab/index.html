@@ -310,8 +310,9 @@ function layout() {
   W = r.width; H = r.height;
   cv.width = W * dpr; cv.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
   STEP = Math.min(W / 10.5, H * 0.13, 120);
-  for (let i = 0; i < 8; i++) KX[i] = W / 2 + (i - 3.5) * STEP + (i < 4 ? -1 : 1) * STEP * 0.3;
-  KY = H - STEP * 0.7;
+  const KS = STEP * 0.68;   // キーどうしの間隔（せまめ）。左手の4つと右手の4つのあいだだけ、少しあける
+  for (let i = 0; i < 8; i++) KX[i] = W / 2 + (i - 3.5) * KS + (i < 4 ? -1 : 1) * KS * 0.45;
+  KY = H - STEP * 0.5;   // 下の黒い帯（キーの列）は細め：上の画面の縦の割合を大きくする
 }
 const kx = i => KX[i];
 
@@ -320,7 +321,7 @@ const ACC = '#e6e8eb';
 const ORANGE = '#ff8a1f';   // 入力に使うキー   // 押し上げられたキーの色（白に近い灰）
 function alpha(c, a) { const n = parseInt(c.slice(1), 16); return `rgba(${n >> 16},${n >> 8 & 255},${n & 255},${a})`; }
 function drawKeys(t, dt) {
-  const ks = STEP * 0.74;
+  const ks = STEP * 0.56;
   for (let i = 0; i < 8; i++) {
     const s = sim[i], push = simLevel(i, t);
     s.lift += (push - s.lift) * Math.min(1, dt / 30);
@@ -335,8 +336,8 @@ function drawKeys(t, dt) {
     const n = INPUT.labels[i];
     if (n && lit) {   // 選ぶ場面：選択肢の番号（①②③）
       const ink = INPUT.calm ? alpha(ORANGE, 0.75) : '#1a0e00';   // 淡いあいだは、番号もオレンジの線で
-      g.strokeStyle = ink; g.lineWidth = Math.max(2, ks * 0.04); g.beginPath(); g.arc(kx(i), y, ks * 0.27, 0, Math.PI * 2); g.stroke();
-      g.fillStyle = ink; g.font = `800 ${ks * 0.32}px "Hiragino Sans","Noto Sans JP",system-ui,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), kx(i), y + 1);
+      g.strokeStyle = ink; g.lineWidth = Math.max(3, ks * 0.06); g.beginPath(); g.arc(kx(i), y, ks * 0.36, 0, Math.PI * 2); g.stroke();   // 番号は大きく太く（画面の候補の①②③と、ひと目で対応がわかるように）
+      g.fillStyle = ink; g.font = `900 ${ks * 0.5}px "Hiragino Sans","Noto Sans JP",system-ui,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), kx(i), y + 1);
     }
   }
 }
