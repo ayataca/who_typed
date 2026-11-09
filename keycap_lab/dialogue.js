@@ -141,13 +141,13 @@ const HANDS_MSG = () => [tr('親指以外の8本を、体重をかけずに軽�
   tr('強く押さえると、キーが上がりきらないことがあります。', "If you press down hard, the keys may not rise all the way.")];   // 2枚目（2行目は理由。少し小さく）
 const HANDS_MS = 7000;   // 2枚目（指の置き方）を見せる時間
 // 始め方の2行。1行目は [強調する部分（赤）, 続き] に分けて書く。キーの文字（F）は、来場者には関係ないので出さない
-const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったら強く押してください'], ['If you agree', ', press the key firmly when it rises.']);   // [強調する部分（赤）, 続き]
+const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったら長押ししてください'], ['If you agree', ', press and hold the key when it rises.']);   // [強調する部分（赤）, 続き]
 // 待機画面の文字：作品名のほかは、すべて同じ大きさ・同じ太さ（強調は、色だけ）
 const SAVER_FS = 0.8, SAVER_W = 600;
-const WAKE_UP_MS = 2500;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる（はじめの WAKE_SETTLE_MS は受け付けないので、押せるのは2秒）
-// 待機の押し込みは、勝手に始まらないよう厳しめに読む（基板がつながっているとき）：上がってから WAKE_SETTLE_MS は数えない（上がった直後の電流のゆれ）。
+const WAKE_UP_MS = 2500;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる。画面のオレンジは、上げた瞬間に出す（実物と画面がずれないように。上がった直後のゆれは、基板が読まない）
+// 待機の押し込みは、勝手に始まらないよう厳しめに読む（基板がつながっているとき）：
 // 押し込みの強さが、しきい値の WAKE_MIN_RATIO 倍以上のときだけ始める（ノイズは、しきい値すれすれのことが多い）。押し込みのたびに、強さを下の帯に出す
-const WAKE_SETTLE_MS = 500, WAKE_MIN_RATIO = 1.4;   // もとは 1.0（基板のしきい値そのまま）
+const WAKE_MIN_RATIO = 1.4;   // もとは 1.0（基板のしきい値そのまま）
 const WAKE_SLEEP_MS = 5000;   // 待機：F を下げて休ませる時間（ソレノイドの発熱を避ける）
 const BEAT_KEY = 3;       // F
 const TITLE = 'Who typed?';                // 最後に打たれる作品名
@@ -853,13 +853,12 @@ function startBeat(S) {
   stopBeat(S);
   const KI = window.KC_INPUT;
   const up = () => { if (S.dead || S.running) return; if (paused) { S.beatTimer = setTimeout(up, 500); return; }
-    S.wakeUp = true; S.beatT = now(); KI.listen('f'); S.beatTimer = setTimeout(down, WAKE_UP_MS);
-    KI.calm(true); S.calmTimer = setTimeout(() => { if (S.wakeUp) KI.calm(false); }, WAKE_SETTLE_MS); };   // 受け付けるまでは、画面のキーも淡いまま
+    S.wakeUp = true; S.beatT = now(); KI.listen('f'); KI.calm(false); S.beatTimer = setTimeout(down, WAKE_UP_MS); };   // 上げた瞬間から、画面のキーも明るく
   const down = () => { S.wakeUp = false; KI.calm(true); KI.listen(0); KI.guide('f'); if (S.dead || S.running) return; S.beatTimer = setTimeout(up, WAKE_SLEEP_MS); };
   KI.guide('f'); KI.calm(true);   // 画面の F のキーは、受け付けているあいだだけ明るく
   S.beatTimer = setTimeout(up, 800);
 }
-function stopBeat(S) { clearTimeout(S.beatTimer); clearTimeout(S.calmTimer); S.beatTimer = 0; S.wakeUp = false; window.KC_INPUT?.calm(false); window.KC_INPUT?.listen(0); window.KC_INPUT?.guide(0); window.KC_INPUT?.labels(null); }   // 選ぶ場面の途中でやめても、キーの番号（①②③）を残さない
+function stopBeat(S) { clearTimeout(S.beatTimer); S.beatTimer = 0; S.wakeUp = false; window.KC_INPUT?.calm(false); window.KC_INPUT?.listen(0); window.KC_INPUT?.guide(0); window.KC_INPUT?.labels(null); }   // 選ぶ場面の途中でやめても、キーの番号（①②③）を残さない
 function quit(S) {
   S.dead = true;
   stopBeat(S);
@@ -1691,7 +1690,7 @@ function handsArt(cx, top, w, t, d) {
   return botY;   // 絵の下の端
 }
 function drawSaver(S, V, t, dt, pb) {
-  const fs = S.fs, since = S.wakeUp ? t - S.beatT : -1, ready = S.wakeUp && since >= WAKE_SETTLE_MS;
+  const fs = S.fs, since = S.wakeUp ? t - S.beatT : -1, ready = S.wakeUp;
   const d = demoAt(t);
   // 上：作品名（中央）。打っている字だけが出る。位置は全文で決める（打つ途中で動かない）。カーソルは、打っている間は点いたまま
   const ts = Math.min(W * 0.11, pb * 0.22), ty = pb * 0.36, shown = TITLE.slice(0, d.n);
@@ -1701,11 +1700,9 @@ function drawSaver(S, V, t, dt, pb) {
   if (d.typing || Math.floor(t / 530) % 2 === 0) g.fillRect(tx + g.measureText(shown).width + ts * 0.05, ty - ts * 0.76, Math.max(2, ts * 0.03), ts * 0.92);
   const bs = fs * SAVER_FS, lh = bs * 1.7, font = `${SAVER_W} ${bs}px ${FONT}`;
   // 下：始め方。F の上の丸から、実物の F キーへ細い線。
-  // 丸は、下がっているあいだは淡く小さい。上がりはじめ（まだ受け付けない WAKE_SETTLE_MS）は、淡いまま少しずつ大きくなる。
-  // 受け付けられるようになった瞬間に、濃いオレンジになって輪が広がる（今押していい、の合図）
-  const x = kx(BEAT_KEY), cy = pb * 0.9, grow = S.wakeUp ? easeOut(clamp(since / WAKE_SETTLE_MS, 0, 1)) : 0;
-  const rt = ready ? since - WAKE_SETTLE_MS : 1e9, q = Math.exp(-rt / 260);
-  const r = fs * 0.6 * (0.8 + 0.2 * grow) * (1 + 0.25 * q), on = ready ? 0.9 + 0.1 * Math.sin(t / 200) : 0.3;
+  // 丸は、下がっているあいだは淡く小さい。キーが上がった瞬間に、濃いオレンジになって輪が広がる（今押していい、の合図）
+  const x = kx(BEAT_KEY), cy = pb * 0.9, rt = ready ? since : 1e9, q = Math.exp(-rt / 260);
+  const r = fs * 0.6 * (ready ? 1 : 0.8) * (1 + 0.25 * q), on = ready ? 0.9 + 0.1 * Math.sin(t / 200) : 0.3;
   g.strokeStyle = ORANGE; g.lineWidth = 2; g.globalAlpha = 0.6 * on;
   g.beginPath(); g.moveTo(x, cy + r); g.lineTo(x, pb); g.stroke();
   if (rt < 900) { g.globalAlpha = 0.6 * (1 - rt / 900); g.lineWidth = 3; g.beginPath(); g.arc(x, cy, r + fs * 1.6 * (rt / 900), 0, Math.PI * 2); g.stroke(); }
@@ -1718,7 +1715,7 @@ function drawSaver(S, V, t, dt, pb) {
   g.font = font; g.fillStyle = INK;
   const xc = W / 2;   // 文は画面の中央にそろえる（丸と線だけが、実物の F キーの上）
   g.fillText(SAVER_NOTE(), xc, y1);   // Xへの投稿のこと（同意してもらう中身）
-  if (weak) { g.fillStyle = RED; g.fillText(tr('もう少し、しっかり押してください', 'Press a little more firmly'), xc, y2); }   // 弱くて無視したとき：2行目の代わりに（2秒）
+  if (weak) { g.fillStyle = RED; g.fillText(tr('もう一度、長押ししてください', 'Press and hold once more'), xc, y2); }   // 弱くて無視したとき：2行目の代わりに（2秒）
   else {   // 「同意いただける方は」だけ赤
     const w0 = g.measureText(go[0]).width, w1 = g.measureText(go[1]).width, x0 = xc - (w0 + w1) / 2;
     g.textAlign = 'left'; g.fillStyle = RED; g.fillText(go[0], x0, y2); g.fillStyle = INK; g.fillText(go[1], x0 + w0, y2); g.textAlign = 'center';
@@ -1770,10 +1767,10 @@ const EXP = {
     S.onDown = e => {   // 基板があるとき：上がっている F の押し込みを、強さで確かめてから始める
       const d = e.detail;
       if (!S.wakeUp || S.running || S.dead || d.key !== BEAT_KEY) return;
-      const early = now() - S.beatT < WAKE_SETTLE_MS, strong = d.ratio >= WAKE_MIN_RATIO;
-      status(`待機の押し込み F：強さ ${d.ratio.toFixed(1)}（しきい値の倍。${WAKE_MIN_RATIO} 以上で開始）→ ${early ? '上がった直後なので無視' : strong ? '開始' : '弱いので無視'}`, 4000);
-      if (!early && strong) begin(S);
-      else if (!early) S.weakT = now();   // 弱くて無視した：画面で「もう少し、しっかり押して」と声をかける（早すぎる押し込みは、画面の表示で防ぐ）
+      const strong = d.ratio >= WAKE_MIN_RATIO;
+      status(`待機の押し込み F：強さ ${d.ratio.toFixed(1)}（しきい値の倍。${WAKE_MIN_RATIO} 以上で開始）→ ${strong ? '開始' : '弱いので無視'}`, 4000);
+      if (strong) begin(S);
+      else S.weakT = now();   // 弱くて無視した：画面で「もう一度、長押ししてください」と声をかける
     };
     addEventListener('kc-down', S.onDown);
     addEventListener('keydown', S.onKey);
