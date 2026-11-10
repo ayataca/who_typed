@@ -25,7 +25,7 @@ const START = ['最初から', 'LINEから', 'Xから'];
 const INK = '#111111', RED = '#b3261e', PAPER = '#ffffff';   // 白い紙に黒い文字。強調は赤だけ
 const LIME = '#8fd400', LIME_BG = '#eefbd2', ORANGE = '#ff8a1f';   // 選んだもの（黄緑）・キーの場所（オレンジ）
 const FONT = '"Hiragino Sans","Noto Sans JP",sans-serif';
-const ENTER_TWICE = true;   // 送信の Enter を2回（1回目で確定、2回目で送る）。false で1回
+const ENTER_TWICE = false;   // 送信の Enter：1回で送る（11/09）。true で2回（1回目で確定、2回目で送る）
 // 言語：日本語版と英語版（下の帯で切り替える）。英語版は、同じシナリオを英語で（打つ文も英語。IME を通さず、打った字がそのまま出る）
 const LANGS = ['日本語', 'English'];
 let LANG = 'ja';
@@ -73,10 +73,15 @@ const STAR_CHOICES = [1, 3, 5];   // 星の3択（左から S D F）。どれを
 //   予測変換（自分で選ぶ）→ 返信提案（AI の文から選ぶ）→ おまかせ（選ばない）と、はっきり段階が移る
 // after[②で選んだもの] は鈴木の返事。③ はおまかせ返信で auto を3回打つ（あいだに鈴木の between）
 const LINE_JA = {
-  // それまでのトーク履歴（LINE を開いたときに、もう見えている）：先週も鈴木が直前に来られなくなり、その代わりに今回の映画を約束した
-  history: [{sep: '11月2日(月)'},
+  // それまでのトーク履歴（LINE を開いたときに、もう見えている）：先週も鈴木が当日に来られなくなり（10/31）、その代わりに今回の映画を約束した
+  history: [{sep: '10月28日(水)'},
+    ['me', '土曜のカフェ、11時に駅前でいい？', '20:15'], ['them', 'いいよー！楽しみ', '20:31'],
+    {sep: '10月31日(土)'},
+    ['them', 'ごめん！今日急に仕事入っちゃった…', '10:12'], ['them', '本当にごめん', '10:12'], ['me', 'そっか、了解！また今度ね', '10:20'],
+    {sep: '11月2日(月)'},
     ['them', '先週はごめんね、急に行けなくなって', '21:02'], ['me', 'いいよいいよ、仕事なら仕方ないよ', '21:05'],
     ['them', '代わりに、来週の映画行こう！', '21:06'], ['me', 'いいね！10日の10時からのにしよう', '21:08'], ['them', 'チケット取っとくね', '21:09'],
+    {sep: '11月6日(金)'}, ['me', '予告見た！めっちゃ面白そう', '23:02'], ['them', 'でしょ！ポップコーン買お', '23:10'], ['me', 'キャラメル味ね', '23:11'],
     {sep: '11月8日(日)'}, ['me', 'いよいよ明後日だね', '22:40'], ['them', '楽しみすぎる！', '22:41'],
     {sep: '今日'}],
   open: '明日の映画のことなんだけど、、',   // 鈴木の最初のセリフ（通知にも出る）
@@ -95,9 +100,14 @@ const LINE_JA = {
   end: 'わかった。もう誘わない',
 };
 const LINE_EN = {
-  history: [{sep: 'Mon, Nov 2'},
+  history: [{sep: 'Wed, Oct 28'},
+    ['me', 'Café on Saturday, 11 at the station?', '20:15'], ['them', 'Sure! Can\'t wait', '20:31'],
+    {sep: 'Sat, Oct 31'},
+    ['them', 'Sorry! Something came up at work today...', '10:12'], ['them', "I'm really sorry", '10:12'], ['me', 'Oh okay, no problem! Next time', '10:20'],
+    {sep: 'Mon, Nov 2'},
     ['them', 'Sorry about last week, something came up last minute', '21:02'], ['me', 'No worries, work is work', '21:05'],
     ['them', "Let's see the movie next week instead!", '21:06'], ['me', 'Sure! The 10am one on the 10th?', '21:08'], ['them', "I'll get the tickets", '21:09'],
+    {sep: 'Fri, Nov 6'}, ['me', 'Watched the trailer! Looks so good', '23:02'], ['them', 'Right?! Let\'s get popcorn', '23:10'], ['me', 'Caramel, obviously', '23:11'],
     {sep: 'Sun, Nov 8'}, ['me', 'The movie is the day after tomorrow!', '22:40'], ['them', "Can't wait!", '22:41'],
     {sep: 'Today'}],
   open: 'So, about the movie tomorrow...',
@@ -333,7 +343,7 @@ function strikeSoon(f) {
   queued[f] = true;
   at(GAP() - (now() - lastHit[f]) + 2, () => { queued[f] = false; strike(f); });
 }
-// 送信：Enter（右小指）を、しっかり2回押す（1回目で確定、2回目で送る。ENTER_TWICE）
+// 送信：Enter（右小指）を押す（ENTER_TWICE が true なら2回。1回目で確定、2回目で送る）
 async function enter2(S, onSend) {   // onSend：送る瞬間に呼ぶ（送信ボタンが押される見た目など）。ENTER_TWICE が false なら1回
   const ms = P.len + 90;
   await strikeWait(S, 7, ms);
@@ -502,7 +512,7 @@ async function stepHowTo(S) {
 // forced：どれを押してもそれに決まる（画面では押したものが光るだけで、場面は forced の方へ進む）。
 // 時間切れ：forced があればそれ、なければランダム。戻り値 {picked（押したもの。押さなければ -1）, final}
 // bar：LINE の変換候補の帯で選ぶ（画面の下に重ねる選択肢は出さない。キーの番号も出さない。決まったら、すぐ戻る）。fallback：時間切れのときの選択肢
-async function choose(S, {options, keys = CHOICE_KEYS, forced = null, fallback = null, label = '', readMs = CHOICE.readMs, selectMs = CHOICE.selectMs, bar = false, cards = false}) {   // dim：選ぶあいだ、まわりを暗くする（LINE の画面だけ）
+async function choose(S, {options, keys = CHOICE_KEYS, forced = null, fallback = null, label = '', readMs = CHOICE.readMs, selectMs = CHOICE.selectMs, bar = false, cards = false}) {
   const KI = window.KC_INPUT, ks = [...keys].map(c => 'asdfjkl;'.indexOf(c)).slice(0, options.length);
   if (cards) bar = true;   // カード（インストラクターの白い画面：選び方の練習・星）：LINE と同じ見た目
   const C = S.choice = {options, ks, label, forced, bar, cards, stage: 'read', t0: now(), dur: readMs, picked: -1, final: -1, tutorial: !S.tutored};   // 最初の1回だけ、選び方を添える
@@ -741,7 +751,7 @@ async function stepX(S, stars, draftP) {
   await stepPost(S, X.text, X.stars, img);
 }
 
-// Xへの投稿と、そのあとの画面（本編と同じ流れ。post.js。X の画面は白地のまま）：ポストの確認 → 掲載を許可する（Enter を2回）→ 公開中（server.mjs から実際に投稿）
+// Xへの投稿と、そのあとの画面（本編と同じ流れ。post.js。X の画面は白地のまま）：ポストの確認 → 掲載を許可する（Enter）→ 公開中（server.mjs から実際に投稿）
 // → 問いかけ「この投稿を書いたのは、誰…？」→ Who typed?（作品名が打たれる）→ 終了（QR）
 const el = id => document.getElementById(id);
 async function stepPost(S, review, rating, img) {
@@ -1172,14 +1182,23 @@ function lineRows(L, size, lh, maxB) {
 // トーク一覧（鈴木のほか）：[名前, 最後の文, 時刻, 未読, アイコン]。グループは、名前の右に人数（例：(6)）
 const LINE_LIST_JA = [['大野恵子', '明日雨らしいよ。傘忘れずにね', '11:52', 0, 'mom'], ['Yuu', '了解！また連絡するね', '昨日', 0, 'yui'], ['3年7組', '写真送ります', '昨日', 0, 'hs', 31],
   ['Takashi', 'スタンプを送信しました', '昨日', 0, 'takashi'], ['上村研M1', '明日の資料共有します！', '月曜', 0, 'groupDefault', 5], ['はるか', 'ありがとう〜！', '11/7', 0, 'haruka'],
-  ['田中健太', '了解です', '11/6', 0, 'tanaka'], ['バスケ部 72回生', '次の集まりの日程です', '11/5', 0, 'bball', 23], ['山本 けんた', 'また今度！', '11/3', 0, 'yamamoto'], ['なかむら', 'おけ', '11/1', 0, 'nakamura']];
+  ['田中健太', '了解です', '11/6', 0, 'tanaka'], ['バスケ部 72回生', '次の集まりの日程です', '11/5', 0, 'bball', 23], ['山本 けんた', 'また今度！', '11/3', 0, 'yamamoto'], ['なかむら', 'おけ', '11/1', 0, 'nakamura'],
+  ['佐々木 美咲', '写真ありがとう！', '10/30', 0, 'misaki'], ['ゼミ旅行', '宿の予約しました！', '10/28', 0, 'trip', 6], ['りょう', '了解！', '10/26', 0, 'personDefault'],
+  ['Mai', 'スタンプを送信しました', '10/24', 0, 'mai'], ['サークル同期', '来週の飲み会、出欠お願いします', '10/21', 0, 'circle', 14], ['おおた', 'ありがと！', '10/18', 0, 'ota'],
+  ['小林 優花', 'また連絡するね〜', '10/15', 0, 'yuka'], ['誕生日サプライズ', '動画まとめました！', '10/11', 0, 'groupDefault', 8], ['Sho', 'おつかれ！', '10/7', 0, 'sho'],
+  ['松本 拓也', '承知しました', '10/2', 0, 'personDefault']];
 const LINE_LIST_EN = [['Keiko Ono', 'Rain tomorrow. Take an umbrella', '11:52', 0, 'mom'], ['yui', 'Got it! Talk soon', 'Yesterday', 0, 'yui'], ['Class 3-7', 'Sending the photos', 'Yesterday', 0, 'hs', 31],
   ['Takashi', 'Sent a sticker', 'Yesterday', 0, 'takashi'], ['Uemura Lab M1', "Sharing tomorrow's slides", 'Mon', 0, 'groupDefault', 5], ['Haruka', 'Thanks!!', '11/7', 0, 'haruka'],
-  ['Kenta Tanaka', 'Noted', '11/6', 0, 'tanaka'], ['Basketball Class of 2020', 'Here are the dates for the meetup', '11/5', 0, 'bball', 23], ['Kenta Yamamoto', 'Next time!', '11/3', 0, 'yamamoto'], ['nakamura', 'ok', '11/1', 0, 'nakamura']];
+  ['Kenta Tanaka', 'Noted', '11/6', 0, 'tanaka'], ['Basketball Class of 2020', 'Here are the dates for the meetup', '11/5', 0, 'bball', 23], ['Kenta Yamamoto', 'Next time!', '11/3', 0, 'yamamoto'], ['nakamura', 'ok', '11/1', 0, 'nakamura'],
+  ['Misaki Sasaki', 'Thanks for the photos!', '10/30', 0, 'misaki'], ['Seminar trip', 'Booked the inn!', '10/28', 0, 'trip', 6], ['Ryo', 'Got it!', '10/26', 0, 'personDefault'],
+  ['Mai', 'Sent a sticker', '10/24', 0, 'mai'], ['Club friends', "Next week's drinks: let us know if you're coming", '10/21', 0, 'circle', 14], ['ota', 'Thx!', '10/18', 0, 'ota'],
+  ['Yuka Kobayashi', 'Talk soon~', '10/15', 0, 'yuka'], ['Birthday surprise', 'Put the video together!', '10/11', 0, 'groupDefault', 8], ['Sho', 'Good work today!', '10/7', 0, 'sho'],
+  ['Takuya Matsumoto', 'Understood', '10/2', 0, 'personDefault']];
 // アイコン：実在の LINE でよくある、ペット・景色・食べものなどの写真のような絵柄（絵文字を、色のついた地に大きく）。
 // keycap_lab/avatars/<名前>.jpg（例：suzuki.jpg）を置くと、その写真に差し替わる
 const AVATARS = {suzuki: [30, '🐶'], mom: [340, '🌷'], yui: [355, '🍓'], hs: [200, '🏫'], takashi: [120, '⚽'], seminar: [45, '📚'], haruka: [195, '🌊'],
-  tanaka: [25, '☕'], bball: [20, '🏀'], yamamoto: [265, '🎸'], nakamura: [210, '🐈']};
+  tanaka: [25, '☕'], bball: [20, '🏀'], yamamoto: [265, '🎸'], nakamura: [210, '🐈'],
+  misaki: [340, '🌸'], trip: [120, '🦌'], mai: [30, '🐕'], circle: [30, '☕'], ota: [25, '🐻'], yuka: [45, '🍵'], sho: [50, '🚕']};
 const AVATAR_IMG = {};
 for (const k of Object.keys(AVATARS)) { const im = new Image(); im.onload = () => { AVATAR_IMG[k] = im; }; im.src = `/keycap_lab/avatars/${k}.jpg`; }
 const LINE_BG = '#8eaad6';
@@ -1199,8 +1218,14 @@ function ico(kind, x, y, s, color = '#2b2f36', lw = 0) {   // 線の太さのそ
   else if (kind === 'back') { g.moveTo(h * 0.25, -h * 0.7); g.lineTo(-h * 0.35, 0); g.lineTo(h * 0.25, h * 0.7); g.stroke(); }
   g.restore();
 }
-function avatar(x, y, r, key) {   // 丸いアイコン：写真があれば写真、なければ色の地に絵文字の絵柄。groupDefault は、LINE のグループの初期アイコン
+function avatar(x, y, r, key) {   // 丸いアイコン：写真があれば写真、なければ色の地に絵文字の絵柄。groupDefault／personDefault は、LINE のグループ／人の初期アイコン
   g.save(); g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.clip();
+  if (key === 'personDefault') {   // 人の初期アイコン（写真を設定していない人）：淡い灰色の地に、白い人の形がひとつ
+    g.fillStyle = '#d3d9e0'; g.fillRect(x - r, y - r, r * 2, r * 2); g.fillStyle = '#ffffff';
+    g.beginPath(); g.arc(x, y - r * 0.18, r * 0.3, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.ellipse(x, y + r * 0.72, r * 0.6, r * 0.5, 0, Math.PI, 0); g.fill();
+    g.restore(); return;
+  }
   if (key === 'groupDefault') {   // グループの初期アイコン：淡い灰色の地に、白い人の形が3つ（前にひとり、うしろにふたり）
     g.fillStyle = '#d3d9e0'; g.fillRect(x - r, y - r, r * 2, r * 2);
     const person = (px, py, k) => { g.beginPath(); g.arc(px, py - r * 0.2 * k, r * 0.2 * k, 0, Math.PI * 2); g.fill(); g.beginPath(); g.ellipse(px, py + r * 0.36 * k, r * 0.36 * k, r * 0.3 * k, 0, Math.PI, 0); g.fill(); };
