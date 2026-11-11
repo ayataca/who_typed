@@ -35,63 +35,71 @@ const tr = (ja, en) => LANG === 'en' ? en : ja;   // 画面の文言：日本語
 const TX_JA = {
   hello: 'はじめまして。今日は、私がお手伝いします。',
   // 選び方の練習（LINE の前）：同じ見た目のカードで、一度だけ選んでもらう（選んだものは、体験の中身に関わらない）
-  howTo1: 'この体験では、ときどき3つの中から選ぶ場面があります。',
-  howTo2: '「選んでください」と出ているあいだに、選びたいものと同じ番号のキーを押してください。',
+  howTo1: 'この体験では、ときどき3つの選択肢の中から選ぶ場面があります。',
+  howTo2: 'はじめに、選択肢を読む時間があります。そのあいだは、キーを押さないでください。',   // 読む間に押してしまわないよう、読む時間と選ぶ時間があることを先に言う（11/11）
+  howTo3: 'キーが上がって「選んでください」と出たら、選びたいものと同じ番号のキーを押してください。',
+  howToCue1: '3つ', howToCue3: 'キーが上がって',   // この字が出たところで、キーをオレンジにする／実際に上げる
   tryIt: '試しに、いまの気分を選んでください。',
   tryOptions: ['元気', 'ふつう', 'ちょっと眠い'],
   release: '押したあとは力を抜いて、指を軽く添えた状態に戻してください。',   // 選んだあと、キーを強く押したままにしがちなので
-  ready: 'ありがとうございます。準備ができました。',                    // 練習のあと、LINE の前
   notice: 'おや、通知が来ましたね。',   // LINE の通知が降りてきたところで
-  afterLine: 'あなた、なかなか酷いこと言いますね...笑',
-  toX: '最後に、今日の展示の感想をXに投稿しましょう。',
+  afterLine: 'あなた、なかなか辛辣ですね...',
+  toX: '最後に、この体験の感想をXに投稿しましょう。',
   askStars: '星はいくつにしますか？',
 };
 const TX_EN = {
   hello: "Hi there. I'll be your guide today.",
   howTo1: 'Every now and then, you will choose one of three options.',
-  howTo2: 'While "Make your choice" is shown, press the key with the same number as your choice.',
+  howTo2: "First, you'll have time to read the options. Please don't press any keys yet.",
+  howTo3: 'When the keys rise and "Make your choice" appears, press the key with the same number as your choice.',
+  howToCue1: 'three', howToCue3: 'keys rise',
   tryIt: "Let's try it. How are you feeling right now?",
   tryOptions: ['Great', 'Okay', 'A bit sleepy'],
   release: 'After pressing, relax and let your fingers rest lightly on the keys again.',
-  ready: "Thank you. You're all set.",
   notice: "Oh, you've got a notification.",
-  afterLine: 'Wow, you can be pretty harsh... lol',
-  toX: "One last thing: let's post your thoughts on today's exhibit to X.",
+  afterLine: "Wow, you can be pretty harsh...",
+  toX: "One last thing: let's post your thoughts on this experience to X.",
   askStars: 'How many stars would you give it?',
 };
 
 // 選ぶ場面：読む時間（ms）と、キーを上げて待つ時間（ms）
 // readMs のうち、最後の prepMs はキーを上げはじめる（電流が落ち着くのを待つ）。まだ押させない。そのあと selectMs だけ入力を受け付ける
 const CHOICE = {readMs: 4000, prepMs: 1500, selectMs: 4000, pickMs: 600, finalMs: 600};   // キーが上がっている合計は prepMs + selectMs = 5.5秒（ファームウェアは熱が6秒ぶんで休ませる。時間切れのあとの押し上げのため、余裕を残す）
+const CARD_K = 1.25;   // インストラクターの画面のカード（選び方の練習・星）の大きさ（LINE の返信提案のカードの何倍か）
+const PILL_K = 1.3;    // 天の声（「まだキーは押さないでください」「選んでください」「選びました」）の大きさ
 const CHOICE_KEYS = 'sdf';   // 3択に使うキー（左手の薬指・中指・人さし指）。左の選択肢から順に
+const HOWTO_RAISE_MS = 2500;   // 選び方の説明で「キーが上がって」と言うとき、実際に S D F を上げておく時間
 const STAR_CHOICES = [1, 3, 5];   // 星の3択（左から S D F）。どれを押しても星1になる
 
 // LINE：鈴木との会話。①予測変換は、選んだ候補がそのまま入力欄に入る。②返信提案は、選んだ文を来場者の指が打つ。送るのは右小指の Enter。
-//   ① 予測変換（鈴木「明日の映画のことなんだけど、、」に、指が読み「な」を打つと、変換候補の帯に なに？／何時にする？／なんかあった？ が並ぶ。自分で選べる）
-//   ② 返信提案（鈴木のドタキャンの2通に。LINE の AI。入力欄の下の「返信提案」から、AI が書いた返信が3つ、横に並ぶ。3つともギスギス。迷うと先頭。返信提案はこの1回だけ）
-//   ③ おまかせ返信（返信のたびに、AI のボタン「おまかせ返信」が押される。選ばせずに、AI が書いた返信を来場者の指が打って送る。3回、だんだん速く）
-//   予測変換（自分で選ぶ）→ 返信提案（AI の文から選ぶ）→ おまかせ（選ばない）と、はっきり段階が移る
-// after[②で選んだもの] は鈴木の返事。③ はおまかせ返信で auto を3回打つ（あいだに鈴木の between）
+//   ① 予測変換（鈴木「明日のライブのことなんだけど、、」に、指が読み「な」を打つと、変換候補の帯に 夏休み／なに？／名古屋 が並ぶ。自分で選べる）
+//   ② 返信提案の1回目（鈴木のドタキャンに。LINE の AI。入力欄の下の「返信提案」から、AI が書いた返信が3つ、横に並ぶ。どれもまともで、自分の好きなものを選べる）
+//   ③ 返信提案の2回目（鈴木の「代わりに他の人誘って行けたりしない？」に。3つともギスギス。迷うと先頭）
+//   ④ おまかせ返信（返信のたびに、AI のボタン「おまかせ返信」が押される。選ばせずに、AI が書いた返信を来場者の指が打って送る。3回、だんだん速く）
+//   予測変換（自分で選ぶ）→ 返信提案（AI の文から、好きなものを選ぶ → ギスギスした文しか選べない）→ おまかせ（選ばない）と、だんだん主体が削がれる（11/11）
+// after[③で選んだもの] は鈴木の返事。④ はおまかせ返信で auto を3回打つ（あいだに鈴木の between）
 const LINE_JA = {
-  // それまでのトーク履歴（LINE を開いたときに、もう見えている）：先週も鈴木が当日に来られなくなり（10/31）、その代わりに今回の映画を約束した
+  // それまでのトーク履歴（LINE を開いたときに、もう見えている）：先週も鈴木が当日に来られなくなり（10/31。熱）、その代わりに今回のライブを約束した（11/11：映画からライブに）
   history: [{sep: '10月28日(水)'},
     ['me', '土曜のカフェ、11時に駅前でいい？', '20:15'], ['them', 'いいよー！楽しみ', '20:31'],
     {sep: '10月31日(土)'},
-    ['them', 'ごめん！今日急に仕事入っちゃった…', '10:12'], ['them', '本当にごめん', '10:12'], ['me', 'そっか、了解！また今度ね', '10:20'],
+    ['them', 'ごめん！今日熱出ちゃった…', '10:12'], ['them', '本当にごめん', '10:12'], ['me', 'そっか、了解！また今度ね', '10:20'],
     {sep: '11月2日(月)'},
-    ['them', '先週はごめんね、急に行けなくなって', '21:02'], ['me', 'いいよいいよ、仕事なら仕方ないよ', '21:05'],
-    ['them', '代わりに、来週の映画行こう！', '21:06'], ['me', 'いいね！10日の10時からのにしよう', '21:08'], ['them', 'チケット取っとくね', '21:09'],
-    {sep: '11月6日(金)'}, ['me', '予告見た！めっちゃ面白そう', '23:02'], ['them', 'でしょ！ポップコーン買お', '23:10'], ['me', 'キャラメル味ね', '23:11'],
+    ['them', '先週はごめんね、急に行けなくなって', '21:02'], ['me', 'いいよいいよ、体調は仕方ないよ', '21:05'],
+    ['them', '代わりに、来週のライブ行こう！', '21:06'], ['me', 'いいね！10日のやつだよね？', '21:08'], ['them', 'そう！チケット取っとくね', '21:09'],
+    {sep: '11月6日(金)'}, ['me', 'セトリ予習してる！', '23:02'], ['them', 'えらい！グッズ何買う？', '23:10'], ['me', 'タオルはおそろいにしよ', '23:11'],
     {sep: '11月8日(日)'}, ['me', 'いよいよ明後日だね', '22:40'], ['them', '楽しみすぎる！', '22:41'],
     {sep: '今日'}],
-  open: '明日の映画のことなんだけど、、',   // 鈴木の最初のセリフ（通知にも出る）
+  open: '明日のライブのことなんだけど、、',   // 鈴木の最初のセリフ（通知にも出る）
   chips: ['日程調整', '返信提案', 'おまかせ返信', '話題提案', 'ムード分析', '豆知識'], suggest: '返信提案', autoChip: 'おまかせ返信',
-  greet: {prefix: 'な', cands: ['なに？', '何時{なんじ}にする？', 'なんかあった？']},   // 指が読み「な」を打つと、その予測変換が出る（そっけない／楽しみにしている／察している）
-  cancel: ['ごめん、急に仕事が入っちゃって行けなくなりそう'],
-  tickets: 'ほんとにごめん！チケット渡すから別の人と行って',
-  reply2: ['正直{しょうじき}、いつもこうだよね', '別{べつ}の人{ひと}って、今{いま}から誰{だれ}を誘{さそ}えばいいの？', 'こっちは楽{たの}しみにしてたんだけど'],   // ② 3つともギスギス
-  after: [['そんなことないよ、今回は本当に急だったの'],      // ②で選んだものごとの、鈴木の返事
-          ['ごめん、誰か空いてる人いないかな…'],
+  greet: {prefix: 'な', cands: ['夏休{なつやす}み', 'なに？', '名古屋{なごや}'], fallback: 1},   // 指が読み「な」を打つと、その予測変換が出る（11/11：本物の予測変換のように、「な」で始まる、文脈と関係のない言葉もまじる。選んだものが、そのまま送られる。返事になる「なに？」は、最初に目が行かないよう真ん中。時間切れも「なに？」）
+  greetAfter: [['夏休み？誤字かな'], [], ['名古屋？誤字かな']],   // ①で選んだものごとの、鈴木の最初の一言（ちぐはぐな言葉を送ったときだけ。そのあと本題に入る）
+  cancel: ['ごめん、急に仕事が入っちゃって行けなくなりそう'],   // 11/11：鈴木を悪者にしすぎない（先週のドタキャンは熱にして、仕事のドタキャンは今回が初めて。チケットは、むだにしないよう頼む）
+  reply1: ['そっか、お仕事{しごと}がんばってね', '残念{ざんねん}だけど、仕方{しかた}ないね', 'わかった、無理{むり}しないでね'],   // ② 返信提案の1回目：どれも落ち着いてやさしい（自分の好きなものを選べる）。明るすぎると、2回目で急変したように見えるので、少し残念さもにじむ文
+  tickets: 'チケットもったいないし、代わりに他の人誘って行けたりしない？',
+  reply2: ['正直{しょうじき}、いつもこうだよね', '今{いま}から誰{だれ}を誘{さそ}えって言{い}うの？', '楽{たの}しみにしてたのに、バカみたい'],   // ③ 返信提案の2回目：3つともはっきり冷たい（1回目のやさしさが1つも残らない）
+  after: [['そんなことないよ、今回は本当に急だったの'],      // ③で選んだものごとの、鈴木の返事
+          ['ごめん、私も空いてる人いないか聞いてみるね…'],
           ['ほんとにごめん。こっちも楽しみにしてたんだよ']],
   auto: ['前{まえ}もドタキャンしたよね',                                       // ③ おまかせ返信：選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
          'だって本当{ほんとう}のことでしょ。毎回{まいかい}こうなんだから',
@@ -103,21 +111,23 @@ const LINE_EN = {
   history: [{sep: 'Wed, Oct 28'},
     ['me', 'Café on Saturday, 11 at the station?', '20:15'], ['them', 'Sure! Can\'t wait', '20:31'],
     {sep: 'Sat, Oct 31'},
-    ['them', 'Sorry! Something came up at work today...', '10:12'], ['them', "I'm really sorry", '10:12'], ['me', 'Oh okay, no problem! Next time', '10:20'],
+    ['them', 'Sorry! I woke up with a fever today...', '10:12'], ['them', "I'm really sorry", '10:12'], ['me', 'Oh okay, no problem! Next time', '10:20'],
     {sep: 'Mon, Nov 2'},
-    ['them', 'Sorry about last week, something came up last minute', '21:02'], ['me', 'No worries, work is work', '21:05'],
-    ['them', "Let's see the movie next week instead!", '21:06'], ['me', 'Sure! The 10am one on the 10th?', '21:08'], ['them', "I'll get the tickets", '21:09'],
-    {sep: 'Fri, Nov 6'}, ['me', 'Watched the trailer! Looks so good', '23:02'], ['them', 'Right?! Let\'s get popcorn', '23:10'], ['me', 'Caramel, obviously', '23:11'],
-    {sep: 'Sun, Nov 8'}, ['me', 'The movie is the day after tomorrow!', '22:40'], ['them', "Can't wait!", '22:41'],
+    ['them', 'Sorry about last week, something came up last minute', '21:02'], ['me', "No worries, you can't help being sick", '21:05'],
+    ['them', "Let's go to the concert next week instead!", '21:06'], ['me', 'Sure! The one on the 10th, right?', '21:08'], ['them', "Yes! I'll get the tickets", '21:09'],
+    {sep: 'Fri, Nov 6'}, ['me', "I've been studying the setlist!", '23:02'], ['them', 'Nice! What merch are you getting?', '23:10'], ['me', 'Matching towels, obviously', '23:11'],
+    {sep: 'Sun, Nov 8'}, ['me', 'The concert is the day after tomorrow!', '22:40'], ['them', "Can't wait!", '22:41'],
     {sep: 'Today'}],
-  open: 'So, about the movie tomorrow...',
+  open: 'So, about the concert tomorrow...',
   chips: ['Schedule', 'Suggest reply', 'Auto reply', 'Suggest topic', 'Mood check', 'Trivia'], suggest: 'Suggest reply', autoChip: 'Auto reply',
-  greet: {prefix: 'Wh', cands: ["What's up?", 'What time are we meeting?', 'What happened?']},
+  greet: {prefix: 'Wh', cands: ['White', 'What?', 'Whale'], fallback: 1},
+  greetAfter: [['White? Typo?'], [], ['Whale? Typo?']],
   cancel: ["Sorry, something came up at work and I don't think I can make it"],
-  tickets: "I'm so sorry! I'll give you the tickets, go with someone else",
-  reply2: ["Honestly, it's always like this", 'Someone else? Who am I supposed to ask now?', 'I was really looking forward to it'],
+  reply1: ['I see. Good luck at work', "Too bad, but it can't be helped", "Okay, don't overdo it"],
+  tickets: "It'd be a shame to waste the tickets... could you maybe go with someone else instead?",
+  reply2: ["Honestly, it's always like this", 'Who am I supposed to ask now?', 'Guess I was stupid to get excited'],
   after: [["That's not true, this really came out of nowhere"],
-          ["Sorry... I'll see if anyone's free"],
+          ["Sorry, I'll ask around to see if anyone's free..."],
           ["I'm really sorry. I was looking forward to it too"]],
   auto: ['You bailed last time too',
          "Because it's true. It happens every time",
@@ -126,7 +136,7 @@ const LINE_EN = {
   end: "Fine. I won't invite you again",
 };
 const BAR_KEYS = 'sdf';   // 変換候補の帯：選ぶのに使うキー（左から2・3・4つ目だけ）。候補は左から順に、このキーに対応する。左端が先頭＝時間切れで確定する候補
-const BAR = {showMs: 1500, readMs: 3000, firstReadMs: 5000, aiReadMs: 4000};   // showMs：予測変換は、まずふつうに出る（番号も天の声もなし）。そのあと、候補を読む時間（最初の1回は、説明を読むので長め）。選べる時間は、どの回も CHOICE.selectMs（キーを上げていられる時間に限りがあるので、のばさない）
+const BAR = {showMs: 1500, readMs: 3000, firstReadMs: 5000, aiReadMs: 4000, ai2ReadMs: 3000};   // showMs：予測変換は、まずふつうに出る（番号も天の声もなし）。そのあと、候補を読む時間（最初の1回は、説明を読むので長め）。選べる時間は、どの回も CHOICE.selectMs（キーを上げていられる時間に限りがあるので、のばさない）
 
 // X：押した星に合った下書き（LLM が使えないときは、これ）→ 右小指の連打で消される → 星1になり、辛口の感想が高速で打たれて、そのままポストされる
 //   星5：絶賛／星3：そこそこほめる（絶賛ではない）／星1：悪いところもあったが、体験としては珍しかった、くらいの控えめなほめ
@@ -141,15 +151,21 @@ const DRAFTS_EN = {
   1: 'Some parts were hard to follow, but as an experience it was definitely unusual.',
 };
 const REVIEW_SPEED = p => 1.6 + 1.8 * p;   // 打った割合 p → 速さ。どんどん速くなる
+const REJECT_PAUSE_MS = 3500;   // 鈴木の「チケットもったいないし、代わりに他の人誘って行けたりしない？」のあと、返信提案が押されるまでに足す間（11/11。断られたと分かる時間）
 const SEND_PAUSE = 550;   // 打ち終えてから送信（Enter）を押すまでの間（ms）
 // 待機画面（ふらっと来た人が、最初に見る画面）：何の作品か、何に同意するか、どう始めるか。すべて画面の中央にそろえる
 //   上：作品名（ほとんどの時間は出たまま。ときどき、打ち直される）
 //   下：Xへの投稿のこと（同意の確認。横のプロジェクタに、X のタイムラインが流れている）と、始め方の2行（実物の F キーへ線）。F を押して始めることが、同意になる
 // 指の置き方（両手の絵）は、始めたあとの2枚目（stepHands）で見せる
 const SAVER_NOTE = () => tr('手元の写真が、実際にXに投稿されます。', 'A photo of your hands will really be posted to X.');
+// あいさつのあとの1枚目：キーと指を横から見た絵（アニメーション）と1行。3択だけの展示だと思われないよう、手前の面白さ（キーが勝手に動く打鍵感）を先に見せる（11/11）
+const PUSH_MSG = () => tr('この展示では、キーがひとりでに動いて、あなたの指を押し上げます。', 'In this exhibit, the keys move on their own and push your fingers up.');
+const PUSH_CYCLE = 1700;   // 押し上げ1回の長さ（浮かび出る → 止まる → 上がる → 止まる → 消える → 何もない）
+const PUSH_MS = PUSH_CYCLE * 2 + 1400;   // この画面を見せる時間：キーが指を押し上げるのを3回、3回目の絵が消えきるまで（消えきるのは、1回の中の1.4秒の時点）
+// あいさつのあとの2枚目：指の置き方（2行とも、同じ大きさ・同じ太さ・同じ行間）
 const HANDS_MSG = () => [tr('親指以外の8本を、体重をかけずに軽く添えてください。', 'Rest 8 fingers lightly, without your thumbs.'),
-  tr('強く押さえると、キーが上がりきらないことがあります。', "If you press down hard, the keys may not rise all the way.")];   // 2枚目（2行目は理由。少し小さく）
-const HANDS_MS = 7000;   // 2枚目（指の置き方）を見せる時間
+  tr('強く押さえると、キーが上がりきらないことがあります。', "If you press down hard, the keys may not rise all the way.")];
+const HANDS_MS = 5500;   // 指の置き方を見せる時間
 // 始め方の2行。1行目は [強調する部分（赤）, 続き] に分けて書く。キーの文字（F）は、来場者には関係ないので出さない
 const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったら長押ししてください'], ['If you agree', ', press and hold the key when it rises.']);   // [強調する部分（赤）, 続き]
 // 待機画面の文字：作品名のほかは、すべて同じ大きさ・同じ太さ（強調は、色だけ）
@@ -446,14 +462,15 @@ function clearCli(S, now_ = false) {   // now_：画面の外にいるので、�
 }
 // インストラクターの台詞：打ち込むのではなく、1文字ずつふわっと浮かび上がる（来場者のターンではないので、キーは動かさない）。
 // keep：質問なので、来場者の答えが終わるまで残す（次の台詞で消える）。keep でなければ、言い終えて after だけ待ってから消える
-async function say(S, src, {scale = 1, after = 800, keep = false, ms = 55} = {}) {
+const SAY_MS = 45;   // インストラクターの台詞の、1文字が出る間（11/11：55 → 45。通知までのテンポのため）
+const charGap = (ch, ms = SAY_MS) => (LANG === 'en' ? ms * 0.45 : ms) + (/[、,]/.test(ch) ? 160 : /[。！？!?.]/.test(ch) ? 260 : 0);   // この字のあと、次の字が出るまで（句読点では少し待つ）
+async function say(S, src, {scale = 1, after = 800, keep = false, ms = SAY_MS} = {}) {
   clearCli(S);
   const it = S.cli.inst = newItem('inst', scale);
   it.full = strip(src); it.ct = [];   // ct：字が出た時刻（浮かび上がる動きに使う）
-  const per = LANG === 'en' ? ms * 0.45 : ms;   // 英語は字数が多いので、1文字の間を短く
-  for (const ch of it.full) {
+  for (const ch of it.full) {   // 英語は字数が多いので、1文字の間を短く（charGap）
     it.ct.push(now()); it.text += ch;
-    await beat(S, per + (/[、,]/.test(ch) ? 160 : /[。！？!?.]/.test(ch) ? 260 : 0));
+    await beat(S, charGap(ch, ms));
   }
   await beat(S, RISE + after);
   if (!keep) { fadeOut(S, it); await beat(S, 420); }
@@ -492,19 +509,35 @@ const newLine = () => ({k: 'line', name: tr('鈴木', 'Smith'), msgs: [], input:
 
 // あいさつ（名乗らない）
 async function stepHello(S) {
-  await say(S, TX.hello, {scale: 1.15, after: 900});
+  await say(S, TX.hello, {scale: 1.15, after: 500});
 }
 // 選び方の練習（LINE の前）：説明して、LINE と同じ見た目のカードで一度だけ選んでもらう（最初の選ぶ場面なので「上がったキーを押して、選んでください」も出る）
+// 台詞の字が、word まで出るのを待つ（say を呼んだ直後に呼ぶ。台詞に合わせて、キーを動かす）
+async function cue(S, word) {
+  const it = S.cli.inst;
+  while (it && !it.text.includes(word) && it.text.length < it.full.length) await beat(S, 40);
+}
 async function stepHowTo(S) {
-  await say(S, TX.howTo1, {after: 600});
-  await say(S, TX.howTo2, {after: 900});
+  // 説明と連動して、キーを見せる：「3つの選択肢」で、選ぶのに使う S D F をオレンジにして ①②③ の番号を付ける（上げない）→
+  // 「キーが上がって」で、実際に S D F を上げてみせる（HOWTO_RAISE_MS だけ。押しても何も起きない）→ 下げても、オレンジと番号は練習の3択まで残す
+  const KI = window.KC_INPUT, ks = [...CHOICE_KEYS].map(c => 'asdfjkl;'.indexOf(c));
+  let p = say(S, TX.howTo1, {after: 400});
+  await cue(S, TX.howToCue1);
+  KI.guide(CHOICE_KEYS); KI.labels(ks.map((k, j) => [k, j + 1])); KI.calm(true);
+  await p;
+  await say(S, TX.howTo2, {after: 500});
+  p = say(S, TX.howTo3, {after: 600});
+  await cue(S, TX.howToCue3);
+  KI.listen(CHOICE_KEYS); KI.calm(false);
+  await beat(S, HOWTO_RAISE_MS);
+  KI.listen(0); KI.calm(true);
+  await p;
   await say(S, TX.tryIt, {keep: true, after: 300});
   await choose(S, {options: TX.tryOptions, cards: true});
   await wait(S, 300);
   clearCli(S);
-  await beat(S, 500);
-  await say(S, TX.release, {after: 1400});   // 押したままの指を、軽く添えた状態に戻してもらう
-  await say(S, TX.ready, {after: 700});
+  await beat(S, 300);
+  await say(S, TX.release, {after: 900});   // 押したままの指を、軽く添えた状態に戻してもらう（このあと、すぐ通知が来る。「準備ができました」は、テンポのために 11/11 に外した）
 }
 
 // ================= 選ぶ場面 =================
@@ -572,20 +605,20 @@ async function lineIn(S, L, x) {
 //   ① 予測変換：キーボードの変換候補の帯（L.bar）
 //   ② 返信提案：入力欄の上に開く AI の提案（L.sheet）。入力欄の下の「返信提案」が押された見た目になる。選んだ文は、来場者の指が打つ
 const BAR_KS = () => [...BAR_KEYS].map(c => 'asdfjkl;'.indexOf(c));
-async function pickInto(S, L, options, readMs) {   // 選ぶ（options は 漢字{よみ} のままでよい。画面と入力欄には漢字だけ）
-  const r = await choose(S, {options: options.map(strip), keys: BAR_KEYS, fallback: 0, bar: true, readMs});
-  if (r.picked < 0) { await beat(S, 200); await strikeWait(S, BAR_KS()[0], P.len + 60); }   // 時間切れ：先頭のキーが、指を押し上げて確定させる
+async function pickInto(S, L, options, readMs, fallback = 0) {   // 選ぶ（options は 漢字{よみ} のままでよい。画面と入力欄には漢字だけ）
+  const r = await choose(S, {options: options.map(strip), keys: BAR_KEYS, fallback, bar: true, readMs});
+  if (r.picked < 0) { await beat(S, 200); await strikeWait(S, BAR_KS()[fallback], P.len + 60); }   // 時間切れ：fallback（ふつうは先頭）のキーが、指を押し上げて確定させる
   await beat(S, 150);
   return r.final;
 }
-async function barPick(S, L, {prefix, cands}, readMs = BAR.readMs) {   // ① 予測変換：指が読みを打つ（変換前の字として下線つきで残る）→ その変換候補から選ぶ
+async function barPick(S, L, {prefix, cands, fallback = 0}, readMs = BAR.readMs) {   // ① 予測変換：指が読みを打つ（変換前の字として下線つきで残る）→ その変換候補から選ぶ
   const f = L.input;
   S.typing = f;
   await typeMe(S, f, plan(prefix), {speed: 1.0, typos: false}); f.comp = f.text; f.text = ''; f.full = f.comp;
   await beat(S, 300);
   L.bar = {cands: cands.map(strip), ks: BAR_KS(), t0: now()};
   await beat(S, BAR.showMs);   // ふつうの予測変換として、候補だけが出ている間。番号と「まだキーは押さないでください」は、そのあと
-  const j = await pickInto(S, L, cands, readMs);
+  const j = await pickInto(S, L, cands, readMs, fallback);
   f.text = f.full = strip(cands[j]); f.comp = '';   // 予測変換：選んだ候補が、そのまま入力欄に入る（指では打たない）
   L.bar = null;
   await beat(S, 250);
@@ -603,18 +636,18 @@ async function aiAutoType(S, L, text, speed) {   // おまかせ返信：選ば�
   await typeMe(S, L.input, plan(text), {speed, frenzy: true, typos: false});
   await beat(S, 200);
 }
-async function aiPick(S, L, items) {   // 返信提案：入力欄の下の「返信提案」が押され、AI の提案が開く
+async function aiPick(S, L, items, {readMs = BAR.aiReadMs, speed = 1.1} = {}) {   // 返信提案：入力欄の下の「返信提案」が押され、AI の提案が開く（speed：選んだ文を指が打つ速さ）
   S.typing = L.input;
-  if (!L.aiOn) { L.aiOn = now(); await beat(S, 900); }   // 最初の返信提案の前に、AI のボタンの列が出てくる
+  if (!L.aiOn) { L.aiOn = now(); await beat(S, 900); }   // AI のボタンの列が、まだ出ていなければ出す（ふつうは①を送ったときに出ている）
   L.chip = LN.suggest; L.chipT = now();
   await beat(S, 500);
   L.sheet = {kind: 'reply', title: LN.suggest, items: items.map(strip), t0: now()};
   await beat(S, 700);
-  const j = await pickInto(S, L, items, BAR.aiReadMs);
+  const j = await pickInto(S, L, items, readMs);
   await beat(S, 450);
   L.sheet = null; L.chip = null;
   await beat(S, 300);
-  await typeMe(S, L.input, plan(items[j]), {speed: 1.1, typos: false});   // 返信提案：選んだ文を、来場者の指が打つ
+  await typeMe(S, L.input, plan(items[j]), {speed, typos: false});   // 返信提案：選んだ文を、来場者の指が打つ（返信提案は、どの回も必ず指で打つ）
   await beat(S, 200);
   return j;
 }
@@ -637,19 +670,28 @@ async function sceneLine(S) {
   await beat(S, 1000);
   L.fieldTapT = now(); S.typing = L.input;   // 入力欄がタップされ、カーソルが点滅しはじめる（タップの丸は、通知のタップと同じ）
   await beat(S, 5000);   // カーソルが出てから、トーク履歴を読んで状況をつかむ間をおいて、「な」を打ちはじめる
-  await barPick(S, L, D.greet, BAR.firstReadMs);
+  const g0 = await barPick(S, L, D.greet, BAR.firstReadMs);
   await lineSend(S, L);
-  mark(S, 'L2');   // ② 返信提案：鈴木のドタキャンの2通に、AI が書いた返信から選ぶ（3つともギスギス）。返信提案は、この1回だけ
+  L.aiOn = now();   // 入力欄の下の AI のボタンの列（返信提案など）は、①を送ったら出しておく（鈴木の返事を待つ間も、断られたあとの間も、出たまま）
+  mark(S, 'L1:' + g0);
+  for (const t of D.greetAfter[g0] || []) { const k = await them(t, 2000); await read(k); }   // 関係ない言葉を送ったときは、鈴木がまずそれに反応してから、本題に入る
+  mark(S, 'L2');   // ② 返信提案（1回目）：鈴木のドタキャンに、AI が書いた返信から、自分の好きなものを選ぶ（どれもまとも）
   let n = 0;
   for (const t of D.cancel) n += await them(t, 2400);
-  n += await them(D.tickets, 1800);   // 続けて、もう1通
   await read(n);
-  const j = await aiPick(S, L, D.reply2);
+  const i1 = await aiPick(S, L, D.reply1, {speed: 1.5});   // 選んだ文は、指が打つ（2回目より少し速め）。鈴木は、この返事には応えずに、次の頼みごとを送る
   await lineSend(S, L);
-  mark(S, 'L2:' + j);
+  mark(S, 'L2:' + i1);
+  mark(S, 'L3');   // ③ 返信提案（2回目）：鈴木の頼みごとに、AI が書いた返信から選ぶ（3つともギスギス）
+  n = await them(D.tickets, 1800);
+  await read(n);
+  await beat(S, REJECT_PAUSE_MS);   // 断られた、と分かるまでの間。そのあとで、返信提案が押される
+  const j = await aiPick(S, L, D.reply2, {readMs: BAR.ai2ReadMs});   // 2回目は、見た目に慣れているので、読む時間を短く
+  await lineSend(S, L);
+  mark(S, 'L3:' + j);
   for (const t of D.after[j]) n = await them(t, 2200);
   await read(n);
-  mark(S, 'L3');   // ③ おまかせ返信：返信のたびに「おまかせ返信」が押され、選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
+  mark(S, 'L4');   // ④ おまかせ返信：返信のたびに「おまかせ返信」が押され、選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
   for (const [i, text] of D.auto.entries()) {
     await aiAutoOn(S, L);
     await aiAutoType(S, L, text, p => 1.1 + 0.35 * i + 0.4 * p);
@@ -806,7 +848,7 @@ async function stepTitle(S) {
 
 // ================= 進行 =================
 // 各場面の始まりの目安（ms）。ふつうの進み方の値。これより8秒以上遅れていたら、打つテンポと間を少し速める（16秒以上なら、もう少し）
-const DUE = {hands: 0, hello: 7600, howTo: 11400, toLine: 35100, line: 40200, toX: 116100, x: 128200};   // 通しの実測（11/09。LINE を開いてから5秒、状況を読む間をおく。LINE は予測変換と AI の返信提案で選ぶ構成。選ぶ場面で、すぐ押したとき）
+const DUE = {hello: 600, hands: 3800, howTo: 14700, toLine: 38200, line: 43200, toX: 122600, x: 133200};   // 通しの実測（11/11。あいさつ → キーが指を押し上げる絵 → 指の置き方 → 選び方の説明でキーを見せる。LINE は予測変換 → 返信提案2回 → おまかせ返信。選ぶ場面で、すぐ押したとき）
 const LATE = [8000, 16000];
 const mark = (S, name) => S.tl.push([name, Math.round(now() - S.t0)]);
 function phase(S, p) {
@@ -819,9 +861,11 @@ async function main(S) {
   const from = Math.max(0, START.indexOf(S.o.から));
   S.scr = S.cli;
   if (from === 0) {
-    phase(S, 'hands'); S.scr = {k: 'hands', t0: now()}; await wait(S, HANDS_MS);   // 2枚目：指の置き方
-    S.scr = S.cli; await beat(S, 600); phase(S, 'hello'); await stepHello(S);
-    phase(S, 'howTo'); await stepHowTo(S);   // 選び方の練習
+    await beat(S, 600); phase(S, 'hello'); await stepHello(S);   // 「はじめまして。今日は、私がお手伝いします。」
+    // ここからが説明（チュートリアル）：キーが指を押し上げる絵 → 指の置き方 → 選び方の練習
+    phase(S, 'hands'); S.scr = {k: 'push', t0: now()}; await wait(S, PUSH_MS);   // キーが指を押し上げる、横から見た絵
+    S.scr = {k: 'hands', t0: now()}; await wait(S, HANDS_MS);   // 指の置き方
+    S.scr = S.cli; await beat(S, 600); phase(S, 'howTo'); await stepHowTo(S);   // 選び方の練習
   }
   if (from <= 1) {
     // スマホの通知（鈴木の最初のセリフ）から、LINE に入る（語り手は出さない）
@@ -1054,8 +1098,8 @@ function drawChoice(S, C, t, pb) {
   const inA = clamp((t - (C.born ??= t)) / 300, 0, 1), outA = C.stage === 'out' ? 1 - clamp((t - C.t0) / 300, 0, 1) : 1, A = inA * outA;
   if (C.bar) {   // LINE：選択肢は変換候補の帯（drawLine が描く）。ここでは、入力欄の上に、星の3択と同じ「いま何をするか」だけを出す（下地に白をなだらかに）
     if (C.cards) {   // インストラクターの画面で選ぶとき（選び方の練習・星）：LINE の返信提案と同じ3枚のカード
-      const ch = fs * 2.9, w = Math.min(W * 0.84, fs * 34), y = pb - fs * 1.0 - ch;
-      drawCardRow(S, C, C.options, t, (W - w) / 2, y, w, ch, A);
+      const ch = fs * 2.9 * CARD_K, w = Math.min(W * 0.9, fs * 34 * CARD_K), y = pb - fs * 1.0 - ch;
+      drawCardRow(S, C, C.options, t, (W - w) / 2, y, w, ch, A, CARD_K);
       C.msgY = y - fs * 1.05;
     }
     if (C.msgY == null) return;
@@ -1100,7 +1144,7 @@ function drawChoice(S, C, t, pb) {
 //   読む＝赤い点（ゆっくり明滅）「まだキーは押さないでください」（早く押すと、ゆれる）／選ぶ＝オレンジの点「選んでください」（最初の1回は「上がったキーを押して、選んでください」）と残り時間のバー／
 //   決まった＝緑のチェック「選びました」「代わりに選びました」
 function choicePill(S, C, t, A, y) {   // iOS のシステムの知らせ（HUD）のような、すりガラスの黒いカプセル。白い字と、状態の色の点（決まったらチェック）。選べるあいだは、字の下に残り時間のバー
-  const fs = S.fs, ts = fs * 0.76, cx = C.mx ?? W / 2;
+  const fs = S.fs * PILL_K, ts = fs * 0.76, cx = C.mx ?? W / 2;
   const st = C.stage === 'read' ? 'read' : C.stage === 'select' ? 'select' : 'done';
   const msg = st === 'read' ? tr('まだキーは押さないでください', "Don't press any keys yet")
     : st === 'select' ? (C.tutorial ? tr('上がったキーを押して、選んでください', 'Press a raised key to choose') : tr('選んでください', 'Make your choice'))
@@ -1178,7 +1222,7 @@ function lineRows(L, size, lh, maxB) {
   });
 }
 // ---- LINE（iPad 版・横向き。外付けキーボードで打つ）：上に iPad の時刻と電池、左にトーク一覧、右にトーク。ロゴは使わない ----
-// 予測変換は、外付けキーボードのときと同じく、画面の下に浮いた角丸の帯
+// 予測変換は、iPad・スマホのキーボードの候補の列と同じく、トークの下の端に、角のない灰色の帯（候補は縦線で区切るだけ）
 // トーク一覧（鈴木のほか）：[名前, 最後の文, 時刻, 未読, アイコン]。グループは、名前の右に人数（例：(6)）
 const LINE_LIST_JA = [['大野恵子', '明日雨らしいよ。傘忘れずにね', '11:52', 0, 'mom'], ['Yuu', '了解！また連絡するね', '昨日', 0, 'yui'], ['3年7組', '写真送ります', '昨日', 0, 'hs', 31],
   ['Takashi', 'スタンプを送信しました', '昨日', 0, 'takashi'], ['上村研M1', '明日の資料共有します！', '月曜', 0, 'groupDefault', 5], ['はるか', 'ありがとう〜！', '11/7', 0, 'haruka'],
@@ -1265,7 +1309,7 @@ function drawLine(S, L, t, dt, pb) {
   const cbH = fs * 2.2, chH = L.aiOn ? fs * 2.0 * easeOut(clamp((t - L.aiOn) / 350, 0, 1)) : 0, barOn = !!L.bar, barY = barOn ? pb - cbH : pb, chY = barY - chH, iy = chY - ib;
   const sheetH = L.sheet ? sheetHeight(S, L.sheet) : 0, sheetY = iy - fs * 0.35 - sheetH, above = L.sheet ? sheetY : iy;
   const C = S.choice, choosing = C && C.bar && !C.cards;
-  const bottom = choosing ? above - fs * 3.4 : above - (L.sheet ? fs * 0.3 : 0);   // 選ぶ場面では、その上に天の声が出るので、会話はその上まで流す（最後の文が隠れない）
+  const bottom = choosing ? above - fs * 4.0 : above - (L.sheet ? fs * 0.3 : 0);   // 選ぶ場面では、その上に天の声が出るので、会話はその上まで流す（最後の文が隠れない）
   g.fillStyle = LINE_BG; g.fillRect(x0, top, cw, pb - top);
   const rows = lineRows(L, size, lh, maxB);
   let y = fs * 1.6;
@@ -1407,8 +1451,8 @@ function drawSheet(S, sh, C, t, y, h, mx = W * 0.06, w = W - W * 0.12) {
 }
 // 3枚のカードを横に並べる（キーと同じ並び。左・真ん中・右が S D F）。カードの左に大きな①②③の札。選んだカードは黄緑の枠。
 // LINE の返信提案・選び方の練習・星の3択で同じ見た目。e：全体の濃さ
-function drawCardRow(S, C, items, t, x0, y0, w, ch, e = 1) {
-  const fs = S.fs, n = items.length, gap = fs * 0.45, cw = (w - gap * (n - 1)) / n, bsz = fs * 1.15;
+function drawCardRow(S, C, items, t, x0, y0, w, ch, e = 1, k = 1) {   // k：字・札・角の大きさの倍率（インストラクターの画面のカードは大きめ）
+  const fs = S.fs * k, n = items.length, gap = fs * 0.45, cw = (w - gap * (n - 1)) / n, bsz = fs * 1.15;
   const sel = C && C.stage === 'select', show = C && (sel || C.stage === 'read'), pin = show ? clamp((t - C.born) / 280, 0, 1) : 0;
   items.forEach((text, j) => {
     const cx = x0 + (cw + gap) * j;
@@ -1435,24 +1479,22 @@ function drawCardRow(S, C, items, t, x0, y0, w, ch, e = 1) {
   });
   g.globalAlpha = 1;
 }
-// 変換候補の帯の並び（drawBar と、候補からキーへの線で使う）：同じ幅の候補を横に並べ、真ん中の候補を、真ん中のキー（D）の真上に置く
-function barLayout(S, B) {   // B.x0：トーク（右の列）の左端。帯は、その中に収める
-  const fs = S.fs, n = B.cands.length, x0 = B.x0 || 0, cw = Math.min(W * 0.2, fs * 11, (W - x0 - fs * 1.6) / n);
-  const gx = clamp(kx(B.ks[Math.floor(n / 2)]) - cw * n / 2, x0 + fs * 0.8, W - cw * n - fs * 0.8);   // ひとかたまりの左端（できるだけ D の真上。トークの列からははみ出さない）
-  return {cw, gx, xs: B.cands.map((_, j) => gx + cw * (j + 0.5))};
+// 変換候補の帯の並び：トーク（右の列）の幅いっぱいを、候補の数で等分する（iPad・スマホのキーボードの、候補の列と同じ）
+function barLayout(S, B) {   // B.x0：トーク（右の列）の左端
+  const n = B.cands.length, x0 = B.x0 || 0, cw = (W - x0) / n;
+  return {cw, gx: x0, xs: B.cands.map((_, j) => x0 + cw * (j + 0.5))};
 }
-// 変換候補の帯（スマホのキーボードの、候補の列）：候補は同じ幅の3つを横に並べ、真ん中の候補を、真ん中のキー（D）の真上に置く。
-// 左・真ん中・右の候補が、S・D・F に対応する（キーの間隔はせまいので、候補の幅はキーより広い）。
+// 変換候補の帯（iPad・スマホのキーボードの、候補の列）：角のない灰色の帯を、トークの幅いっぱいに。候補は等分して並べ、間は細い縦線で区切るだけ（候補ごとの枠はない）。
+// 左・真ん中・右の候補が、S・D・F に対応する。
 // 選べるあいだ（キーが上がっているあいだ）だけ、候補の下にオレンジの細い線。押した（押された）候補は、一瞬灰色になる
 function drawBar(S, B, C, t, y, h) {
   const fs = S.fs, n = B.cands.length, {cw, gx} = barLayout(S, B);
-  const pill = B.pill = {x: gx - fs * 0.3, y: y + fs * 0.25, w: cw * n + fs * 0.6, h: h - fs * 0.5};   // 外付けキーボードのときの、浮いた角丸の帯
-  g.save(); g.shadowColor = 'rgba(0,0,0,0.22)'; g.shadowBlur = fs * 0.6; g.shadowOffsetY = fs * 0.08; g.fillStyle = '#f7f7f8'; rr(pill.x, pill.y, pill.w, pill.h, fs * 0.45); g.fill(); g.restore();
+  g.fillStyle = '#d3d5db'; g.fillRect(gx, y, cw * n, h);   // キーボードの候補の列の灰色（iOS のライトモード）
   const a = clamp((t - B.t0) / 200, 0, 1), sel = C && C.stage === 'select', show = C && (sel || C.stage === 'read');
   const pin = show ? clamp((t - C.born) / 280, 0, 1) : 0, bsz = fs * 1.05, gap = fs * 0.35;   // 番号の札は大きく（キーの番号と、ひと目で対応がわかるように）
   for (let j = 0; j < n; j++) {
     const L = gx + cw * j, R = L + cw, x = (L + R) / 2;
-    if (j > 0) { g.fillStyle = '#d3d6db'; g.fillRect(L, y + h * 0.32, 1, h * 0.36); }
+    if (j > 0) { g.fillStyle = '#a9adb4'; g.fillRect(Math.round(L), y + h * 0.28, 1, h * 0.44); }   // 区切りの細い縦線
     const room = R - L - fs * 0.5 - bsz - gap;
     let size = fs * 0.72;
     g.font = `500 ${size}px ${FONT}`;
@@ -1749,19 +1791,105 @@ function drawSaver(S, V, t, dt, pb) {
 }
 
 // 2枚目（始めたあと）：指の置き方。両手の絵（動かさない。押す動きを見せると「添える」と食い違う）と、その下に一文
+// キーが指を押し上げる動き：lift（0..1）と、絵の見え方 vis（0..1）。
+// 下の状態で浮かび出る → 下からぽんっと上がる → 止まる → いったん消える → 下の状態で、また浮かび出る（下がる動きは見せない。消さずに切り替えると、指で押し下げたように見えるので。2.1秒でくり返す）
+function pushPhase(ms) {
+  const T = PUSH_CYCLE, p = ((ms % T) + T) % T;
+  if (p < 200) return {lift: 0, vis: p / 200};
+  if (p < 400) return {lift: 0, vis: 1};
+  if (p < 700) return {lift: easeBack((p - 400) / 300), vis: 1};
+  if (p < 1200) return {lift: 1, vis: 1};
+  if (p < 1400) return {lift: 1, vis: 1 - (p - 1200) / 200};
+  return {lift: 0, vis: 0};
+}
+// キーと指を横から見た絵（アップ）：キーキャップと、その上にのった人さし指。キーが上がると、指も押し上がり、キーの右に上向きの矢印が出る。
+// 指は3つの節（基節・中節・末節）を、それぞれ丸い棒として描き、重なりで関節を見せる（手のひら側に、関節のしわ）。手の絵と同じ、黒い線と白だけ。
+// F：指の太さ。plateY：キーボードの面
+function pushArt(c, cx, plateY, F, t, lw) {   // c：描く先（見えない画面。絵を丸ごと薄くして重ねるため）
+  const {lift} = pushPhase(t), L = F * 0.55 * lift;
+  const capBot = plateY - F * 0.12 - L, capTop = capBot - F * 0.62, bw = F * 0.78, tw = F * 0.6;
+  c.save(); c.strokeStyle = HAND_LINE; c.fillStyle = PAPER; c.lineWidth = lw; c.lineJoin = 'round'; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(cx - F * 2.2, plateY); c.lineTo(cx + F * 2.2, plateY); c.stroke();   // キーボードの面
+  const sw = F * 0.13;   // 軸（キーが上がると、すき間に見える）
+  c.beginPath(); c.rect(cx - sw, capBot, sw * 2, plateY - capBot); c.fill(); c.stroke();
+  c.beginPath(); c.moveTo(cx - bw, capBot); c.lineTo(cx - tw, capTop); c.quadraticCurveTo(cx, capTop + F * 0.08, cx + tw, capTop); c.lineTo(cx + bw, capBot); c.closePath(); c.fill(); c.stroke();   // キーキャップ
+  // 指の骨組み：指先から逆にたどる（手の甲から、ゆるく下りてきて、だんだん下を向き、指の腹がキーにのる）
+  const dir = deg => ({x: Math.cos(deg * Math.PI / 180), y: Math.sin(deg * Math.PI / 180)});
+  const w3 = F * 0.86, w2 = F * 0.94, w1 = F;   // 太さ：指先ほど少し細い
+  const d3 = dir(66), d2 = dir(40), d1 = dir(14), l3 = F * 0.95, l2 = F * 1.4, l1 = F * 1.9;   // 長さ（見えている部分）：基節 : 中節 : 末節 ≒ 1.9 : 1.4 : 1.4（末節は、指先の丸までふくめて。基節はつけ根が白にとける）
+  const T = {x: cx + F * 0.02, y: capTop - w3 / 2 + F * 0.03};   // 指先の丸の中心（指の腹がキーにのる）
+  const Dj = {x: T.x - d3.x * l3, y: T.y - d3.y * l3}, Pj = {x: Dj.x - d2.x * l2, y: Dj.y - d2.y * l2}, Mj = {x: Pj.x - d1.x * l1, y: Pj.y - d1.y * l1};
+  const bones = [[Mj, Pj, w1], [Pj, Dj, w2], [Dj, T, w3]];
+  const bone = (A, B, w) => {   // A から B へ、太さ w の丸い棒の形
+    const dx = B.x - A.x, dy = B.y - A.y, l = Math.hypot(dx, dy), a = Math.atan2(dy, dx), nx = -dy / l * w / 2, ny = dx / l * w / 2;
+    c.moveTo(A.x + nx, A.y + ny); c.lineTo(B.x + nx, B.y + ny); c.arc(B.x, B.y, w / 2, a + Math.PI / 2, a - Math.PI / 2, true); c.lineTo(A.x - nx, A.y - ny); c.arc(A.x, A.y, w / 2, a - Math.PI / 2, a + Math.PI / 2, true); c.closePath();
+  };
+  // 3つの節を合わせた外形だけを描く（太い線で全部なぞってから、中を白でぬる。重なったところの線は消え、関節は外形のふくらみとくびれで見える）
+  c.beginPath(); bones.forEach(([A, B, w]) => bone(A, B, w)); c.lineWidth = lw * 2; c.strokeStyle = HAND_LINE; c.stroke();
+  c.beginPath(); bones.forEach(([A, B, w]) => bone(A, B, w)); c.fillStyle = PAPER; c.fill('nonzero');
+  c.lineWidth = lw; c.strokeStyle = HAND_LINE;
+  const palm = (J, da, db, w) => {   // 手のひら側の関節のしわ：くびれから、指の中へ短く
+    const d = {x: da.x + db.x, y: da.y + db.y}, dl = Math.hypot(d.x, d.y), u = {x: d.x / dl, y: d.y / dl}, n = {x: -u.y, y: u.x};   // n：手のひら側
+    const e = {x: J.x + n.x * w * 0.5, y: J.y + n.y * w * 0.5};
+    c.beginPath(); c.moveTo(e.x, e.y); c.lineTo(e.x - n.x * w * 0.22, e.y - n.y * w * 0.22); c.stroke();
+  };
+  const knuckle = (J, da, db, w) => {   // 背の側の関節のしわ：ふくらみの内側に、短い弧
+    const d = {x: da.x + db.x, y: da.y + db.y}, dl = Math.hypot(d.x, d.y), u = {x: d.x / dl, y: d.y / dl}, n = {x: u.y, y: -u.x};   // n：背の側
+    const kc = {x: J.x + n.x * w * 0.3, y: J.y + n.y * w * 0.3}, a = Math.atan2(n.y, n.x);
+    c.beginPath(); c.arc(kc.x, kc.y, w * 0.12, a - 1.1, a + 1.1); c.stroke();
+  };
+  c.save(); c.lineWidth = lw * 0.6; palm(Pj, d1, d2, w2); palm(Dj, d2, d3, w3); knuckle(Pj, d1, d2, w2); c.restore();
+  // 手の甲の側は、白にとける
+  const fade = c.createLinearGradient(Mj.x + d1.x * F * 0.2, Mj.y + d1.y * F * 0.2, Mj.x + d1.x * F * 1.7, Mj.y + d1.y * F * 1.7); fade.addColorStop(0, PAPER); fade.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = fade; c.beginPath(); c.arc(Mj.x, Mj.y, F * 1.75, 0, Math.PI * 2); c.fill();
+  if (lift > 0.15) {   // 上がっているあいだ：キーの右に、上向きの矢印
+    const ax = cx + bw + F * 0.6, ay1 = plateY - F * 0.2 - L * 0.4, ay0 = ay1 - F * 0.9, hd = F * 0.24;
+    c.save(); c.globalAlpha *= Math.min(1, (lift - 0.15) / 0.4); c.lineWidth = lw * 0.85;
+    c.beginPath(); c.moveTo(ax, ay1); c.lineTo(ax, ay0); c.moveTo(ax - hd, ay0 + hd); c.lineTo(ax, ay0); c.lineTo(ax + hd, ay0 + hd); c.stroke();
+    c.restore();
+  }
+  c.restore();
+}
+function drawPush(S, Ps, t, pb) {
+  const fs = S.fs, a = clamp((t - Ps.t0) / 400, 0, 1), st = Math.min(W * 0.6, pb * 1.45) / 11.4, F = st * 1.35, lw = Math.max(3, st * 0.18);   // アップなので、手の絵より大きく（線の太さは手の絵と同じ）
+  const artH = F * 4.0, gap = fs * 1.9, plateY = (pb - (artH + gap)) / 2 + artH;   // 絵（押し上がった指の上の端から、キーボードの面まで）と1行を、ひとまとまりで縦の真ん中に
+  // 絵は、見えない画面に濃いまま描いてから、丸ごと薄くして重ねる（白でぬって線を隠す描き方なので、じかに薄く描くと、中の線やつけ根の丸い端が透けて、ちらつく）
+  const off = Ps.off ??= document.createElement('canvas');
+  if (off.width !== g.canvas.width || off.height !== g.canvas.height) { off.width = g.canvas.width; off.height = g.canvas.height; }
+  const c = off.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, off.width, off.height); c.setTransform(g.getTransform());
+  pushArt(c, W / 2 + F * 1.1, plateY, F, t - Ps.t0, lw);   // 指が左から入るぶん、少し右に
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = a * pushPhase(t - Ps.t0).vis; g.drawImage(off, 0, 0); g.restore();
+  g.globalAlpha = a;
+  g.font = `600 ${fs}px ${FONT}`; g.fillStyle = INK;
+  riseLine(PUSH_MSG(), W / 2, plateY + gap, fs, Ps.t0 + 400, t, a);   // インストラクターの台詞と同じく、1文字ずつ浮かび上がる
+  g.globalAlpha = 1;
+}
+// 1行を、インストラクターの台詞と同じ出方で描く（t0 から1文字ずつ、下から浮かび上がる）。字の設定（font・fillStyle）は呼ぶ側で。戻り値は、最後の字が出はじめる時刻
+function riseLine(str, cx, cy, size, t0, t, a = 1) {
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  let x = cx - textW(str) / 2, at = t0;
+  for (const ch of str) {
+    const e = easeOut(clamp((t - at) / RISE, 0, 1));
+    if (e > 0) { g.globalAlpha = a * e; g.fillText(ch, x, cy + (1 - e) * size * 0.45); }
+    x += cw1(ch); at += charGap(ch);
+  }
+  g.globalAlpha = 1;
+  return at;
+}
 function drawHands(S, Hs, t, pb) {
   const fs = S.fs, a = clamp((t - Hs.t0) / 400, 0, 1);
   g.globalAlpha = a;
   const aw = Math.min(W * 0.6, pb * 1.45), ab = handsArt(W / 2, pb * 0.1, aw, t, {keys: [], p: 0});
-  const ms = fs * 1.0, [m1, m2] = HANDS_MSG(), y = Math.min(ab + ms * 1.6, pb - ms * 2.8);
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = `600 ${ms}px ${FONT}`; g.fillStyle = INK; g.fillText(m1, W / 2, y);
-  g.font = `500 ${ms * 0.75}px ${FONT}`; g.fillStyle = '#555'; g.fillText(m2, W / 2, y + ms * 1.5);
+  const ms = fs * 1.0, lh = ms * 1.6, lines = HANDS_MSG(), y = Math.min(ab + ms * 1.6, pb - ms * 0.9 - lh * (lines.length - 1));
+  g.font = `600 ${ms}px ${FONT}`; g.fillStyle = INK;
+  let t1 = Hs.t0 + 400;
+  lines.forEach((m, i) => { t1 = riseLine(m, W / 2, y + lh * i, ms, t1, t, a) + 300; });   // 同じ大きさ・同じ太さ・同じ行間。インストラクターの台詞と同じく、1文字ずつ浮かび上がる（2行目は1行目のあと）
   g.globalAlpha = 1;
 }
 function drawScr(S, scr, t, dt, pb) {
   if (!scr) return;
   if (scr.k === 'saver') drawSaver(S, scr, t, dt, pb);
+  else if (scr.k === 'push') drawPush(S, scr, t, pb);
   else if (scr.k === 'hands') drawHands(S, scr, t, pb);
   else if (scr.k === 'title') drawTitle(S, scr, t, pb);
   else if (scr.k === 'cli') drawCli(S, scr, t, dt, pb);

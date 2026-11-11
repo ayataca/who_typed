@@ -37,6 +37,13 @@ html.fs, html.fs *{cursor:none}
 #postResult a{color:#9ecbff}
 #keys{margin-left:auto}
 #status{color:var(--acc)}
+/* スマホ用QR：感想タイムラインを、スマホで読み取って開く（Cloudflare Tunnel のアドレス） */
+#phoneBtn.on{border-color:var(--acc);color:var(--acc)}
+#phoneDlg{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:24px 28px;text-align:center;max-width:min(92vw,420px)}
+#phoneDlg::backdrop{background:rgba(0,0,0,.6)}
+#phoneQr{width:280px;height:280px;margin:12px auto;background:#fff;border-radius:8px;padding:12px;display:grid;place-items:center;color:#555}
+#phoneQr svg{width:100%;height:100%;display:block}
+#phoneUrl{font-size:12px;color:var(--dim);word-break:break-all;user-select:all}
 
 /* ===== 投稿のあとの画面（本編 who-typed-exhibition-scenario.html と同じ組み方。X の部分は白地。post.js） ===== */
 #post{position:absolute;left:0;top:0;display:none;overflow:hidden;background:#fff;
@@ -106,8 +113,16 @@ html.fs, html.fs *{cursor:none}
     <button class="op" id="cameraBtn" title="カメラをつなぐ（つながらなければ、つなぎ直す）">カメラを開始</button><select class="op" id="cameraSel" title="使うカメラ"><option value="">カメラ（自動）</option></select><video id="pv-hands" muted playsinline></video>
     <span id="xStatus">X投稿: 確認中…</span><button class="op" id="deletePost" disabled>直前の投稿をXから削除</button>
     <span id="postResult"></span>
+    <button class="op" id="phoneBtn" title="感想タイムラインを、スマホで読み取って開く">スマホ用QR</button>
   </div>
 </footer>
+<dialog id="phoneDlg">
+  <div>スマホで読み取って、感想タイムラインを開く</div>
+  <div id="phoneQr"></div>
+  <div id="phoneUrl"></div>
+  <form method="dialog" style="margin-top:14px"><button class="op">閉じる</button></form>
+</dialog>
+<script src="/qrcode.js"></script>
 <script src="post.js"></script>
 <script src="reviews_en.js"></script>
 <script src="dialogue.js"></script>
@@ -459,6 +474,31 @@ function loop() {
 layout(); connUI(); inputUI();
 select();
 requestAnimationFrame(loop);
+
+// ---- スマホ用QR：サーバーが一緒に起動した Cloudflare Tunnel のアドレス（起動のたびに変わる）を、QR コードにして出す ----
+{
+  const dlg = $('phoneDlg'), box = $('phoneQr');
+  let shown = null, timer = 0;
+  async function refresh() {
+    let j = {};
+    try { j = await (await fetch('/api/status', {cache: 'no-store'})).json(); } catch (e) {}
+    const url = j.tunnel || '';
+    $('phoneBtn').classList.toggle('on', !!url);
+    if (url === shown) return;
+    shown = url;
+    if (url) {
+      const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+      box.innerHTML = qr.createSvgTag({cellSize: 8, margin: 0, scalable: true});
+      $('phoneUrl').textContent = url;
+    } else {
+      box.textContent = {missing: 'cloudflared が入っていません', off: 'トンネルを使わない設定です（.env の TUNNEL=0）'}[j.tunnelState] || 'トンネルを準備しています…';
+      $('phoneUrl').textContent = j.tunnelState === 'missing' ? 'Windows: winget install --id Cloudflare.cloudflared ／ Mac: brew install cloudflared（入れたら node server.mjs を起動し直す）' : '';
+    }
+  }
+  $('phoneBtn').onclick = () => { shown = null; refresh(); dlg.showModal(); clearInterval(timer); timer = setInterval(refresh, 2000); };
+  dlg.addEventListener('close', () => { clearInterval(timer); timer = setInterval(refresh, 30000); });
+  refresh(); timer = setInterval(refresh, 30000);
+}
 </script>
 </body>
 </html>

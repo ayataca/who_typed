@@ -2,6 +2,7 @@
 // - 展示HTMLを配信する（file:// で開いたときのカメラ権限の問題も避けられる）
 // - X API の認証情報をこのPCの .env にだけ置き、HTMLの代わりにXへ投稿する
 // 起動: node server.mjs  → http://localhost:8787
+import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -325,7 +326,8 @@ async function readX(full = false) {
     fs.writeFileSync(X_CACHE, JSON.stringify(xs));
   } catch (e) {
     if (e.status === 429) xWaitUntil = Date.now() + 15 * 60000;   // 回数の制限：15分待つ
-    console.error(`X からポストを読めませんでした（前に読んだものを出します）: ${e.message}`);
+    const why = e.cause ? `（${e.cause.code || ''} ${e.cause.message || ''}）`.replace('（ ', '（') : '';   // fetch failed のときは、本当の理由が cause にある（DNS・接続・証明書など）
+    console.error(`X からポストを読めませんでした（前に読んだものを出します）: ${e.message}${why}`);
   } finally { xBusy = false; }
 }
 // このPCが投稿したもの：投稿できた時点で、一覧の先頭に入れる（写真はこのPCの手元写真）。X から同じポストを読んだら、そちらに置き換わる。
@@ -412,7 +414,7 @@ const send = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'a
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
-    if (url.pathname === '/api/status' && req.method === 'GET') return send(res, 200, { configured, dryRun, handle, name: profile().name, llm: !!LLM_KEY });
+    if (url.pathname === '/api/status' && req.method === 'GET') return send(res, 200, { configured, dryRun, handle, name: profile().name, llm: !!LLM_KEY, tunnel: tunnel.url ? tunnel.url + '/timeline' : '', tunnelState: tunnel.state });
     if (url.pathname === '/api/post' && req.method === 'POST') { const r = await handlePost(await readJson(req)); return send(res, r.status, r.body); }
     if (url.pathname === '/api/delete' && req.method === 'POST') { const r = await handleDelete(await readJson(req, 4096)); return send(res, r.status, r.body); }
     if (url.pathname === '/api/llm' && req.method === 'POST') {
@@ -435,7 +437,36 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// ---- スマホ用：Cloudflare Tunnel（8788 番だけを、インターネット経由で見せる） ----
+// cloudflared が入っていれば、サーバーと一緒に起動する（.env に TUNNEL=0 で起動しない）。アドレス（https://〇〇.trycloudflare.com）は起動のたびに変わるので、
+// 出力から拾って /api/status で返す。keycap_lab の下の帯の「スマホ用QR」で、QR コードにして出す。8787 番（投稿の API）は公開しない
+const tunnel = { url: '', state: 'off', proc: null };
+function startTunnel() {
+  if (env.TUNNEL === '0') return;
+  tunnel.state = 'starting';
+  const p = tunnel.proc = spawn('cloudflared', ['tunnel', '--no-autoupdate', '--url', `http://localhost:${VIEW_PORT}`], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  const scan = d => {
+    const m = /https:\/\/[a-z0-9]+(?:-[a-z0-9]+)+\.trycloudflare\.com/.exec(String(d));
+    if (m && m[0] !== tunnel.url) { tunnel.url = m[0]; tunnel.state = 'on'; console.log(`スマホ用（Cloudflare Tunnel）: ${tunnel.url}/timeline　（下の帯の「スマホ用QR」で QR コードを出せます）`); }
+  };
+  p.stdout.on('data', scan); p.stderr.on('data', scan);
+  p.on('error', e => {
+    tunnel.proc = null; tunnel.url = '';
+    tunnel.state = e.code === 'ENOENT' ? 'missing' : 'off';
+    console.log(e.code === 'ENOENT' ? 'cloudflared が見つからないので、スマホ用のトンネルは開きません（Windows: winget install --id Cloudflare.cloudflared ／ Mac: brew install cloudflared）' : `cloudflared を起動できません: ${e.message}`);
+  });
+  p.on('exit', () => {
+    if (tunnel.proc !== p) return;
+    tunnel.proc = null; tunnel.url = ''; tunnel.state = 'starting';
+    console.log('スマホ用のトンネルが切れました。15秒後に開き直します（アドレスが変わるので、スマホで読み取り直してください）');
+    setTimeout(startTunnel, 15000);
+  });
+}
+const stopTunnel = () => { const p = tunnel.proc; tunnel.proc = null; try { p?.kill(); } catch (e) {} };
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  process.on('exit', stopTunnel);
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => process.exit(0));
   server.on('error', e => {
     if (e.code === 'EADDRINUSE') {
       console.error(`ポート ${PORT} はすでに使われています。別の場所でサーバーが起動したままになっていないか確認してください。`);
@@ -450,6 +481,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   viewServer.on('error', e => console.error(`感想タイムライン用ポート ${VIEW_PORT} を開けません: ${e.message}`));
   viewServer.listen(VIEW_PORT, '0.0.0.0', () => {
     console.log(`感想タイムライン（スマホで開いてプロジェクタへ）: ${lanUrl()}/timeline`);
+    startTunnel();
   });
   server.listen(PORT, '127.0.0.1', () => {
     console.log(`Who Typed? サーバー: http://localhost:${PORT}`);
