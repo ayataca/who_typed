@@ -144,12 +144,19 @@ const SEND_PAUSE = 550;   // 打ち終えてから送信（Enter）を押すま�
 const SAVER_NOTE = () => tr('手元の写真が、実際にXに投稿されます。', 'A photo of your hands will really be posted to X.');
 // あいさつのあとの1枚目：キーと指を横から見た絵（アニメーション）と1行。3択だけの展示だと思われないよう、手前の面白さ（キーが勝手に動く打鍵感）を先に見せる（11/11）
 const PUSH_MSG = () => tr('この展示では、キーがひとりでに動いて、あなたの指を押し上げます。', 'In this exhibit, the keys move on their own and push your fingers up.');
-const PUSH_CYCLE = 1700;   // 押し上げ1回の長さ（浮かび出る → 止まる → 上がる → 止まる → 消える → 何もない）
-const PUSH_MS = PUSH_CYCLE * 2 + 1400;   // この画面を見せる時間：キーが指を押し上げるのを3回、3回目の絵が消えきるまで（消えきるのは、1回の中の1.4秒の時点）
+const PUSH_CYCLE = 2100;   // 押し上げ1回の長さ（浮かび出る → 止まる → 上がる → 止まる → 消える → 何もない）
+// 最初の説明の2枚は、ゆっくり（11/11：「もっとゆっくり」）：字は台詞の倍の間で浮かび上がり、出きってから INTRO_READ_MS 読む時間をおいて次へ
+const INTRO_CHAR_MS = 90;     // 1文字の間（台詞は SAY_MS＝45）
+const INTRO_READ_MS = 4000;   // 字が出きってから、次の画面へ移るまで
+const introDur = str => [...str].reduce((s, ch) => s + charGap(ch, INTRO_CHAR_MS), 0);   // 1行が出きるまで（最後の字が浮かび上がりきる分は、RISE を足す）
+const PUSH_MS = () => {   // この画面を見せる時間：字が出きって読む時間がたったあと、押し上げのループの、絵が消えきるところで終える（消えきるのは、1回の中の1.4秒の時点）
+  const need = 400 + introDur(PUSH_MSG()) + RISE + INTRO_READ_MS;
+  return PUSH_CYCLE * Math.max(2, Math.ceil((need - 1400) / PUSH_CYCLE)) + 1400;
+};
 // あいさつのあとの2枚目：指の置き方（2行とも、同じ大きさ・同じ太さ・同じ行間）
 const HANDS_MSG = () => [tr('親指以外の8本を、体重をかけずに軽く添えてください。', 'Rest 8 fingers lightly, without your thumbs.'),
   tr('強く押さえると、キーが上がりきらないことがあります。', "If you press down hard, the keys may not rise all the way.")];
-const HANDS_MS = 5500;   // 指の置き方を見せる時間
+const HANDS_MS = () => 400 + HANDS_MSG().reduce((s, m) => s + introDur(m), 0) + 300 + RISE + INTRO_READ_MS;   // 指の置き方を見せる時間（2行が出きって、読む時間がたつまで）
 // 始め方の2行。1行目は [強調する部分（赤）, 続き] に分けて書く。キーの文字（F）は、来場者には関係ないので出さない
 const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったら長押ししてください'], ['If you agree', ', press and hold the key when it rises.']);   // [強調する部分（赤）, 続き]
 // 待機画面の文字：作品名のほかは、すべて同じ大きさ・同じ太さ（強調は、色だけ）
@@ -796,7 +803,7 @@ async function stepTitle(S) {
 
 // ================= 進行 =================
 // 各場面の始まりの目安（ms）。ふつうの進み方の値。これより8秒以上遅れていたら、打つテンポと間を少し速める（16秒以上なら、もう少し）
-const DUE = {hello: 600, hands: 3800, tryKeys: 14700, toLine: 23500, line: 28500, toX: 100800, x: 111500};   // 通しの実測（11/11。あいさつ → キーが指を押し上げる絵 → 指の置き方 → キーにまかせて打つ。LINE は最初の返事（指が打つ）→ 返信提案2回 → おまかせ返信。選ぶ場面で、すぐ押したとき）
+const DUE = {hello: 600, hands: 3800, tryKeys: 25000, toLine: 33800, line: 38800, toX: 111100, x: 121800};   // 通しの実測（11/11。あいさつ → キーが指を押し上げる絵 → 指の置き方 → キーにまかせて打つ。LINE は最初の返事（指が打つ）→ 返信提案2回 → おまかせ返信。選ぶ場面で、すぐ押したとき）
 const LATE = [8000, 16000];
 const mark = (S, name) => S.tl.push([name, Math.round(now() - S.t0)]);
 function phase(S, p) {
@@ -811,8 +818,8 @@ async function main(S) {
   if (from === 0) {
     await beat(S, 600); phase(S, 'hello'); await stepHello(S);   // 「はじめまして。今日は、私がお手伝いします。」
     // ここからが説明（チュートリアル）：キーが指を押し上げる絵 → 指の置き方 → キーにまかせて打つ（11/11：3択の練習はテンポのためにやめた。選び方は、最初に選ぶ場面〔LINE の返信提案の1回目〕で「上がったキーを押して、選んでください」と添える）
-    phase(S, 'hands'); S.scr = {k: 'push', t0: now()}; await wait(S, PUSH_MS);   // キーが指を押し上げる、横から見た絵
-    S.scr = {k: 'hands', t0: now()}; await wait(S, HANDS_MS);   // 指の置き方
+    phase(S, 'hands'); S.scr = {k: 'push', t0: now()}; await wait(S, PUSH_MS());   // キーが指を押し上げる、横から見た絵
+    S.scr = {k: 'hands', t0: now()}; await wait(S, HANDS_MS());   // 指の置き方
     S.scr = S.cli; await beat(S, 600); phase(S, 'tryKeys'); await stepTryKeys(S);   // キーにまかせて、あいさつを打つ
   }
   if (from <= 1) {
@@ -1169,27 +1176,10 @@ function lineRows(L, size, lh, maxB) {
     return {m, lines, bw: Math.max(size * 1.7, w + size * 1.6), bh: lines.length * lh + size * 1.0};
   });
 }
-// ---- LINE（iPad 版・横向き。外付けキーボードで打つ）：上に iPad の時刻と電池、左にトーク一覧、右にトーク。ロゴは使わない ----
-// トーク一覧（鈴木のほか）：[名前, 最後の文, 時刻, 未読, アイコン]。グループは、名前の右に人数（例：(6)）
-const LINE_LIST_JA = [['大野恵子', '明日雨らしいよ。傘忘れずにね', '11:52', 0, 'mom'], ['Yuu', '了解！また連絡するね', '昨日', 0, 'yui'], ['3年7組', '写真送ります', '昨日', 0, 'hs', 31],
-  ['Takashi', 'スタンプを送信しました', '昨日', 0, 'takashi'], ['上村研M1', '明日の資料共有します！', '月曜', 0, 'groupDefault', 5], ['はるか', 'ありがとう〜！', '11/7', 0, 'haruka'],
-  ['田中健太', '了解です', '11/6', 0, 'tanaka'], ['バスケ部 72回生', '次の集まりの日程です', '11/5', 0, 'bball', 23], ['山本 けんた', 'また今度！', '11/3', 0, 'yamamoto'], ['なかむら', 'おけ', '11/1', 0, 'nakamura'],
-  ['佐々木 美咲', '写真ありがとう！', '10/30', 0, 'misaki'], ['ゼミ旅行', '宿の予約しました！', '10/28', 0, 'trip', 6], ['りょう', '了解！', '10/26', 0, 'personDefault'],
-  ['Mai', 'スタンプを送信しました', '10/24', 0, 'mai'], ['サークル同期', '来週の飲み会、出欠お願いします', '10/21', 0, 'circle', 14], ['おおた', 'ありがと！', '10/18', 0, 'ota'],
-  ['小林 優花', 'また連絡するね〜', '10/15', 0, 'yuka'], ['誕生日サプライズ', '動画まとめました！', '10/11', 0, 'groupDefault', 8], ['Sho', 'おつかれ！', '10/7', 0, 'sho'],
-  ['松本 拓也', '承知しました', '10/2', 0, 'personDefault']];
-const LINE_LIST_EN = [['Keiko Ono', 'Rain tomorrow. Take an umbrella', '11:52', 0, 'mom'], ['yui', 'Got it! Talk soon', 'Yesterday', 0, 'yui'], ['Class 3-7', 'Sending the photos', 'Yesterday', 0, 'hs', 31],
-  ['Takashi', 'Sent a sticker', 'Yesterday', 0, 'takashi'], ['Uemura Lab M1', "Sharing tomorrow's slides", 'Mon', 0, 'groupDefault', 5], ['Haruka', 'Thanks!!', '11/7', 0, 'haruka'],
-  ['Kenta Tanaka', 'Noted', '11/6', 0, 'tanaka'], ['Basketball Class of 2020', 'Here are the dates for the meetup', '11/5', 0, 'bball', 23], ['Kenta Yamamoto', 'Next time!', '11/3', 0, 'yamamoto'], ['nakamura', 'ok', '11/1', 0, 'nakamura'],
-  ['Misaki Sasaki', 'Thanks for the photos!', '10/30', 0, 'misaki'], ['Seminar trip', 'Booked the inn!', '10/28', 0, 'trip', 6], ['Ryo', 'Got it!', '10/26', 0, 'personDefault'],
-  ['Mai', 'Sent a sticker', '10/24', 0, 'mai'], ['Club friends', "Next week's drinks: let us know if you're coming", '10/21', 0, 'circle', 14], ['ota', 'Thx!', '10/18', 0, 'ota'],
-  ['Yuka Kobayashi', 'Talk soon~', '10/15', 0, 'yuka'], ['Birthday surprise', 'Put the video together!', '10/11', 0, 'groupDefault', 8], ['Sho', 'Good work today!', '10/7', 0, 'sho'],
-  ['Takuya Matsumoto', 'Understood', '10/2', 0, 'personDefault']];
+// ---- LINE（iPad 版・横向き。外付けキーボードで打つ）：上に iPad の時刻と電池、その下にトーク（画面の幅いっぱい。左のトーク一覧は 11/11 にやめた）。ロゴは使わない ----
 // アイコン：実在の LINE でよくある、ペット・景色・食べものなどの写真のような絵柄（絵文字を、色のついた地に大きく）。
 // keycap_lab/avatars/<名前>.jpg（例：suzuki.jpg）を置くと、その写真に差し替わる
-const AVATARS = {suzuki: [30, '🐶'], mom: [340, '🌷'], yui: [355, '🍓'], hs: [200, '🏫'], takashi: [120, '⚽'], seminar: [45, '📚'], haruka: [195, '🌊'],
-  tanaka: [25, '☕'], bball: [20, '🏀'], yamamoto: [265, '🎸'], nakamura: [210, '🐈'],
-  misaki: [340, '🌸'], trip: [120, '🦌'], mai: [30, '🐕'], circle: [30, '☕'], ota: [25, '🐻'], yuka: [45, '🍵'], sho: [50, '🚕']};
+const AVATARS = {suzuki: [30, '🐶']};   // 左のトーク一覧をやめたので、アイコンは鈴木だけ（11/11）
 const AVATAR_IMG = {};
 for (const k of Object.keys(AVATARS)) { const im = new Image(); im.onload = () => { AVATAR_IMG[k] = im; }; im.src = `/keycap_lab/avatars/${k}.jpg`; }
 const LINE_BG = '#8eaad6';
@@ -1251,7 +1241,7 @@ function statusBar(S, h) {   // iPad の上のバー：左に時刻と日付、�
 }
 function drawLine(S, L, t, dt, pb) {
   const fs = S.fs, sb = fs * 0.95, hh = fs * 1.9, size = fs * 0.76, lh = size * 1.5, ib = fs * 2.6, ad = fs * 1.35, gap = size * 0.6;   // トークの字は、少し小さめ
-  const listW = Math.round(W * 0.3), x0 = listW, cw = W - listW, top = sb + hh, maxB = cw * 0.64;
+  const x0 = 0, cw = W, top = sb + hh, maxB = cw * 0.64;   // 左のトーク一覧は出さない（11/11）。トークが画面の幅いっぱい
   // 下から：AI のボタンの列（①を送ってから）→ 入力欄。AI の返信提案は、入力欄の上に開く
   const chH = L.aiOn ? fs * 2.0 * easeOut(clamp((t - L.aiOn) / 350, 0, 1)) : 0, chY = pb - chH, iy = chY - ib;
   const sheetH = L.sheet ? sheetHeight(S, L.sheet) : 0, sheetY = iy - fs * 0.35 - sheetH, above = L.sheet ? sheetY : iy;
@@ -1302,29 +1292,6 @@ function drawLine(S, L, t, dt, pb) {
   g.fillStyle = '#ffffff'; g.fillRect(x0, sb, cw, hh); g.fillStyle = '#e1e4e8'; g.fillRect(x0, sb + hh - 1, cw, 1);
   g.fillStyle = INK; g.textBaseline = 'middle'; g.textAlign = 'left'; g.font = `700 ${fs * 0.78}px ${FONT}`; g.fillText(L.name, x0 + fs * 0.9, sb + hh / 2);
   ['menu', 'phone', 'search'].forEach((k, i) => ico(k, W - fs * (0.95 + i * 1.35), sb + hh / 2, fs * 0.8));
-  // 左：トーク一覧（鈴木のトークが選ばれている）
-  g.fillStyle = '#ffffff'; g.fillRect(0, sb, listW, pb - sb); g.fillStyle = '#e1e4e8'; g.fillRect(listW - 1, sb, 1, pb - sb);
-  g.font = `800 ${fs * 0.86}px ${FONT}`; g.fillStyle = INK; g.textAlign = 'left'; g.fillText(tr('トーク', 'Chats'), fs * 0.8, sb + hh / 2);
-  ico('compose', listW - fs * 0.95, sb + hh / 2, fs * 0.8);
-  const sy = sb + hh + fs * 0.1, sh2 = fs * 1.15;
-  g.fillStyle = '#f0f1f4'; rr(fs * 0.7, sy, listW - fs * 1.4, sh2, sh2 / 2); g.fill();
-  ico('search', fs * 0.7 + fs * 0.6, sy + sh2 / 2, fs * 0.55, '#8b9099'); g.font = `500 ${fs * 0.48}px ${FONT}`; g.fillStyle = '#8b9099'; g.fillText(tr('検索', 'Search'), fs * 0.7 + fs * 1.05, sy + sh2 / 2);
-  const last = L.msgs[L.msgs.length - 1], rowsL = [[L.name, last ? (last.stamp ? tr('スタンプを送信しました', 'Sent a sticker') : last.full) : '', last ? last.time : '', 0, 'suzuki', 0, true], ...(LANG === 'en' ? LINE_LIST_EN : LINE_LIST_JA)];
-  const rh = fs * 2.25;
-  rowsL.forEach(([name, msg, time, unread, av, members, sel], i) => {
-    const ry = sy + sh2 + fs * 0.5 + rh * i;
-    if (ry > pb) return;
-    if (sel) { g.fillStyle = '#eef1f6'; g.fillRect(0, ry, listW - 1, rh); }
-    const ar = fs * 0.78, ax = fs * 0.8 + ar;
-    avatar(ax, ry + rh / 2, ar, av);
-    const tx = ax + ar + fs * 0.45, tw = listW - tx - fs * 2.4;
-    g.textAlign = 'left'; g.font = `700 ${fs * 0.56}px ${FONT}`; g.fillStyle = INK;
-    const nm = fitText(name, tw - (members ? fs * 1.2 : 0)); g.fillText(nm, tx, ry + rh * 0.36);
-    if (members) { const nw = g.measureText(nm).width; g.font = `500 ${fs * 0.5}px ${FONT}`; g.fillStyle = '#8b9099'; g.fillText(`(${members})`, tx + nw + fs * 0.15, ry + rh * 0.36); }   // グループは、名前の右に人数
-    g.font = `500 ${fs * 0.46}px ${FONT}`; g.fillStyle = '#7d828b'; g.fillText(fitText(strip(msg), tw + fs * 1.4), tx, ry + rh * 0.66);
-    g.textAlign = 'right'; g.font = `500 ${fs * 0.4}px ${FONT}`; g.fillStyle = '#9aa0a8'; g.fillText(time || '', listW - fs * 0.6, ry + rh * 0.36);
-    if (unread) { const ux = listW - fs * 0.9, uy = ry + rh * 0.66; g.fillStyle = '#06c755'; g.beginPath(); g.arc(ux, uy, fs * 0.3, 0, Math.PI * 2); g.fill(); g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.font = `700 ${fs * 0.36}px ${FONT}`; g.fillText(String(unread), ux, uy + 1); }
-  });
   statusBar(S, sb);
   if (C && C.bar) { C.iy = above; C.msgY = above - fs * 1.05; C.mx = x0 + cw / 2; }   // 天の声は、入力欄（AI の提案が開いていれば、その上）のすぐ上、トークの真ん中に
   // 入力欄：左に ＋・カメラ・画像、まん中に入力欄（右に顔文字）、右にマイク（字が入ると、紙飛行機）
@@ -1763,14 +1730,14 @@ function drawPush(S, Ps, t, pb) {
   riseLine(PUSH_MSG(), W / 2, plateY + gap, fs, Ps.t0 + 400, t, a);   // インストラクターの台詞と同じく、1文字ずつ浮かび上がる
   g.globalAlpha = 1;
 }
-// 1行を、インストラクターの台詞と同じ出方で描く（t0 から1文字ずつ、下から浮かび上がる）。字の設定（font・fillStyle）は呼ぶ側で。戻り値は、最後の字が出はじめる時刻
+// 1行を、インストラクターの台詞と同じ出方で描く（t0 から1文字ずつ、下から浮かび上がる。間は INTRO_CHAR_MS で、台詞よりゆっくり）。字の設定（font・fillStyle）は呼ぶ側で。戻り値は、最後の字が出はじめる時刻
 function riseLine(str, cx, cy, size, t0, t, a = 1) {
   g.textAlign = 'left'; g.textBaseline = 'middle';
   let x = cx - textW(str) / 2, at = t0;
   for (const ch of str) {
     const e = easeOut(clamp((t - at) / RISE, 0, 1));
     if (e > 0) { g.globalAlpha = a * e; g.fillText(ch, x, cy + (1 - e) * size * 0.45); }
-    x += cw1(ch); at += charGap(ch);
+    x += cw1(ch); at += charGap(ch, INTRO_CHAR_MS);
   }
   g.globalAlpha = 1;
   return at;
