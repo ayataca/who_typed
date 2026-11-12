@@ -350,12 +350,14 @@ const fromXReady = () => !dryRun && !!xs.at;
 const showable = e => dryRun || !e.dryRun;
 const photoPath = sessionId => path.join(POSTS_DIR, `${sessionId}.jpg`);
 function photoUrl(e) { return showable(e) && fs.existsSync(photoPath(e.sessionId)) ? `/photo/${e.sessionId}.jpg` : ''; }
+// 感想タイムライン（スマホ・プロジェクタ）に出すポスト：見出しが【来場者の声...？】（英語は【Visitor Review...?】）のものだけ（11/12。前の【来場者の声】の形や、お知らせなどは出さない）
+const TL_HEAD = /^【(来場者の声\.\.\.？|Visitor Review\.\.\.\?)】/;
 function timeline(limit = 50) {
-  if (fromXReady()) return xThreads().filter(ts => /^【(来場者の声|Visitor Review)/.test(ts[0].text)).slice(0, limit).map(ts => ({   // 展示のポストだけ（お知らせなどは出さない）。見出しは【来場者の声】（前）と【来場者の声...？】（11/12〜。星は2行目）のどちらも。星は、空行より前から数える
+  if (fromXReady()) return xThreads().filter(ts => TL_HEAD.test(ts[0].text)).slice(0, limit).map(ts => ({   // 星は、空行より前（見出しと、星の行）から数える
     id: ts[0].id, at: ts[0].at, rating: (ts[0].text.split('\n\n')[0].match(/★/g) || []).length || null, text: ts.map(t => t.text).join(''), texts: ts.map(t => t.text), photo: ts[0].photo,
   }));
   // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない
-  return postedEntries().filter(showable).slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join(''), texts: e.texts, photo: photoUrl(e) }));
+  return postedEntries().filter(e => showable(e) && TL_HEAD.test(e.texts?.[0] || '')).slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join(''), texts: e.texts, photo: photoUrl(e) }));
 }
 
 // ---- 名前とアイコン（感想タイムライン）。このフォルダに feed-avatar.png（または .jpg）を置くとアイコンになる ----
