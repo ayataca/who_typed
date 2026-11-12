@@ -159,7 +159,7 @@ const HANDS_MSG = () => tr([[['親指以外の8本を、', 0], ['体重はかけ
 const segText = line => line.map(x => x[0]).join('');
 const HANDS_MS = () => 400 + HANDS_MSG().reduce((s, m) => s + introDur(segText(m)), 0) + 300 + RISE + INTRO_READ_MS;   // 指の置き方を見せる時間（2行が出きって、読む時間がたつまで）
 // 始め方の2行。1行目は [強調する部分（赤）, 続き] に分けて書く。キーの文字（F）は、来場者には関係ないので出さない
-const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったら長押ししてください'], ['If you agree', ', press and hold the key when it rises.']);   // [強調する部分（赤）, 続き]
+const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったら力強くゆっくり長押ししてください'], ['If you agree', ', press the key firmly and slowly when it rises, and hold it.']);   // [強調する部分（赤）, 続き]
 // 待機画面の文字：作品名のほかは、すべて同じ大きさ・同じ太さ（強調は、色だけ）
 const SAVER_FS = 1.6, SAVER_W = 700;   // 11/12：もとの2倍の大きさで、少し太く（もとは 0.8・600）。画面の幅に収まらないときは、収まる大きさまで小さくする
 const WAKE_UP_MS = 2500;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる。画面のオレンジは、上げた瞬間に出す（実物と画面がずれないように。上がった直後のゆれは、基板が読まない）
@@ -1659,7 +1659,7 @@ function drawSaver(S, V, t, dt, pb) {
   g.font = font; g.fillStyle = INK;
   const xc = W / 2;   // 文は画面の中央にそろえる（丸と線だけが、実物の F キーの上）
   g.fillText(SAVER_NOTE(), xc, y1);   // Xへの投稿のこと（同意してもらう中身）
-  if (weak) { g.fillStyle = RED; g.fillText(tr('もう一度、長押ししてください', 'Press and hold once more'), xc, y2); }   // 弱くて無視したとき：2行目の代わりに（2秒）
+  if (weak) { g.fillStyle = RED; g.fillText(tr('もう一度、力強くゆっくり長押ししてください', 'Once more: press firmly and slowly, and hold'), xc, y2); }   // 弱くて無視したとき：2行目の代わりに（2秒）
   else {   // 「同意いただける方は」だけ赤
     const w0 = g.measureText(go[0]).width, w1 = g.measureText(go[1]).width, x0 = xc - (w0 + w1) / 2;
     g.textAlign = 'left'; g.fillStyle = RED; g.fillText(go[0], x0, y2); g.fillStyle = INK; g.fillText(go[1], x0 + w0, y2); g.textAlign = 'center';
@@ -1753,14 +1753,14 @@ function riseLine(str, cx, cy, size, t0, t, a = 1) {
   g.globalAlpha = 1;
   return at;
 }
-// riseLine の、強調まじりの版：segs は [文, 強調するか] の並び。強調は太字（800）と下線（字が浮かび上がるのに合わせて、線も字ごとにのびる）。ふつうの字は 600
+// riseLine の、強調まじりの版：segs は [文, 強調するか] の並び。強調は赤の太字（800）と下線（字が浮かび上がるのに合わせて、線も字ごとにのびる）。ふつうの字は黒の 600
 function riseSegs(segs, cx, cy, size, t0, t, a = 1) {
   const font = em => `${em ? 800 : 600} ${size}px ${FONT}`;
   const w = segs.reduce((s, [str, em]) => { g.font = font(em); return s + textW(str); }, 0);
   g.textAlign = 'left'; g.textBaseline = 'middle';
   let x = cx - w / 2, at = t0;
   for (const [str, em] of segs) {
-    g.font = font(em);
+    g.font = font(em); g.fillStyle = em ? RED : INK;   // 強調は、赤も（11/12：もっと強調したい）
     for (const ch of str) {
       const e = easeOut(clamp((t - at) / RISE, 0, 1)), cw = cw1(ch);
       if (e > 0) {
