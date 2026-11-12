@@ -79,7 +79,7 @@ function place(w, h) {
 
 // ---- 投稿の本文：1件目に星とハッシュタグ。長文は1ポスト250まで（X の数え方。日本語なら125字）に区切り、2つ目以降はスレッド（返信）にする ----
 function buildPosts(review, rating) {
-  const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating), head = `${tr('【来場者の声】', '【Visitor Review】')}${stars} #who_typed #東京大学制作展_Who_typed\n\n`, LIMIT = 250, out = [];
+  const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating), head = `${tr('【来場者の声...？】', '【Visitor Review...?】')}\n${stars} #who_typed #東京大学制作展_Who_typed\n\n`, LIMIT = 250, out = [];
   let cur = head;
   let rest0 = '';
   const push = () => { out.push(cur.trimEnd()); cur = ''; };

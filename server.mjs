@@ -351,8 +351,8 @@ const showable = e => dryRun || !e.dryRun;
 const photoPath = sessionId => path.join(POSTS_DIR, `${sessionId}.jpg`);
 function photoUrl(e) { return showable(e) && fs.existsSync(photoPath(e.sessionId)) ? `/photo/${e.sessionId}.jpg` : ''; }
 function timeline(limit = 50) {
-  if (fromXReady()) return xThreads().filter(ts => /^【(来場者の声|Visitor Review)】/.test(ts[0].text)).slice(0, limit).map(ts => ({   // 展示のポストだけ（お知らせなどは出さない）
-    id: ts[0].id, at: ts[0].at, rating: (ts[0].text.split('\n')[0].match(/★/g) || []).length || null, text: ts.map(t => t.text).join(''), texts: ts.map(t => t.text), photo: ts[0].photo,
+  if (fromXReady()) return xThreads().filter(ts => /^【(来場者の声|Visitor Review)/.test(ts[0].text)).slice(0, limit).map(ts => ({   // 展示のポストだけ（お知らせなどは出さない）。見出しは【来場者の声】（前）と【来場者の声...？】（11/12〜。星は2行目）のどちらも。星は、空行より前から数える
+    id: ts[0].id, at: ts[0].at, rating: (ts[0].text.split('\n\n')[0].match(/★/g) || []).length || null, text: ts.map(t => t.text).join(''), texts: ts.map(t => t.text), photo: ts[0].photo,
   }));
   // 本番モードのときは、リハーサル中の模擬投稿（X に出ていないもの）を出さない
   return postedEntries().filter(showable).slice(-limit).reverse().map(e => ({ id: e.sessionId, at: e.at, rating: e.rating ?? null, text: e.texts.join(''), texts: e.texts, photo: photoUrl(e) }));
