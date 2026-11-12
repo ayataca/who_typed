@@ -84,7 +84,9 @@ html.fs, html.fs *{cursor:none}
 @keyframes kp-spin{to{transform:rotate(360deg)}}
 #post .ask{display:grid;grid-template-columns:1fr 470px;gap:40px;align-items:stretch}
 #post .ask-l{position:relative;display:flex;flex-direction:column;justify-content:center}
-#post .ask .who{font:700 56px/1.45 "Noto Sans JP",sans-serif;letter-spacing:.04em;margin:0;color:var(--ink)}
+#post .ask .said{font:700 30px/1.6 "Noto Sans JP",sans-serif;letter-spacing:.03em;margin:0 0 10px;color:var(--ink);opacity:0;animation:kp-said .9s ease-out forwards}
+#post .ask .said.who{font:700 46px/1.45 "Noto Sans JP",sans-serif;letter-spacing:.04em;margin:30px 0 0}
+@keyframes kp-said{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 #post .ask .rule{width:120px;height:1px;background:var(--gray);margin:0 0 26px}
 #post .ask .thread{margin:0;max-height:560px;align-self:center}
 #post .thanks .qr{width:210px;height:210px;margin:0 auto 12px;display:block;image-rendering:pixelated;box-shadow:0 0 0 1px var(--rule)}

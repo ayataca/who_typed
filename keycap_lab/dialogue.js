@@ -155,7 +155,7 @@ const PUSH_MS = () => {   // この画面を見せる時間：字が出きって
 };
 // あいさつのあとの2枚目：指の置き方（2行とも、同じ大きさ・同じ太さ・同じ行間）
 const HANDS_MSG = () => [tr('親指以外の8本を、体重をかけずに軽く添えてください。', 'Rest 8 fingers lightly, without your thumbs.'),
-  tr('強く押さえると、キーが上がりきらないことがあります。', "If you press down hard, the keys may not rise all the way.")];
+  tr('押さえてしまうと、キーが上がりきらないことがあります。', "If you hold them down, the keys may not rise all the way.")];
 const HANDS_MS = () => 400 + HANDS_MSG().reduce((s, m) => s + introDur(m), 0) + 300 + RISE + INTRO_READ_MS;   // 指の置き方を見せる時間（2行が出きって、読む時間がたつまで）
 // 始め方の2行。1行目は [強調する部分（赤）, 続き] に分けて書く。キーの文字（F）は、来場者には関係ないので出さない
 const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったら長押ししてください'], ['If you agree', ', press and hold the key when it rises.']);   // [強調する部分（赤）, 続き]
@@ -749,7 +749,7 @@ async function stepX(S, stars, draftP) {
 }
 
 // Xへの投稿と、そのあとの画面（本編と同じ流れ。post.js。X の画面は白地のまま）：ポストの確認 → 掲載を許可する（Enter）→ 公開中（server.mjs から実際に投稿）
-// → 問いかけ「この投稿を書いたのは、誰…？」→ Who typed?（作品名が打たれる）→ 終了（QR）
+// → 問いかけ（これはあなたの文章ではないが、あなたの指で打たれ、あなたの指の写真とともに投稿された。→ この投稿を書いたのは、誰…？）→ Who typed?（作品名が打たれる）→ 終了（QR）
 const el = id => document.getElementById(id);
 async function stepPost(S, review, rating, img) {
   const KP = window.KC_POST, CF = KP.CONFIG, posts = KP.buildPosts(review, rating);
@@ -769,7 +769,11 @@ async function stepPost(S, review, rating, img) {
   if (el('kp-posting')) el('kp-posting').textContent = KP.phraseBreak(want && KP.wantPost() ? (posted ? tr('投稿が完了しました。', 'Your post is live.') : tr('投稿を完了できませんでした。スタッフにお声がけください。', "We couldn't complete your post. Please ask a staff member.")) : tr('このセッションは公開されません。', 'This session will not be posted.'));
   await wait(S, 1000);
   phase(S, 'ask');
-  KP.show(9, `<div class="ask"><div class="ask-l"><div class="rule"></div><h1 class="who">${tr('この投稿を書いたのは、<br>誰…？', 'Who wrote<br>this post…?')}</h1></div><div class="thread scroll" id="kp-ask">${KP.threadHTML(posts, img)}</div></div>`);
+  // 投稿の横に、3行が1行ずつ浮かぶ：これはあなたの文章ではないが、→ あなたの指で打たれ、→ あなたの指の写真とともに投稿された。→ 少し間をおいて、問い「この投稿を書いたのは、誰…？」。そのあと、指が Who typed? を打つ
+  const out = want && KP.wantPost() && posted;
+  const said = [tr('これはあなたの文章ではないが、', "These aren't your words,"), tr('あなたの指で打たれ、', 'but your fingers typed them,'),   // 一文を、読点で3行に分ける（11/12 の文言）
+    out ? tr('あなたの指の写真とともに投稿された。', 'and they were posted with a photo of your fingers.') : tr('あなたの指の写真とともに投稿されるところだった。', 'and they almost got posted with a photo of your fingers.')];
+  KP.show(9, `<div class="ask"><div class="ask-l"><div class="rule"></div>${said.map((l, i) => `<p class="said" style="animation-delay:${600 + i * 1900}ms">${l}</p>`).join('')}<h1 class="who said" style="animation-delay:${600 + 3 * 1900 + 400}ms">${tr('この投稿を書いたのは、<br>誰…？', 'Who wrote<br>this post…?')}</h1></div><div class="thread scroll" id="kp-ask">${KP.threadHTML(posts, img)}</div></div>`);
   KP.fillThread('#kp-ask', posts);
   at(1500, () => KP.autoScroll(el('kp-ask'), CF.askMs * 0.8));
   await wait(S, CF.askMs);
@@ -817,7 +821,7 @@ async function main(S) {
   S.scr = S.cli;
   if (from === 0) {
     await beat(S, 600); phase(S, 'hello'); await stepHello(S);   // 「はじめまして。今日は、私がお手伝いします。」
-    // ここからが説明（チュートリアル）：キーが指を押し上げる絵 → 指の置き方 → キーにまかせて打つ（11/11：3択の練習はテンポのためにやめた。選び方は、最初に選ぶ場面〔LINE の返信提案の1回目〕で「上がったキーを押して、選んでください」と添える）
+    // ここからが説明（チュートリアル）：キーが指を押し上げる絵 → 指の置き方 → キーにまかせて打つ（11/11：3択の練習はテンポのためにやめた。選び方は、最初に選ぶ場面〔LINE の返信提案の1回目〕で「上がったキーをゆっくり長押しして、選んでください」と添える）
     phase(S, 'hands'); S.scr = {k: 'push', t0: now()}; await wait(S, PUSH_MS());   // キーが指を押し上げる、横から見た絵
     S.scr = {k: 'hands', t0: now()}; await wait(S, HANDS_MS());   // 指の置き方
     S.scr = S.cli; await beat(S, 600); phase(S, 'tryKeys'); await stepTryKeys(S);   // キーにまかせて、あいさつを打つ
@@ -1095,14 +1099,16 @@ function drawChoice(S, C, t, pb) {
   });
   choiceMsg(S, C, t, A, pb - fs * 4.2);
 }
+// 選ぶあいだの一言：どの場面でも「ゆっくり長押しして」を挟む（さっと叩くと、押し込みが読み取れないことがあるため。11/12）
+const selectMsg = C => C.tutorial ? tr('上がったキーをゆっくり長押しして、選んでください', 'Slowly press and hold a raised key to choose') : tr('ゆっくり長押しして、選んでください', 'Slowly press and hold to choose');
 // いま何をするかを、天の声として出す（すりガラスの黒いカプセルに、白い字）。色が状態を表す：
-//   読む＝赤い点（ゆっくり明滅）「まだキーは押さないでください」（早く押すと、ゆれる）／選ぶ＝オレンジの点「選んでください」（最初の1回は「上がったキーを押して、選んでください」）と残り時間のバー／
+//   読む＝赤い点（ゆっくり明滅）「まだキーは押さないでください」（早く押すと、ゆれる）／選ぶ＝オレンジの点「ゆっくり長押しして、選んでください」（最初の1回は「上がったキーをゆっくり長押しして、選んでください」）と残り時間のバー／
 //   決まった＝緑のチェック「選びました」「代わりに選びました」
 function choicePill(S, C, t, A, y) {   // iOS のシステムの知らせ（HUD）のような、すりガラスの黒いカプセル。白い字と、状態の色の点（決まったらチェック）。選べるあいだは、字の下に残り時間のバー
   const fs = S.fs * PILL_K, ts = fs * 0.76, cx = C.mx ?? W / 2;
   const st = C.stage === 'read' ? 'read' : C.stage === 'select' ? 'select' : 'done';
   const msg = st === 'read' ? tr('まだキーは押さないでください', "Don't press any keys yet")
-    : st === 'select' ? (C.tutorial ? tr('上がったキーを押して、選んでください', 'Press a raised key to choose') : tr('選んでください', 'Make your choice'))
+    : st === 'select' ? (selectMsg(C))
     : C.picked < 0 ? tr('代わりに選びました', 'Chosen for you') : tr('選びました', 'Chosen');
   const col = st === 'read' ? '#ff453a' : st === 'select' ? '#ff9f0a' : '#30d158';   // iOS のシステムカラー（暗い地の上）
   const e = st === 'read' && C.earlyT ? clamp((t - C.earlyT) / 600, 0, 1) : 1, dx = Math.sin(e * Math.PI * 6) * fs * 0.3 * (1 - e), k = 1 + 0.06 * (1 - e);
@@ -1137,12 +1143,12 @@ function choicePill(S, C, t, A, y) {   // iOS のシステムの知らせ（HUD�
   }
   g.restore(); g.globalAlpha = 1;
 }
-// いま何をするか（読む：「選択肢を読んでください」と赤い「まだキーは押さないでください」／選ぶ：「入力受付中」と「選んでください」／決まった：「選びました」）と、残り時間の線。
+// いま何をするか（読む：「選択肢を読んでください」と赤い「まだキーは押さないでください」／選ぶ：「入力受付中」と「ゆっくり長押しして、選んでください」／決まった：「選びました」）と、残り時間の線。
 // 星の3択と LINE で同じ
 function choiceMsg(S, C, t, A, msgY) {
   const fs = S.fs;
   const chosen = tr('選びました', 'Chosen'), forYou = tr('代わりに選びました', 'Chosen for you'), after = C.picked < 0 ? forYou : chosen;
-  const msg = {read: tr('選択肢を読んでください', 'Read the options'), select: C.tutorial ? tr('上がったキーを押して、選んでください', 'Press a raised key to choose') : tr('選んでください', 'Make your choice'),
+  const msg = {read: tr('選択肢を読んでください', 'Read the options'), select: selectMsg(C),
     picked: chosen, timeout: forYou, final: after, out: after}[C.stage];
   if (!msg) { g.globalAlpha = 1; return; }
   const color = INK, t0 = C.stage === 'final' || C.stage === 'out' ? -1e9 : C.t0;   // 「選びました」は出たまま
