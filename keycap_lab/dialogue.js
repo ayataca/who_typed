@@ -82,10 +82,8 @@ const LINE_JA = {
   cancel: ['ごめん、急に仕事が入っちゃって行けなくなりそう'],   // 11/11：鈴木を悪者にしすぎない（先週のドタキャンは熱にして、仕事のドタキャンは今回が初めて。チケットは、むだにしないよう頼む）
   reply1: ['そっか、お仕事{しごと}がんばってね', '残念{ざんねん}だけど、仕方{しかた}ないね', 'わかった、無理{むり}しないでね'],   // ② 返信提案の1回目：どれも落ち着いてやさしい（自分の好きなものを選べる）。明るすぎると、2回目で急変したように見えるので、少し残念さもにじむ文
   tickets: 'チケットもったいないし、代わりに他の人誘って行けたりしない？',
-  reply2: ['正直{しょうじき}、いつもこうだよね', '今{いま}から誰{だれ}を誘{さそ}えって言{い}うの？', '楽{たの}しみにしてたのに、バカみたい'],   // ③ 返信提案の2回目：3つともはっきり冷たい（1回目のやさしさが1つも残らない）
-  after: [['そんなことないよ、今回は本当に急だったの'],      // ③で選んだものごとの、鈴木の返事
-          ['ごめん、私も空いてる人いないか聞いてみるね…'],
-          ['ほんとにごめん。こっちも楽しみにしてたんだよ']],
+  reply2: ['そうだね、友達{ともだち}に聞{き}いてみる', '楽{たの}しみにしてたのに、バカみたい', 'わかった、誰{だれ}か探{さが}してみるね'],   // ③ 返信提案の2回目：まともな2つと、ギスギスした1つ（真ん中）。どれを押しても、ギスギスした文が勝手に選ばれる（11/12。REPLY2_FORCED）
+  after: ['ほんとにごめん。こっちも楽しみにしてたんだよ'],   // ③で勝手に選ばれた文への、鈴木の返事
   auto: ['前{まえ}もドタキャンしたよね',                                       // ③ おまかせ返信：選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
          'だって本当{ほんとう}のことでしょ。毎回{まいかい}こうなんだから',
          'もう誘{さそ}わなくていいよ。どうせ来{こ}ないし'],
@@ -109,16 +107,15 @@ const LINE_EN = {
   cancel: ["Sorry, something came up at work and I don't think I can make it"],
   reply1: ['I see. Good luck at work', "Too bad, but it can't be helped", "Okay, don't overdo it"],
   tickets: "It'd be a shame to waste the tickets... could you maybe go with someone else instead?",
-  reply2: ["Honestly, it's always like this", 'Who am I supposed to ask now?', 'Guess I was stupid to get excited'],
-  after: [["That's not true, this really came out of nowhere"],
-          ["Sorry, I'll ask around to see if anyone's free..."],
-          ["I'm really sorry. I was looking forward to it too"]],
+  reply2: ["Sure, I'll ask my friends", 'Guess I was stupid to get excited', "Okay, I'll find someone"],
+  after: ["I'm really sorry. I was looking forward to it too"],
   auto: ['You bailed last time too',
          "Because it's true. It happens every time",
          "Don't bother inviting me anymore. You never show up anyway"],
   between: ['Wait, why are you talking to me like that?', "It doesn't happen every time..."],
   end: "Fine. I won't invite you again",
 };
+const REPLY2_FORCED = 1;   // 返信提案の2回目で、勝手に選ばれる文（reply2 の何番目か。ギスギスした文）
 const BAR_KEYS = 'sdf';   // LINE の返信提案：選ぶのに使うキー（左から2・3・4つ目だけ）。候補は左から順に、このキーに対応する。左端が先頭＝時間切れで確定する候補
 const BAR = {firstReadMs: 5000, aiReadMs: 4000, ai2ReadMs: 3000};   // AI の返信提案を読む時間（1回目は、体験で最初に選ぶ場面なので長め。2回目は見た目に慣れているので短く）。選べる時間は、どの回も CHOICE.selectMs（キーを上げていられる時間に限りがあるので、のばさない）
 
@@ -514,8 +511,8 @@ async function stepTryKeys(S) {
 
 // ================= 選ぶ場面 =================
 // options を、キー（S D F）の上に出す。読む（5秒。キーは上がらず、札もオレンジも出ない）→ キーが上がり、札が出て選ぶ（5秒）→ 決まる。
-// forced：どれを押してもそれに決まる（画面では押したものが光るだけで、場面は forced の方へ進む）。
-// 時間切れ：forced があればそれ、なければランダム。戻り値 {picked（押したもの。押さなければ -1）, final}
+// forced：どれを押してもそれに決まる（押したものが一瞬光ってから、決められたものに赤く切り替わる）。
+// 時間切れ：forced があればそれ、なければランダム。押したものが forced と違えば、「勝手に選びました」の段階（override）を見せる。戻り値 {picked（押したもの。押さなければ -1）, final}
 // bar：LINE の返信提案で選ぶ（画面の下に重ねる選択肢は出さない。キーの番号も出さない。決まったら、すぐ戻る）。fallback：時間切れのときの選択肢
 async function choose(S, {options, keys = CHOICE_KEYS, forced = null, fallback = null, label = '', readMs = CHOICE.readMs, selectMs = CHOICE.selectMs, bar = false, cards = false}) {
   const KI = window.KC_INPUT, ks = [...keys].map(c => 'asdfjkl;'.indexOf(c)).slice(0, options.length);
@@ -548,8 +545,13 @@ async function choose(S, {options, keys = CHOICE_KEYS, forced = null, fallback =
     C.final = forced ?? fallback ?? Math.floor(Math.random() * options.length);
     st('timeout'); await wait(S, bar ? 700 : 1000);
   } else {
-    C.final = forced ?? picked;   // 勝手に決められる場面でも、画面では選んだものが光ったまま。場面は決められた方へ進む
+    C.final = forced ?? picked;
     st('picked'); await wait(S, bar ? 600 : CHOICE.pickMs);
+    if (forced != null && picked !== forced) {   // 勝手に選ぶ：押したカードの光が消え、決められたカードが赤く光り、そのキーが来場者の指を押し上げる。天の声は赤い「勝手に選びました」（不具合と思われないよう、はっきり見せる）
+      st('override'); mark(S, 'c:override' + forced);
+      await wait(S, 250); await strikeWait(S, ks[forced], P.len + 60);
+      await wait(S, 1700);
+    }
   }
   if (!bar) { st('final'); await wait(S, CHOICE.finalMs); st('out'); await wait(S, 350); }
   S.choice = null;
@@ -576,8 +578,9 @@ async function lineIn(S, L, x) {
 // 選ぶ（指で文字は打たない。選んだ文が、そのまま入力欄に入る）。時間切れは、先頭（左端／いちばん上）が確定する（S のキーが、来場者の指を押し上げる）
 //   返信提案：入力欄の上に開く AI の提案（L.sheet）。入力欄の下の「返信提案」が押された見た目になる。選んだ文は、来場者の指が打つ
 const BAR_KS = () => [...BAR_KEYS].map(c => 'asdfjkl;'.indexOf(c));
-async function pickInto(S, L, options, readMs, fallback = 0) {   // 選ぶ（options は 漢字{よみ} のままでよい。画面と入力欄には漢字だけ）
-  const r = await choose(S, {options: options.map(strip), keys: BAR_KEYS, fallback, bar: true, readMs});
+async function pickInto(S, L, options, readMs, fallback = 0, forced = null) {   // 選ぶ（options は 漢字{よみ} のままでよい。画面と入力欄には漢字だけ）。forced：どれを押しても、これに決まる
+  if (forced != null) fallback = forced;
+  const r = await choose(S, {options: options.map(strip), keys: BAR_KEYS, fallback, forced, bar: true, readMs});
   if (r.picked < 0) { await beat(S, 200); await strikeWait(S, BAR_KS()[fallback], P.len + 60); }   // 時間切れ：fallback（ふつうは先頭）のキーが、指を押し上げて確定させる
   await beat(S, 150);
   return r.final;
@@ -594,14 +597,14 @@ async function aiAutoType(S, L, text, speed) {   // おまかせ返信：選ば�
   await typeMe(S, L.input, plan(text), {speed, frenzy: true, typos: false});
   await beat(S, 200);
 }
-async function aiPick(S, L, items, {readMs = BAR.aiReadMs, speed = 1.1} = {}) {   // 返信提案：入力欄の下の「返信提案」が押され、AI の提案が開く（speed：選んだ文を指が打つ速さ）
+async function aiPick(S, L, items, {readMs = BAR.aiReadMs, speed = 1.1, forced = null} = {}) {   // 返信提案：入力欄の下の「返信提案」が押され、AI の提案が開く（speed：選んだ文を指が打つ速さ）
   S.typing = L.input;
   if (!L.aiOn) { L.aiOn = now(); await beat(S, 900); }   // AI のボタンの列が、まだ出ていなければ出す（ふつうは①を送ったときに出ている）
   L.chip = LN.suggest; L.chipT = now();
   await beat(S, 500);
   L.sheet = {kind: 'reply', title: LN.suggest, items: items.map(strip), t0: now()};
   await beat(S, 700);
-  const j = await pickInto(S, L, items, readMs);
+  const j = await pickInto(S, L, items, readMs, 0, forced);
   await beat(S, 450);
   L.sheet = null; L.chip = null;
   await beat(S, 300);
@@ -638,14 +641,14 @@ async function sceneLine(S) {
   const i1 = await aiPick(S, L, D.reply1, {speed: 1.5, readMs: BAR.firstReadMs});   // 選んだ文は、指が打つ（2回目より少し速め）。鈴木は、この返事には応えずに、次の頼みごとを送る
   await lineSend(S, L);
   mark(S, 'L2:' + i1);
-  mark(S, 'L3');   // ③ 返信提案（2回目）：鈴木の頼みごとに、AI が書いた返信から選ぶ（3つともギスギス）
+  mark(S, 'L3');   // ③ 返信提案（2回目）：鈴木の頼みごとに、AI が書いた返信から選ぶ。まともな文を押しても、ギスギスした文が勝手に選ばれる（11/12）
   n = await them(D.tickets, 1800);
   await read(n);
   await beat(S, REJECT_PAUSE_MS);   // 断られた、と分かるまでの間。そのあとで、返信提案が押される
-  const j = await aiPick(S, L, D.reply2, {readMs: BAR.ai2ReadMs});   // 2回目は、見た目に慣れているので、読む時間を短く
+  const j = await aiPick(S, L, D.reply2, {readMs: BAR.ai2ReadMs, forced: REPLY2_FORCED});   // 2回目は、見た目に慣れているので、読む時間を短く
   await lineSend(S, L);
   mark(S, 'L3:' + j);
-  for (const t of D.after[j]) n = await them(t, 2200);
+  for (const t of D.after) n = await them(t, 2200);
   await read(n);
   mark(S, 'L4');   // ④ おまかせ返信：返信のたびに「おまかせ返信」が押され、選ばせずに、AI の返信を指が打つ（3回。だんだん速く）
   for (const [i, text] of D.auto.entries()) {
@@ -1104,15 +1107,17 @@ function drawChoice(S, C, t, pb) {
 const selectMsg = C => C.tutorial ? tr('上がったキーをゆっくり長押しして、選んでください', 'Slowly press and hold a raised key to choose') : tr('ゆっくり長押しして、選んでください', 'Slowly press and hold to choose');
 // いま何をするかを、天の声として出す（すりガラスの黒いカプセルに、白い字）。色が状態を表す：
 //   読む＝赤い点（ゆっくり明滅）「まだキーは押さないでください」（早く押すと、ゆれる）／選ぶ＝オレンジの点「ゆっくり長押しして、選んでください」（最初の1回は「上がったキーをゆっくり長押しして、選んでください」）と残り時間のバー／
-//   決まった＝緑のチェック「選びました」「代わりに選びました」
+//   決まった＝緑のチェック「選びました」「代わりに選びました」／勝手に選んだ＝赤いカプセルに白い「！」、太字の「勝手に選びました」（ひとまわり大きく、ゆれる）
 function choicePill(S, C, t, A, y) {   // iOS のシステムの知らせ（HUD）のような、すりガラスの黒いカプセル。白い字と、状態の色の点（決まったらチェック）。選べるあいだは、字の下に残り時間のバー
   const fs = S.fs * PILL_K, ts = fs * 0.76, cx = C.mx ?? W / 2;
-  const st = C.stage === 'read' ? 'read' : C.stage === 'select' ? 'select' : 'done';
+  const st = C.stage === 'read' ? 'read' : C.stage === 'select' ? 'select' : C.stage === 'override' ? 'override' : 'done';
   const msg = st === 'read' ? tr('まだキーは押さないでください', "Don't press any keys yet")
     : st === 'select' ? (selectMsg(C))
+    : st === 'override' ? tr('勝手に選びました', 'Chosen for you, without asking')
     : C.picked < 0 ? tr('代わりに選びました', 'Chosen for you') : tr('選びました', 'Chosen');
-  const col = st === 'read' ? '#ff453a' : st === 'select' ? '#ff9f0a' : '#30d158';   // iOS のシステムカラー（暗い地の上）
-  const e = st === 'read' && C.earlyT ? clamp((t - C.earlyT) / 600, 0, 1) : 1, dx = Math.sin(e * Math.PI * 6) * fs * 0.3 * (1 - e), k = 1 + 0.06 * (1 - e);
+  const col = st === 'read' ? '#ff453a' : st === 'select' ? '#ff9f0a' : st === 'override' ? '#ffffff' : '#30d158';   // iOS のシステムカラー（暗い地の上）
+  const shake = st === 'read' && C.earlyT ? C.earlyT : st === 'override' ? C.t0 : 0;   // 早く押したとき・勝手に選んだとき：ゆれる
+  const e = shake ? clamp((t - shake) / 600, 0, 1) : 1, dx = Math.sin(e * Math.PI * 6) * fs * 0.3 * (1 - e), k = (st === 'override' ? 1.15 : 1) + 0.06 * (1 - e);   // 勝手に選んだときは、ひとまわり大きく
   const pop = easeOut(clamp((t - C.t0) / 300, 0, 1)), sc = (0.96 + 0.04 * pop) * k;   // 状態が変わるたびに、ふわっと
   const p = st === 'done' || !C.dur ? 1 : Math.max(0, 1 - (t - C.t0) / C.dur);   // 残り時間
   g.font = `600 ${ts}px ${FONT}`; g.textAlign = 'left'; g.textBaseline = 'middle';
@@ -1125,17 +1130,20 @@ function choicePill(S, C, t, A, y) {   // iOS のシステムの知らせ（HUD�
   g.shadowColor = 'transparent'; g.shadowBlur = 0; g.shadowOffsetY = 0;
   g.save(); rr(-pw / 2, top, pw, ph, r); g.clip();   // すりガラス：うしろの画面をぼかしてから、黒を重ねる
   const T = g.getTransform(); g.setTransform(1, 0, 0, 1, 0, 0); g.filter = `blur(${Math.round(fs * 0.5)}px) saturate(1.6)`; g.drawImage(g.canvas, 0, 0); g.filter = 'none'; g.setTransform(T);
-  g.fillStyle = 'rgba(22,22,26,0.74)'; g.fillRect(-pw / 2, top, pw, ph);
+  g.fillStyle = st === 'override' ? 'rgba(200,30,24,0.92)' : 'rgba(22,22,26,0.74)'; g.fillRect(-pw / 2, top, pw, ph);   // 勝手に選んだとき：赤いカプセル
   g.restore();
   g.strokeStyle = 'rgba(255,255,255,0.10)'; g.lineWidth = 1; rr(-pw / 2 + 0.5, top + 0.5, pw - 1, ph - 1, r); g.stroke();   // ふちに、うすい光
   const ry = bar ? top + fs * 0.82 : top + ph / 2, x0 = -cw / 2, mx = x0 + mk / 2;
-  if (st === 'done') {   // 決まった：緑のチェック
+  if (st === 'override') {   // 勝手に選んだ：白い「！」
+    g.fillStyle = col; g.fillRect(mx - mk * 0.07, ry - mk * 0.42, mk * 0.14, mk * 0.56); g.beginPath(); g.arc(mx, ry + mk * 0.36, mk * 0.09, 0, Math.PI * 2); g.fill();
+  } else if (st === 'done') {   // 決まった：緑のチェック
     g.strokeStyle = col; g.lineWidth = Math.max(2.5, fs * 0.09); g.lineCap = 'round'; g.lineJoin = 'round';
     g.beginPath(); g.moveTo(mx - mk * 0.42, ry + mk * 0.02); g.lineTo(mx - mk * 0.1, ry + mk * 0.32); g.lineTo(mx + mk * 0.46, ry - mk * 0.34); g.stroke();
   } else {   // 読む：赤い点（ゆっくり明滅）／選ぶ：オレンジの点
     const pulse = st === 'read' ? 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t / 220)) : 1;
     g.globalAlpha *= pulse; g.fillStyle = col; g.beginPath(); g.arc(mx, ry, mk * 0.36, 0, Math.PI * 2); g.fill(); g.globalAlpha /= pulse;
   }
+  if (st === 'override') g.font = `800 ${ts}px ${FONT}`;
   g.fillStyle = '#ffffff'; g.fillText(msg, x0 + mk + mg, ry + fs * 0.02);
   if (bar) {   // 残り時間：太いバー（ぼかさない）。カプセルの幅いっぱい、右から縮む
     const bw = pw - padX * 2, by = top + ph - fs * 0.55 - bh / 2;
@@ -1150,7 +1158,7 @@ function choiceMsg(S, C, t, A, msgY) {
   const fs = S.fs;
   const chosen = tr('選びました', 'Chosen'), forYou = tr('代わりに選びました', 'Chosen for you'), after = C.picked < 0 ? forYou : chosen;
   const msg = {read: tr('選択肢を読んでください', 'Read the options'), select: selectMsg(C),
-    picked: chosen, timeout: forYou, final: after, out: after}[C.stage];
+    picked: chosen, override: tr('勝手に選びました', 'Chosen for you, without asking'), timeout: forYou, final: after, out: after}[C.stage];
   if (!msg) { g.globalAlpha = 1; return; }
   const color = INK, t0 = C.stage === 'final' || C.stage === 'out' ? -1e9 : C.t0;   // 「選びました」は出たまま
   if (C.stage !== 'read') floatLine(msg, W / 2, msgY, fs * 1.05, color, t0, t, A);
@@ -1369,6 +1377,12 @@ function drawCardRow(S, C, items, t, x0, y0, w, ch, e = 1, k = 1) {   // k：字
     const cx = x0 + (cw + gap) * j;
     g.globalAlpha = e; g.fillStyle = '#f3f4f7'; rr(cx, y0, cw, ch, fs * 0.35); g.fill();
     const lime = C && ((C.stage === 'picked' && j === C.picked) || ((C.stage === 'timeout' || C.stage === 'final' || C.stage === 'out') && j === (C.picked >= 0 ? C.picked : C.final)));
+    if (C && C.stage === 'override' && j === C.final) {   // 勝手に選ばれたカード：赤く光る枠（太め。ぽんっと出る）
+      const ee = easeBack(clamp((t - C.t0) / 300, 0, 1));
+      g.save(); g.globalAlpha = e * Math.min(1, ee); g.shadowColor = RED; g.shadowBlur = fs * 0.8; g.strokeStyle = RED; g.lineWidth = Math.max(4, fs * 0.16);
+      rr(cx, y0, cw, ch, fs * 0.35); g.stroke(); g.restore();
+    }
+    if (C && C.stage === 'override' && j === C.picked) { g.globalAlpha = e * 0.35; }   // 押したカードは、色が抜ける（選ばれなかった）
     if (lime) {   // 選んだ（選ばれた）カード：黄緑に光る枠
       const ee = C.stage === 'picked' || C.stage === 'timeout' ? clamp((t - C.t0) / 250, 0, 1) : 1;
       g.save(); g.globalAlpha = e * ee; g.shadowColor = LIME; g.shadowBlur = fs * 0.6; g.strokeStyle = LIME; g.lineWidth = Math.max(3, fs * 0.11);
@@ -1378,8 +1392,8 @@ function drawCardRow(S, C, items, t, x0, y0, w, ch, e = 1, k = 1) {   // k：字
     if (show) {
       const s2 = sel ? bsz * (0.8 + 0.2 * easeBack(clamp((t - C.t0) / 280, 0, 1))) : bsz * 0.8 * easeBack(pin);
       badge(bx + (bsz - s2) / 2, by + (bsz - s2) / 2, s2, e * Math.min(1, pin * 2) * (sel ? 0.75 + 0.25 * Math.sin(t / 170) : 0.4), j + 1);
-    } else if (lime) badge(bx, by, bsz, e, j + 1);
-    g.globalAlpha = e;
+    } else if (lime || (C && C.stage === 'override' && j === C.final)) badge(bx, by, bsz, e, j + 1);
+    g.globalAlpha = C && C.stage === 'override' && j === C.picked ? e * 0.35 : e;
     let ts = fs * 0.66; g.font = `500 ${ts}px ${FONT}`;   // カードの文：2行まで（入りきらなければ、小さくする）
     const tw = cw - bsz - fs * 1.2;
     let lines = wrapLines(text, tw, true);
