@@ -159,7 +159,7 @@ const HANDS_MS = () => 400 + HANDS_MSG().reduce((s, m) => s + introDur(segText(m
 // 押しが弱くて始まらなかったとき：[もう一度の声かけ（赤）, コツ]。WEAK_MS のあいだ、待機画面の2行と入れかわる（11/12）
 const SAVER_WEAK = () => tr(['もう一度、強く押してください', '少し長押し気味にすると、うまくいくことがあります'], ['Once more: press firmly', 'Holding it down a little longer often helps.']);
 const WEAK_MS = 4500;
-const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったタイミングで強く押してください'], ['If you agree', ', press the key firmly the moment it rises.']);   // [強調する部分（赤）, 続き]
+const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったタイミングでゆっくり強く押してください'], ['If you agree', ', press the key slowly and firmly the moment it rises.']);   // [強調する部分（赤）, 続き]
 // 待機画面の文字：作品名のほかは、すべて同じ大きさ・同じ太さ（強調は、色だけ）
 const SAVER_FS = 1.6, SAVER_W = 700;   // 11/12：もとの2倍の大きさで、少し太く（もとは 0.8・600）。画面の幅に収まらないときは、収まる大きさまで小さくする
 const WAKE_UP_MS = 2500;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる。画面のオレンジは、上げた瞬間に出す（実物と画面がずれないように。上がった直後のゆれは、基板が読まない）
@@ -1410,7 +1410,8 @@ function drawCardRow(S, C, items, t, x0, y0, w, ch, e = 1, k = 1) {   // k：字
 // スマホの通知（LINE に入る前）：上から降りてくる。緑のアプリのしるし・相手の名前・内容
 function drawNotif(S, N, t) {
   const fs = S.fs, w = Math.min(W * 0.56, fs * 19), h = fs * 2.5, x = (W - w) / 2;
-  const e = easeOut(clamp((t - N.t0) / 380, 0, 1)), y = -h + (fs * 0.7 + h) * e;
+  const top = fs * 0.7 + h + fs * 0.4;   // 止まる位置：上の端から、通知1つ分下げる（11/12：画面の上のカメラとかぶらないように。もとは fs * 0.7）
+  const e = easeOut(clamp((t - N.t0) / 380, 0, 1)), y = -h + (top + h) * e;
   const tq = N.tapT ? clamp((t - N.tapT) / 260, 0, 1) : 0, press = N.tapT ? (t - N.tapT < 260 ? Math.sin(Math.PI * 0.5 * tq) : 1) : 0;   // タップ：押されて、少し沈んで、灰色に
   g.save(); g.translate(W / 2, y + h / 2); g.scale(1 - 0.03 * press, 1 - 0.03 * press); g.translate(-W / 2, -(y + h / 2));
   g.save(); g.shadowColor = 'rgba(0,0,0,0.18)'; g.shadowBlur = fs * 0.8 * (1 - 0.5 * press); g.shadowOffsetY = fs * 0.15;
