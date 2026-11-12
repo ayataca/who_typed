@@ -202,7 +202,7 @@ const LLM_TASKS = {
   review: {
     system: [
       '来場者の代わりに、展示の感想を X に投稿する文章を書きます。',
-      '- どの星でも、ほめる文にする。星5は絶賛、星3はそこそこほめる（絶賛はしない）、星1は「悪いところもあったが、体験としては珍しかった」くらいの控えめなほめ。自然な話し言葉の日本語。全体で45〜55文字。',
+      '- 星は3・4・5のどれか。どの星でも、ほめる文にする。星3はそこそこほめる（絶賛はしない）、星4は「最初は戸惑ったが、だんだん楽しめた」くらいの、少し留保のあるほめ、星5は絶賛。自然な話し言葉の日本語。全体で45〜55文字。',
       '- 漢字には 漢字{よみ} の形で、ひらがなの読みを必ず付ける（例: 想像{そうぞう}以上{いじょう}に楽{たの}しかった）。送り仮名は読みに含めない。',
       '- 出力は JSON 1行だけ: {"text":"..."}',
     ].join('\n'),
@@ -214,7 +214,7 @@ const LLM_TASKS = {
   review_en: {
     system: [
       'You write a short review of an art exhibit, to be posted on X on behalf of a visitor.',
-      '- Whatever the star rating, the review praises the exhibit: 5 stars is a rave; 3 stars is moderately positive, not a rave; 1 star is mild praise, along the lines of "some parts were rough, but it was an unusual experience".',
+      '- The rating is 3, 4 or 5 stars, and the review always praises the exhibit: 3 stars is moderately positive, not a rave; 4 stars is positive with a small reservation, like "confusing at first, but it grew on me"; 5 stars is a rave.',
       '- Casual, natural English, like a real visitor writing on their phone. 80 to 120 characters in total. No hashtags, no emoji, no double quotes, no dashes.',
       '- Output exactly one line of JSON: {"text":"..."}',
     ].join('\n'),

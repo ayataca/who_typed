@@ -55,7 +55,7 @@ const CHOICE = {readMs: 4000, prepMs: 1500, selectMs: 4000, pickMs: 600, finalMs
 const CARD_K = 1.25;   // インストラクターの画面のカード（星）の大きさ（LINE の返信提案のカードの何倍か）
 const PILL_K = 1.3;    // 天の声（「まだキーは押さないでください」「選んでください」「選びました」）の大きさ
 const CHOICE_KEYS = 'sdf';   // 3択に使うキー（左手の薬指・中指・人さし指）。左の選択肢から順に
-const STAR_CHOICES = [1, 3, 5];   // 星の3択（左から S D F）。どれを押しても星1になる
+const STAR_CHOICES = [3, 4, 5];   // 星の3択（左から S D F。11/12：星3・4・5）。どれを押しても、Xで勝手に星1にされる
 
 // LINE：鈴木との会話。文は、どれも来場者の指が打つ（返信提案は、選んだ文を打つ）。送るのは右小指の Enter。
 //   ① 最初の返事（鈴木「明日のライブのことなんだけど、、」に「うん、どうしたの？」。選ばせずに、キーが指を動かして打つ。11/11：予測変換はテンポが悪いのでやめた）
@@ -123,16 +123,16 @@ const BAR_KEYS = 'sdf';   // LINE の返信提案：選ぶのに使うキー（�
 const BAR = {firstReadMs: 5000, aiReadMs: 4000, ai2ReadMs: 3000};   // AI の返信提案を読む時間（1回目は、体験で最初に選ぶ場面なので長め。2回目は見た目に慣れているので短く）。選べる時間は、どの回も CHOICE.selectMs（キーを上げていられる時間に限りがあるので、のばさない）
 
 // X：押した星に合った下書き（LLM が使えないときは、これ）→ 右小指の連打で消される → 星1になり、辛口の感想が高速で打たれて、そのままポストされる
-//   星5：絶賛／星3：そこそこほめる（絶賛ではない）／星1：悪いところもあったが、体験としては珍しかった、くらいの控えめなほめ
+//   星3：そこそこほめる（絶賛ではない）／星4：少し戸惑いもあったが、楽しめた（3・5と言い回しが重ならないように）／星5：絶賛（11/12：星3・5はもとの文のまま、星4を足した）
 const DRAFTS_JA = {
   5: '想像{そうぞう}以上{いじょう}に楽{たの}しかったです！指先{ゆびさき}に伝{つた}わる感覚{かんかく}が新鮮{しんせん}でした。',
+  4: '最初{さいしょ}は戸惑{とまど}ったけど、だんだん楽{たの}しくなりました。キーが勝手{かって}に動{うご}くのが不思議{ふしぎ}でした。',
   3: '思{おも}ったより面白{おもしろ}かったです。指{ゆび}が動{うご}かされる感覚{かんかく}は新鮮{しんせん}でした。',
-  1: '分{わ}かりにくいところもあったけど、体験{たいけん}としては珍{めずら}しかったかな。',
 };
 const DRAFTS_EN = {
   5: 'This was way more fun than I expected! The sensation in my fingertips felt totally new.',
+  4: 'A bit confusing at first, but it grew on me. The keys moving on their own felt so strange.',
   3: "More interesting than I thought it'd be. Having my fingers moved for me felt pretty new.",
-  1: 'Some parts were hard to follow, but as an experience it was definitely unusual.',
 };
 const REVIEW_SPEED = p => 1.6 + 1.8 * p;   // 打った割合 p → 速さ。どんどん速くなる
 const REJECT_PAUSE_MS = 3500;   // 鈴木の「チケットもったいないし、代わりに他の人誘って行けたりしない？」のあと、返信提案が押されるまでに足す間（11/11。断られたと分かる時間）
@@ -153,14 +153,15 @@ const PUSH_MS = () => {   // この画面を見せる時間：字が出きって
   const need = 400 + introDur(PUSH_MSG()) + RISE + INTRO_READ_MS;
   return PUSH_CYCLE * Math.max(2, Math.ceil((need - 1400) / PUSH_CYCLE)) + 1400;
 };
-// あいさつのあとの2枚目：指の置き方（2行とも、同じ大きさ・同じ太さ・同じ行間）
-const HANDS_MSG = () => [tr('親指以外の8本を、体重をかけずに軽く添えてください。', 'Rest 8 fingers lightly, without your thumbs.'),
-  tr('押さえてしまうと、キーが上がりきらないことがあります。', "If you hold them down, the keys may not rise all the way.")];
-const HANDS_MS = () => 400 + HANDS_MSG().reduce((s, m) => s + introDur(m), 0) + 300 + RISE + INTRO_READ_MS;   // 指の置き方を見せる時間（2行が出きって、読む時間がたつまで）
+// あいさつのあとの2枚目：指の置き方（2行とも、同じ大きさ・同じ行間）。1行は [文, 強調するか] の並び。強調は、太字と下線（「体重はかけずに」と、2行目の注意書き。11/12）
+const HANDS_MSG = () => tr([[['親指以外の8本を、', 0], ['体重はかけずに', 1], ['軽く添えてください。', 0]], [['押さえてしまうと、キーが上がりきらないことがあります。', 1]]],
+  [[['Rest 8 fingers lightly, ', 0], ['without your weight', 1], ['.', 0]], [["If you hold them down, the keys may not rise all the way.", 1]]]);
+const segText = line => line.map(x => x[0]).join('');
+const HANDS_MS = () => 400 + HANDS_MSG().reduce((s, m) => s + introDur(segText(m)), 0) + 300 + RISE + INTRO_READ_MS;   // 指の置き方を見せる時間（2行が出きって、読む時間がたつまで）
 // 始め方の2行。1行目は [強調する部分（赤）, 続き] に分けて書く。キーの文字（F）は、来場者には関係ないので出さない
 const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったら長押ししてください'], ['If you agree', ', press and hold the key when it rises.']);   // [強調する部分（赤）, 続き]
 // 待機画面の文字：作品名のほかは、すべて同じ大きさ・同じ太さ（強調は、色だけ）
-const SAVER_FS = 0.8, SAVER_W = 600;
+const SAVER_FS = 1.6, SAVER_W = 700;   // 11/12：もとの2倍の大きさで、少し太く（もとは 0.8・600）。画面の幅に収まらないときは、収まる大きさまで小さくする
 const WAKE_UP_MS = 2500;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる。画面のオレンジは、上げた瞬間に出す（実物と画面がずれないように。上がった直後のゆれは、基板が読まない）
 // 待機の押し込みは、勝手に始まらないよう厳しめに読む（基板がつながっているとき）：
 // 押し込みの強さが、しきい値の WAKE_MIN_RATIO 倍以上のときだけ始める（ノイズは、しきい値すれすれのことが多い）。押し込みのたびに、強さを下の帯に出す
@@ -694,13 +695,13 @@ function nextReview() {
   lsSet(reviewKey(), String((i + 1) % REVS.length));
   return {i, src: REVS[i]};
 }
-// 最後のインストラクター：Xに投稿することを伝え、星を聞く（3択：星1・星3・星5。どれを押しても、星1になる）
+// 最後のインストラクター：Xに投稿することを伝え、星を聞く（3択：星3・星4・星5。どれを押しても、Xで星1にされる）
 async function stepToX(S) {
   await say(S, TX.toX, {after: 700});   // 投稿されることは、待機画面で伝えてある（同意した人だけが始める）
   const drafts = Object.fromEntries(STAR_CHOICES.map(n => [n, llm(S, LANG === 'en' ? 'review_en' : 'review', {stars: n})]));   // 星を選んでいるあいだに、どの星の下書きもつくっておく
   await say(S, TX.askStars, {keep: true, after: 300});
   mark(S, 'q:askStars');
-  const r = await choose(S, {options: STAR_CHOICES.map(n => '★'.repeat(n) + '☆'.repeat(5 - n) + tr('　星' + n, `  ${n} star${n > 1 ? 's' : ''}`)), forced: STAR_CHOICES.indexOf(1), cards: true});
+  const r = await choose(S, {options: STAR_CHOICES.map(n => '★'.repeat(n) + '☆'.repeat(5 - n) + tr('　星' + n, `  ${n} star${n > 1 ? 's' : ''}`)), cards: true});   // 時間切れのときは、ランダムに
   await wait(S, 300);
   clearCli(S);
   const stars = STAR_CHOICES[r.picked >= 0 ? r.picked : r.final];
@@ -713,7 +714,7 @@ async function stepX(S, stars, draftP) {
   await slide(S, X, 1);
   clearCli(S, true);
   const r = await ok(S, draftP);
-  const draft = r && r.text && strip(r.text).length >= tr(18, 40) ? trimDraft(r.text) : DRAFTS[stars] || DRAFTS[5];
+  const draft = r && r.text && strip(r.text).length >= tr(18, 40) ? trimDraft(r.text) : DRAFTS[stars] || DRAFTS[3];
   mark(S, 'x:slid');
   await beat(S, 500);
   S.typing = X;
@@ -1637,7 +1638,11 @@ function drawSaver(S, V, t, dt, pb) {
   const tx = W / 2 - g.measureText(TITLE).width / 2;
   g.fillText(shown, tx, ty);
   if (d.typing || Math.floor(t / 530) % 2 === 0) g.fillRect(tx + g.measureText(shown).width + ts * 0.05, ty - ts * 0.76, Math.max(2, ts * 0.03), ts * 0.92);
-  const bs = fs * SAVER_FS, lh = bs * 1.7, font = `${SAVER_W} ${bs}px ${FONT}`;
+  let bs = fs * SAVER_FS;
+  g.font = `${SAVER_W} ${bs}px ${FONT}`;
+  const widest = Math.max(...[SAVER_NOTE(), SAVER_GO().join('')].map(m => g.measureText(m).width));
+  if (widest > W * 0.9) bs *= W * 0.9 / widest;   // 横長でない画面でも、はみ出さない
+  const lh = bs * 1.7, font = `${SAVER_W} ${bs}px ${FONT}`;
   // 下：始め方。F の上の丸から、実物の F キーへ細い線。
   // 丸は、下がっているあいだは淡く小さい。キーが上がった瞬間に、濃いオレンジになって輪が広がる（今押していい、の合図）
   const x = kx(BEAT_KEY), cy = pb * 0.9, rt = ready ? since : 1e9, q = Math.exp(-rt / 260);
@@ -1748,14 +1753,34 @@ function riseLine(str, cx, cy, size, t0, t, a = 1) {
   g.globalAlpha = 1;
   return at;
 }
+// riseLine の、強調まじりの版：segs は [文, 強調するか] の並び。強調は太字（800）と下線（字が浮かび上がるのに合わせて、線も字ごとにのびる）。ふつうの字は 600
+function riseSegs(segs, cx, cy, size, t0, t, a = 1) {
+  const font = em => `${em ? 800 : 600} ${size}px ${FONT}`;
+  const w = segs.reduce((s, [str, em]) => { g.font = font(em); return s + textW(str); }, 0);
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  let x = cx - w / 2, at = t0;
+  for (const [str, em] of segs) {
+    g.font = font(em);
+    for (const ch of str) {
+      const e = easeOut(clamp((t - at) / RISE, 0, 1)), cw = cw1(ch);
+      if (e > 0) {
+        g.globalAlpha = a * e; g.fillText(ch, x, cy + (1 - e) * size * 0.45);
+        if (em) g.fillRect(x, cy + size * 0.68, cw + 0.5, Math.max(2, size * 0.07));   // 下線（字の下に、字と同じ濃さで）
+      }
+      x += cw; at += charGap(ch, INTRO_CHAR_MS);
+    }
+  }
+  g.globalAlpha = 1;
+  return at;
+}
 function drawHands(S, Hs, t, pb) {
   const fs = S.fs, a = clamp((t - Hs.t0) / 400, 0, 1);
   g.globalAlpha = a;
   const aw = Math.min(W * 0.6, pb * 1.45), ab = handsArt(W / 2, pb * 0.1, aw, t, {keys: [], p: 0});
   const ms = fs * 1.0, lh = ms * 1.6, lines = HANDS_MSG(), y = Math.min(ab + ms * 1.6, pb - ms * 0.9 - lh * (lines.length - 1));
-  g.font = `600 ${ms}px ${FONT}`; g.fillStyle = INK;
+  g.fillStyle = INK;
   let t1 = Hs.t0 + 400;
-  lines.forEach((m, i) => { t1 = riseLine(m, W / 2, y + lh * i, ms, t1, t, a) + 300; });   // 同じ大きさ・同じ太さ・同じ行間。インストラクターの台詞と同じく、1文字ずつ浮かび上がる（2行目は1行目のあと）
+  lines.forEach((m, i) => { t1 = riseSegs(m, W / 2, y + lh * i, ms, t1, t, a) + 300; });   // 同じ大きさ・同じ行間。インストラクターの台詞と同じく、1文字ずつ浮かび上がる（2行目は1行目のあと）
   g.globalAlpha = 1;
 }
 function drawScr(S, scr, t, dt, pb) {
