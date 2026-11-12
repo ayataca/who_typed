@@ -156,7 +156,10 @@ const HANDS_MSG = () => tr([[['親指以外の8本を、', 0], ['体重はかけ
 const segText = line => line.map(x => x[0]).join('');
 const HANDS_MS = () => 400 + HANDS_MSG().reduce((s, m) => s + introDur(segText(m)), 0) + 300 + RISE + INTRO_READ_MS;   // 指の置き方を見せる時間（2行が出きって、読む時間がたつまで）
 // 始め方の2行。1行目は [強調する部分（赤）, 続き] に分けて書く。キーの文字（F）は、来場者には関係ないので出さない
-const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったら力強くゆっくり長押ししてください'], ['If you agree', ', press the key firmly and slowly when it rises, and hold it.']);   // [強調する部分（赤）, 続き]
+// 押しが弱くて始まらなかったとき：[もう一度の声かけ（赤）, コツ]。WEAK_MS のあいだ、待機画面の2行と入れかわる（11/12）
+const SAVER_WEAK = () => tr(['もう一度、強く押してください', '少し長押し気味にすると、うまくいくことがあります'], ['Once more: press firmly', 'Holding it down a little longer often helps.']);
+const WEAK_MS = 4500;
+const SAVER_GO = () => tr(['同意いただける方は', '、キーが上がったタイミングで強く押してください'], ['If you agree', ', press the key firmly the moment it rises.']);   // [強調する部分（赤）, 続き]
 // 待機画面の文字：作品名のほかは、すべて同じ大きさ・同じ太さ（強調は、色だけ）
 const SAVER_FS = 1.6, SAVER_W = 700;   // 11/12：もとの2倍の大きさで、少し太く（もとは 0.8・600）。画面の幅に収まらないときは、収まる大きさまで小さくする
 const WAKE_UP_MS = 2500;      // 待機：F を上げておく時間。このあいだに押し込まれたら始まる。画面のオレンジは、上げた瞬間に出す（実物と画面がずれないように。上がった直後のゆれは、基板が読まない）
@@ -1654,7 +1657,7 @@ function drawSaver(S, V, t, dt, pb) {
   if (d.typing || Math.floor(t / 530) % 2 === 0) g.fillRect(tx + g.measureText(shown).width + ts * 0.05, ty - ts * 0.76, Math.max(2, ts * 0.03), ts * 0.92);
   let bs = fs * SAVER_FS;
   g.font = `${SAVER_W} ${bs}px ${FONT}`;
-  const widest = Math.max(...[SAVER_NOTE(), SAVER_GO().join('')].map(m => g.measureText(m).width));
+  const widest = Math.max(...[SAVER_NOTE(), SAVER_GO().join(''), ...SAVER_WEAK()].map(m => g.measureText(m).width));
   if (widest > W * 0.9) bs *= W * 0.9 / widest;   // 横長でない画面でも、はみ出さない
   const lh = bs * 1.7, font = `${SAVER_W} ${bs}px ${FONT}`;
   // 下：始め方。F の上の丸から、実物の F キーへ細い線。
@@ -1666,15 +1669,18 @@ function drawSaver(S, V, t, dt, pb) {
   if (rt < 900) { g.globalAlpha = 0.6 * (1 - rt / 900); g.lineWidth = 3; g.beginPath(); g.arc(x, cy, r + fs * 1.6 * (rt / 900), 0, Math.PI * 2); g.stroke(); }
   g.globalAlpha = on;
   g.fillStyle = ORANGE; g.beginPath(); g.arc(x, cy, r, 0, Math.PI * 2); g.fill();
-  // 丸の上に、始め方。弱くて無視した押し込みのあと（2秒）は、代わりに短い声かけ
-  const weak = S.weakT && t - S.weakT < 2200;
+  // 丸の上に、始め方。弱くて無視した押し込みのあと（WEAK_MS）は、代わりに声かけとコツ
+  const weak = S.weakT && t - S.weakT < WEAK_MS;
   g.globalAlpha = 1; g.textAlign = 'center'; g.textBaseline = 'middle';
   const go = SAVER_GO(), y2 = cy - fs * 0.75 - bs * 1.4, y1 = y2 - lh;   // 2行は、同じ行間で（丸の大きさが変わっても、文は動かさない）
   g.font = font; g.fillStyle = INK;
   const xc = W / 2;   // 文は画面の中央にそろえる（丸と線だけが、実物の F キーの上）
-  g.fillText(SAVER_NOTE(), xc, y1);   // Xへの投稿のこと（同意してもらう中身）
-  if (weak) { g.fillStyle = RED; g.fillText(tr('もう一度、力強くゆっくり長押ししてください', 'Once more: press firmly and slowly, and hold'), xc, y2); }   // 弱くて無視したとき：2行目の代わりに（2秒）
-  else {   // 「同意いただける方は」だけ赤
+  if (weak) {   // 弱くて無視したとき（WEAK_MS のあいだ）：2行とも入れかえて、もう一度の声かけ（赤）と、うまくいくコツ
+    const [again, tip] = SAVER_WEAK();
+    g.fillStyle = RED; g.fillText(again, xc, y1);
+    g.fillStyle = INK; g.fillText(tip, xc, y2);
+  } else {
+    g.fillText(SAVER_NOTE(), xc, y1);   // Xへの投稿のこと（同意してもらう中身）。2行目は「同意いただける方は」だけ赤
     const w0 = g.measureText(go[0]).width, w1 = g.measureText(go[1]).width, x0 = xc - (w0 + w1) / 2;
     g.textAlign = 'left'; g.fillStyle = RED; g.fillText(go[0], x0, y2); g.fillStyle = INK; g.fillText(go[1], x0 + w0, y2); g.textAlign = 'center';
   }
@@ -1834,7 +1840,7 @@ const EXP = {
       const strong = d.ratio >= WAKE_MIN_RATIO;
       status(`待機の押し込み F：強さ ${d.ratio.toFixed(1)}（しきい値の倍。${WAKE_MIN_RATIO} 以上で開始）→ ${strong ? '開始' : '弱いので無視'}`, 4000);
       if (strong) begin(S);
-      else S.weakT = now();   // 弱くて無視した：画面で「もう一度、長押ししてください」と声をかける
+      else S.weakT = now();   // 弱くて無視した：画面で「もう一度、強く押してください」と、長押し気味にするコツを出す
     };
     addEventListener('kc-down', S.onDown);
     addEventListener('keydown', S.onKey);
